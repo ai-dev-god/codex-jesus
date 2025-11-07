@@ -10,12 +10,13 @@
 - Reset generated artifacts with `./platform/scripts/reset_workspace.sh` before a fresh run if needed.
 
 ## Build & Validation Commands
-- **Frontend install:** `cd frontend && npm install`
+- **Frontend install:** `cd bh-fe && npm install`
 - **Frontend dev (placeholder):** No hot-reload script yet — add via DevOps milestone.
-- **Frontend tests:** `cd frontend && npm test` (placeholder; implement once tests exist).
+- **Frontend tests:** `cd bh-fe && npm test` (placeholder; implement once tests exist).
+- **Legacy note:** The previous `frontend/` workspace remains checked in for historical reference but is no longer used; route all new UI work through `bh-fe/`.
 - **Backend install:** `# TODO` backend service is not scaffolded yet.
 - **Repo lint/tests:** Define per service once implemented; record in this guide as they appear.
-- **End-to-end:** `devops/start-e2e.sh && npm run test:e2e --prefix frontend && devops/stop-e2e.sh` (ensure `npm run db:reset --prefix backend` succeeds inside the start script).
+- **End-to-end:** `devops/start-e2e.sh && npm run test:e2e --prefix bh-fe && devops/stop-e2e.sh` (ensure `npm run db:reset --prefix backend` succeeds inside the start script).
 
 ## Directory Map
  - `platform/` — hub for all orchestration assets.
@@ -26,7 +27,7 @@
  - `platform/EVAL/` — grader configurations, historical scores, and QA evidence.
  - `platform/automation/` — orchestration code for running agents and enforcing gates.
  - `platform/automation_artifacts/` — conversation logs, transcripts, per-task reports, and workflow run logs.
- - `platform/web/` — local dashboard (`backend/` + `frontend/`) that visualises status, artifacts, conversations, and lets you talk to agents.
+ - `platform/web/` — local dashboard (`backend/` + `bh-fe/`) that visualises status, artifacts, conversations, and lets you talk to agents.
  - `docs/` — legacy MVP notes; keep immutable unless migrating content.
 
 ## Agent Responsibilities
@@ -39,7 +40,7 @@
 - **Scaffolder** owns repository setup (DevOps scripts, CI, baseline tests).
 - **Module Developers** build features and unit coverage while applying UX-defined `data-testid` hooks.
 - **Test Engineer** validates logic/selectors, seeds data via the documented reset command, and green-lights Playwright handoff.
-- **Playwright Runner** brings up the full stack with the e2e scripts, runs `npm run test:e2e --prefix frontend`, and archives traces/screenshots.
+- **Playwright Runner** brings up the full stack with the e2e scripts, runs `npm run test:e2e --prefix bh-fe`, and archives traces/screenshots.
 - **Reviewer/Security/Perf/Release/Doc Writer/Meta-Grader** validate deliverables per UPDATE.md standards, writing results into `EVAL/` as needed.
 
 Each agent writes outputs directly to the designated artifact paths and returns JSON conforming to its schema.

@@ -42,4 +42,4 @@ Rules:
 - Keep estimates between 1 and 5 points.
 - Add at least one task per Gate (A–D) for verification activities.
 - Encode the UX → module developer → test engineer → Playwright runner sequence for frontend flows; ensure Playwright tasks depend on QA/test engineer sign-off before execution.
-- When defining test/validation steps reference the committed automation scripts (`devops/start-e2e.sh`, `devops/stop-e2e.sh`, backend seed/reset commands, `npm run test:e2e --prefix frontend`) so downstream agents know the exact entry points.
+- When defining test/validation steps reference the committed automation scripts (`devops/start-e2e.sh`, `devops/stop-e2e.sh`, backend seed/reset commands, `npm run test:e2e --prefix bh-fe`) so downstream agents know the exact entry points.

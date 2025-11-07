@@ -22,7 +22,7 @@ Backlog format:
 ## <Milestone Name>
 ### Task FE-01 — <Title>
 - Task ID: FE-01
-- Folder: /frontend (and subpaths)
+- Folder: /bh-fe (and subpaths)
 - Why: short context tied to a user story
 - Steps: ordered list with file paths, components to create/update, and props/state to wire
 - Acceptance Criteria: Given/When/Then; include visual/URL expectation if relevant

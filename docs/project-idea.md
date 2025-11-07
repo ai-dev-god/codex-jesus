@@ -15,7 +15,7 @@ Health enthusiasts and biohackers juggle disparate trackers, lab results, and an
 - Admin team resolves flagged items within 24h on average.
 
 ## 2. Proposed Stack & Environment
-- **Frontend**: Clone repo and implement it 1:1 pixel perfect (frontend build with Figma lives here: https://github.com/ai-dev-god/bh-fe)
+- **Frontend**: Develop against the local `bh-fe/` workspace (Figma-sourced build replicated in-repo); treat it as the canonical UI baseline and keep it pixel-perfect. The UI ships fully interactive but remains API-disconnected until the backend lands.
 - **Backend**: Node.js 20 runtime (TypeScript) using Express with modular REST controllers for type-safe request handling, Prisma ORM for PostgreSQL access, Cloud Tasks for scheduled or deferred jobs. *Placeholder service skeleton – to be created by backend engineer.*
 - **Persistence**: Cloud SQL for PostgreSQL (primary store), Memorystore for Redis (hot cache + rate limits), Cloud Tasks queues (`insights-generate`, `whoop-sync`) for async orchestration. *Placeholder infra provisioning doc – platform engineer to capture instance sizing/networking.*
 - **AI & Data Services**: OpenRouter (gateway) connecting to Gemini 2.5 Pro and OpenBioLLM endpoint  for insights; Whoop OAuth + REST ingestion; optional email provider (e.g., Resend) for login magic links. Purpose-built adapters must abstract each third-party to allow swapping providers later.
@@ -24,6 +24,7 @@ Health enthusiasts and biohackers juggle disparate trackers, lab results, and an
   - Local dev: Node.js 20, npm 10, Docker Desktop for Postgres/Redis. *Placeholder Docker Compose file – platform engineer to supply.*
   - Staging: Cloud Run backend, Cloud SQL + Memorystore instances, Cloud Tasks queues, static hosting.
   - Production: Mirrors staging with private service networking and enhanced observability. No release/compliance scope documented per constraint.
+  - Cloud Run services: deploy the frontend as `bh-fe-final` (serving https://biohax.pro) and the backend as `bh-backend-final` once the API lands.
 
 ## 3. Experience Flows & Pages
 **Happy-path narrative**
@@ -111,11 +112,11 @@ Health enthusiasts and biohackers juggle disparate trackers, lab results, and an
 
 ## 6. Operational Plan for MVP
 - **Prerequisites**: Node.js 20+, npm 10+, Docker Desktop (for Postgres/Redis containers once defined), OpenRouter API key, Whoop developer credentials, Google Cloud SDK with IAM access to Cloud Run/Cloud SQL/Memorystore. Ensure the private Cloud Storage bucket `galeata-hax` (or override via `GCS_STORAGE_BUCKET`) exists with uniform bucket-level access and that the Cloud Run service account for this app (`codexjesus@biohax-777.iam.gserviceaccount.com`) holds `roles/storage.objectAdmin` (run `./devops/setup-storage-bucket.sh` after authenticating). Run `./devops/gcp-auth.sh` to authenticate (uses `GOOGLE_APPLICATION_CREDENTIALS` if provided, or `${HOME}/.config/gcloud/biohax-sa.json` when present, otherwise opens browser login).
-- **Install dependencies**: From `frontend`, run `npm install`.
-- **Start frontend**: `npm run dev` (existing script) for Vite dev server on port 5173. `npm run build` and `npm run preview` support production build verification.
+- **Install dependencies**: From `bh-fe`, run `npm install`.
+- **Start frontend**: From `bh-fe`, run `npm run dev` for the Vite dev server on port 5173. `npm run build` and `npm run preview` support production build verification.
 - **Backend startup**: `cd backend && npm run dev` to launch the Express API with live reload on port 4000.
 - **Testing**:
-  - Frontend: `npm run lint` (existing script) for linting. *Placeholder frontend test suite – frontend engineer to add `npm run test`.*
+  - Frontend (`bh-fe`): `npm run lint` (existing script) for linting. *Placeholder frontend test suite – frontend engineer to add `npm run test`.*
 - Backend: `cd backend && npm run lint && npm run test` (Node test runner coverage for auth, metrics, insights, healthz).
 - **Data seeding**: *Placeholder seed command – backend engineer to create once database schema stable.*
 - **Reset state**: *Placeholder reset script – devops engineer to provide (e.g., Docker Compose tear-down/reset + Cloud SQL schema reset command).*

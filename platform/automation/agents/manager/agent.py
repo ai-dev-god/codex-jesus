@@ -66,10 +66,10 @@ def build_prompt(
     elif devops_focus:
         parts.append(
             "Validation focus:\n"
-            "- Ensure docker-compose.dev.yml defines services for frontend and backend (and any other dependencies) with volume mounts pointing to the repository source directories.\n"
+            "- Ensure docker-compose.dev.yml defines services for frontend and backend (and any other dependencies) with volume mounts pointing to the repository source directories (e.g., bh-fe/, backend/).\n"
             "- Verify devops/start-dev.sh, devops/stop-dev.sh, and devops/logs.sh are executable scripts, contain the expected docker compose commands, and reference the compose file via -f docker-compose.dev.yml.\n"
             "- Confirm .env.example exists and lists variables referenced by the compose services.\n"
-            "- Check that frontend/package.json and backend/package.json exist with minimal scripts (e.g., dev) matching what the documentation will reference.\n"
+            "- Check that bh-fe/package.json and backend/package.json exist with minimal scripts (e.g., dev) matching what the documentation will reference.\n"
             "- Fail validation if any required file is missing, empty, not executable (for scripts), or obviously inconsistent with the instructions."
         )
     elif backlog_focus:

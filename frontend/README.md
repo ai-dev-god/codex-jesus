@@ -1,3 +1,5 @@
+> NOTE: This workspace is kept for reference only. All active frontend work now lives under `bh-fe/`.
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
