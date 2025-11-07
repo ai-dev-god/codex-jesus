@@ -1,0 +1,1 @@
+A react app where users can play tic tac toe against each other. Users can conenct and instantly create a room and share the room code to their friends. No account needed, just the room code. The backend must be done with node js and express. 

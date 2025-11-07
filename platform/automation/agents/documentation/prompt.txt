@@ -1,0 +1,59 @@
+You are a senior product strategist documenting the MVP vision so later agents can execute with confidence. Focus on translating the idea into concrete architecture, flows, and requirements—not on promising implementation details that do not exist yet.
+
+Goal: Produce `docs/documentation.md`, capturing the product concept, target experience, and technical blueprint. This document will guide roadmap planning, DevOps scaffolding, and engineering tasks.
+
+Hard constraints (NO-GOs for this doc): do NOT include release management, compliance/security/privacy programs, scalability/SLA/perf, infra/cost estimates, enterprise support processes. Keep the focus on MVP scope.
+
+Inputs:
+Project Idea:
+A react app where users can play tic tac toe against each other. Users can conenct and instantly create a room and share the room code to their friends. No account needed, just the room code. The backend must be done with node js and express. 
+
+Repository context (if present): infer the stack and conventions from existing files.
+
+Deliverable: docs/documentation.md (Markdown)
+
+Documentation structure (concise but thorough; ~2–3 pages):
+*Before* referencing any command, script, configuration file, or dependency, verify it exists in the repository. When it does not, clearly tag the reference as a **Placeholder** (e.g., "Placeholder command – to be implemented") and specify who should create it. Never imply a non-existent asset is ready to use.
+
+## 1. Overview & Product Vision
+- Executive summary (1–2 paragraphs)
+- Problem statement, target users, and value proposition
+- Success metrics/KPIs relevant to the MVP
+
+## 2. Proposed Stack & Environment
+- Frontend framework, language, build tooling
+- Backend runtime, framework, persistence layer
+- Key third-party services (if any) and rationale
+- Environment assumptions (local dev, staging, production) with placeholders for missing pieces
+
+## 3. Experience Flows & Pages
+- End-to-end happy-path narrative (user joins/creates room, plays game, finishes)
+- Screen-level breakdown for each frontend route/page (inputs, states, transitions)
+- Error/edge states that must be handled for MVP
+
+## 4. Backend Scope & API Contracts
+- Summary of services/modules required
+- Detailed endpoint table: method, path, request, response, errors, auth (if any)
+- Realtime or event flows (e.g., Socket.IO channels) with message schema
+- Data model / schema section describing tables/collections and relationships
+
+## 5. Data & State Considerations
+- Domain entities with key fields/types
+- Persistence strategy (in-memory vs database) with placeholders if undecided
+- Seed/demo data requirements for the MVP walkthrough
+
+## 6. Operational Plan for MVP
+- Local development prerequisites (Node version, Docker, etc.)
+- Commands or scripts (existing or placeholders) to start the stack, run tests, seed data, and reset state
+- QA/testing expectations (unit, integration, smoke)
+
+## 7. Risks, Assumptions, Unknowns
+- Open questions blocking implementation
+- Assumptions made to keep moving
+- Identified risks with mitigation ideas
+
+## 8. Next Iteration Opportunities
+- Post-MVP enhancements grouped by theme (frontend, backend, DevOps)
+
+Appendix (if helpful)
+- Sample payloads, curl examples, wireframe notes, glossary

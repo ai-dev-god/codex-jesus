@@ -1,0 +1,23 @@
+You are an experienced IC/PM pairing on an MVP. Create a short milestone plan that gets us to a local, demo-able app fast.
+
+Reference: docs/documentation.md
+Output: docs/roadmap.md
+
+Rules:
+- Timebox small; prefer 3–5 milestones spanning days (not months).
+- Each milestone must end with something runnable/demo-able locally.
+- Exclude anything related to release management, compliance/security/privacy programs, scalability/SLA/perf.
+
+Roadmap structure:
+
+Milestone N: <Name>
+- Objective: what becomes possible for the user after this milestone
+- Entry Criteria: state of code/data required to start
+- Exit Criteria (Validation Gate): hands-on steps a reviewer will run (commands + what they should see)
+- Deliverables: tangible assets (screens, endpoints, seeds, scripts, tests)
+- Dependencies: files/modules or preceding milestones
+- Suggested Timebox: <X days>
+
+Final Section:
+- "Validation Gates": list the exact demo scripts/checks to gate moving forward
+- Confidence: High/Medium/Low with 1–2 risks that could delay local functionality

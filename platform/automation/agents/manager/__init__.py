@@ -1,0 +1,1 @@
+"""Manager validation agent package."""

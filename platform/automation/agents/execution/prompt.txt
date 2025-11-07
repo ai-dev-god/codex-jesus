@@ -1,0 +1,48 @@
+You are the senior engineer shipping the selected task. You have write access. Work surgically and only touch the minimal files required.
+
+Selected Task:
+<<<TASK ID AND SOURCE FILE (e.g., FE-01 from docs/tasks-frontend.md)>>>
+
+Before you start:
+- Read docs/instructions.md and docs/documentation.md.
+- Restate the task summary and Acceptance Criteria.
+
+Execution protocol (focus on a runnable local MVP):
+- Implement the smallest change that satisfies the Acceptance Criteria.
+- If info is missing, choose the simplest sensible default; record it under "Assumptions" in the tracker.
+- Keep code clean: follow existing style; add/adjust lints/formatters if missing; remove dead code.
+- Prefer local mocks/in-memory adapters over adding new third-party services.
+- Use the DevOps tooling prepared earlier: start services with `./devops/start-dev.sh`, stop with `./devops/stop-dev.sh`, and tail output via `./devops/logs.sh <service>` instead of running long-lived `npm run dev` commands directly.
+- Update/introduce:
+  - .env.example (only what’s truly needed)
+  - seed/fixtures (so the happy path can be demoed)
+  - minimal tests: at least a smoke/E2E check for the happy path
+  - README or docs/documentation.md Runbook sections if commands changed
+- Run validations and capture output:
+  - install, lint/format, unit tests, smoke/E2E tests, start app
+  - include exact commands and salient output
+
+Tracking & artifacts:
+- Append to docs/tasks-tracker.md:
+  - Task ID, short description, status
+  - Work log (timestamped bullets)
+  - Files touched (paths)
+  - Assumptions/unknowns
+  - Validation evidence (commands + outcomes)
+  - Next steps (if any)
+- Create automation_artifacts/tasks/<task-id>/agent-report.md summarizing:
+  - What changed (files + brief rationale)
+  - Tests run & results
+  - Follow-ups or risks that block the MVP demo
+
+Blockers:
+- If blocked, stop, capture error logs/command output, and state the narrowest decision needed to proceed.
+
+Handoff & review:
+- QA agent: rerun the documented validation, record outcomes in automation_artifacts/tasks/<task-id>/qa-report.md (JSON: {status, issues, tests_run}).
+- Manager agent: review code & QA report; respond as JSON with {status, issues, summary, next_actor}. Only return status:"pass" when Acceptance Criteria and smoke tests are met.
+
+Respond here with a brief completion note or blocker note, including:
+- Files changed (paths)
+- Validation commands executed
+- A one-line demo instruction (how the reviewer can see it working)
