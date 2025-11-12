@@ -14,6 +14,7 @@
 - **Frontend dev (placeholder):** No hot-reload script yet — add via DevOps milestone.
 - **Frontend tests:** `cd bh-fe && npm test` (placeholder; implement once tests exist).
 - **Legacy note:** The previous `frontend/` workspace remains checked in for historical reference but is no longer used; route all new UI work through `bh-fe/`.
+- **Frontend deploy QA:** Follow `docs/frontend-deploy-checklist.md` (Figma parity review + deploy commands) before shipping.
 - **Backend install:** `# TODO` backend service is not scaffolded yet.
 - **Repo lint/tests:** Define per service once implemented; record in this guide as they appear.
 - **End-to-end:** `devops/start-e2e.sh && npm run test:e2e --prefix bh-fe && devops/stop-e2e.sh` (ensure `npm run db:reset --prefix backend` succeeds inside the start script).
