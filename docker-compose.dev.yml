@@ -1,0 +1,61 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: biohax
+      POSTGRES_PASSWORD: biohax
+      POSTGRES_DB: biohax
+    ports:
+      - "${BIOHAX_POSTGRES_PORT:-6543}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U biohax -d biohax"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  backend:
+    image: node:20.18.1
+    init: true
+    working_dir: /workspace
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      DATABASE_URL: postgresql://biohax:biohax@postgres:5432/biohax?schema=public
+      CORS_ORIGIN: http://localhost:5173
+    volumes:
+      - ./backend:/workspace
+      - backend_node_modules:/workspace/node_modules
+    command: npm run dev
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    image: node:20.18.1
+    init: true
+    working_dir: /workspace
+    environment:
+      NODE_ENV: development
+      VITE_API_BASE_URL: http://localhost:4000
+    volumes:
+      - ./bh-fe:/workspace
+      - frontend_node_modules:/workspace/node_modules
+    command: npm run dev -- --host 0.0.0.0 --port 5173
+    ports:
+      - "5173:5173"
+    depends_on:
+      backend:
+        condition: service_started
+
+volumes:
+  postgres_data:
+  backend_node_modules:
+  frontend_node_modules:

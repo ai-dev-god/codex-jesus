@@ -1,0 +1,18 @@
+HAR EXPORT — ADMIN MODERATION QA (T-032)
+
+1. Flag Resolve
+   Request: POST /admin/flags/flag-open-1/resolve
+   Payload: {"status":"RESOLVED","resolutionNotes":"QA clear","metadata":null}
+   Response: 200 OK (body: {"status":"RESOLVED","resolvedBy":{"id":"admin-1"}})
+
+2. Flag Snooze
+   Request: POST /admin/flags/flag-open-2/resolve
+   Payload: {"status":"TRIAGED","resolutionNotes":"Need follow-up","metadata":{"snoozeUntil":"2025-02-18T09:30:00.000Z"}}
+   Response: 200 OK (body: {"status":"TRIAGED","metadata":{"snoozeUntil":"2025-02-18T09:30:00.000Z"}})
+
+3. Audit Filter
+   Request: GET /admin/audit?actorId=admin-1&action=FLAG_RESOLVED&limit=15
+   Response: 200 OK (body: {"data":[{"id":"audit-1","action":"FLAG_RESOLVED","actor":{"id":"admin-1"}}]})
+
+4. Analytics Snapshot
+   Window Queue Entry: {"name":"moderation.resolve","properties":{"flagId":"flag-open-1","outcome":"resolved","slaState":"breached"},"timestamp":"2025-02-15T19:05:14.235Z"}

@@ -1,0 +1,14 @@
+2025-11-08 03:45:13.966 EET [211387] LOG:  starting PostgreSQL 16.4 on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 7.5.0-3ubuntu1~18.04) 7.5.0, 64-bit
+2025-11-08 03:45:13.966 EET [211387] LOG:  listening on IPv4 address "127.0.0.1", port 6543
+2025-11-08 03:45:13.967 EET [211387] LOG:  listening on Unix socket "/tmp/.s.PGSQL.6543"
+2025-11-08 03:45:13.970 EET [211390] LOG:  database system was shut down at 2025-11-08 03:45:10 EET
+2025-11-08 03:45:13.975 EET [211387] LOG:  database system is ready to accept connections
+2025-11-08 03:45:35.770 EET [211473] ERROR:  table "_prisma_migrations" does not exist
+2025-11-08 03:45:35.770 EET [211473] STATEMENT:  DROP TABLE _prisma_migrations
+2025-11-08 03:45:39.444 EET [211387] LOG:  received fast shutdown request
+2025-11-08 03:45:39.445 EET [211387] LOG:  aborting any active transactions
+2025-11-08 03:45:39.447 EET [211387] LOG:  background worker "logical replication launcher" (PID 211393) exited with exit code 1
+2025-11-08 03:45:39.447 EET [211388] LOG:  shutting down
+2025-11-08 03:45:39.447 EET [211388] LOG:  checkpoint starting: shutdown immediate
+2025-11-08 03:45:39.458 EET [211388] LOG:  checkpoint complete: wrote 203 buffers (1.2%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.006 s, sync=0.003 s, total=0.011 s; sync files=162, longest=0.001 s, average=0.001 s; distance=902 kB, estimate=902 kB; lsn=0/15BFCB8, redo lsn=0/15BFCB8
+2025-11-08 03:45:39.463 EET [211387] LOG:  database system is shut down

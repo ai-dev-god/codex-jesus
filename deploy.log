@@ -1,0 +1,174 @@
+[deploy] Authenticating gcloud using service account key /home/aurel/.config/gcloud/biohax-sa.json...
+[deploy] Using gcloud account codexjesus@biohax-777.iam.gserviceaccount.com
+[deploy] Verifying required secrets...
+[deploy] Checking Cloud Storage bucket galeata-hax...
+[deploy] Skipping backend lint/test checks (SKIP_BACKEND_CHECKS=1).
+[deploy] Building image gcr.io/biohax-777/bh-fe-final:latest from context bh-fe...
+----------------------------------------------------------------------------------------------------------- REMOTE BUILD OUTPUT ------------------------------------------------------------------------------------------------------------
+starting build "ddfe8f10-5d1b-441d-8d7e-0d881637b58d"
+
+FETCHSOURCE
+Fetching storage object: gs://biohax-777_cloudbuild/source/1762577333.414283-f685a25c9dc84bb69b8a55078287fdc9.tgz#1762577378002638
+Copying gs://biohax-777_cloudbuild/source/1762577333.414283-f685a25c9dc84bb69b8a55078287fdc9.tgz#1762577378002638...
+/ [0 files][    0.0 B/ 61.6 MiB]                                                / [1 files][ 61.6 MiB/ 61.6 MiB]                                                -
+Operation completed over 1 objects/61.6 MiB.
+BUILD
+Already have image (with digest): gcr.io/cloud-builders/gcb-internal
+Sending build context to Docker daemon  1.281MB
+Step 1/12 : FROM node:20-alpine AS builder
+20-alpine: Pulling from library/node
+2d35ebdb57d9: Already exists
+60e45a9660cf: Pulling fs layer
+e74e4ed823e9: Pulling fs layer
+da04d522c98f: Pulling fs layer
+e74e4ed823e9: Verifying Checksum
+e74e4ed823e9: Download complete
+da04d522c98f: Verifying Checksum
+da04d522c98f: Download complete
+60e45a9660cf: Verifying Checksum
+60e45a9660cf: Download complete
+60e45a9660cf: Pull complete
+e74e4ed823e9: Pull complete
+da04d522c98f: Pull complete
+Digest: sha256:6178e78b972f79c335df281f4b7674a2d85071aae2af020ffa39f0a770265435
+Status: Downloaded newer image for node:20-alpine
+ ---> 2b56f2779663
+Step 2/12 : WORKDIR /app
+ ---> Running in 697f722f1565
+Removing intermediate container 697f722f1565
+ ---> 4f064554e39a
+Step 3/12 : COPY package.json package-lock.json ./
+ ---> d163d7487d04
+Step 4/12 : RUN npm ci
+ ---> Running in fff08794029b
+
+added 391 packages, and audited 392 packages in 13s
+
+53 packages are looking for funding
+  run `npm fund` for details
+
+1 moderate severity vulnerability
+
+To address all issues, run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+[91mnpm notice
+npm notice New major version of npm available! 10.8.2 -> 11.6.2
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.6.2
+npm notice To update run: npm install -g npm@11.6.2
+npm notice
+[0mRemoving intermediate container fff08794029b
+ ---> 8bab1cc24f16
+Step 5/12 : COPY . .
+ ---> 12d55b59ec38
+Step 6/12 : RUN npm run build
+ ---> Running in aa59e9fbbc7a
+
+> BioHax Platform Final@0.1.0 build
+> vite build
+
+vite v6.3.5 building for production...
+transforming...
+✓ 1743 modules transformed.
+rendering chunks...
+computing gzip size...
+build/index.html                   0.44 kB │ gzip:   0.28 kB
+build/assets/index-j8GFxiWC.css   26.60 kB │ gzip:   7.37 kB
+build/assets/index-CEsuHcj_.js   555.01 kB │ gzip: 158.61 kB
+[91m
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+[0m✓ built in 7.22s
+Removing intermediate container aa59e9fbbc7a
+ ---> 50cd80080654
+Step 7/12 : FROM nginx:1.27-alpine AS runner
+1.27-alpine: Pulling from library/nginx
+f18232174bc9: Pulling fs layer
+61ca4f733c80: Pulling fs layer
+b464cfdf2a63: Pulling fs layer
+d7e507024086: Pulling fs layer
+81bd8ed7ec67: Pulling fs layer
+197eb75867ef: Pulling fs layer
+34a64644b756: Pulling fs layer
+39c2ddfd6010: Pulling fs layer
+34a64644b756: Waiting
+39c2ddfd6010: Waiting
+81bd8ed7ec67: Verifying Checksum
+81bd8ed7ec67: Download complete
+d7e507024086: Verifying Checksum
+d7e507024086: Download complete
+b464cfdf2a63: Verifying Checksum
+b464cfdf2a63: Download complete
+61ca4f733c80: Verifying Checksum
+61ca4f733c80: Download complete
+197eb75867ef: Verifying Checksum
+197eb75867ef: Download complete
+f18232174bc9: Verifying Checksum
+f18232174bc9: Download complete
+34a64644b756: Verifying Checksum
+34a64644b756: Download complete
+f18232174bc9: Pull complete
+39c2ddfd6010: Download complete
+61ca4f733c80: Pull complete
+b464cfdf2a63: Pull complete
+d7e507024086: Pull complete
+81bd8ed7ec67: Pull complete
+197eb75867ef: Pull complete
+34a64644b756: Pull complete
+39c2ddfd6010: Pull complete
+Digest: sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
+Status: Downloaded newer image for nginx:1.27-alpine
+ ---> 6769dc3a703c
+Step 8/12 : WORKDIR /usr/share/nginx/html
+ ---> Running in 77e3ce52c2b1
+Removing intermediate container 77e3ce52c2b1
+ ---> 2da29eb0deb8
+Step 9/12 : COPY --from=builder /app/build ./
+ ---> 44999df0d46b
+Step 10/12 : RUN sed -i 's/listen       80;/listen       8080;/' /etc/nginx/conf.d/default.conf
+ ---> Running in 4fb203493c2f
+Removing intermediate container 4fb203493c2f
+ ---> 6e995af11632
+Step 11/12 : EXPOSE 8080
+ ---> Running in f2e7622e44d4
+Removing intermediate container f2e7622e44d4
+ ---> 15a9ee10b531
+Step 12/12 : CMD ["nginx", "-g", "daemon off;"]
+ ---> Running in f6dbe645b776
+Removing intermediate container f6dbe645b776
+ ---> cc8ca114ac04
+Successfully built cc8ca114ac04
+Successfully tagged gcr.io/biohax-777/bh-fe-final:latest
+PUSH
+Pushing gcr.io/biohax-777/bh-fe-final:latest
+The push refers to repository [gcr.io/biohax-777/bh-fe-final]
+976aebd53509: Preparing
+2d33966d1a1c: Preparing
+0d853d50b128: Preparing
+947e805a4ac7: Preparing
+811a4dbbf4a5: Preparing
+b8d7d1d22634: Preparing
+e244aa659f61: Preparing
+c56f134d3805: Preparing
+d71eae0084c1: Preparing
+08000c18d16d: Preparing
+811a4dbbf4a5: Layer already exists
+0d853d50b128: Layer already exists
+c56f134d3805: Layer already exists
+b8d7d1d22634: Layer already exists
+08000c18d16d: Layer already exists
+e244aa659f61: Layer already exists
+d71eae0084c1: Layer already exists
+947e805a4ac7: Layer already exists
+2d33966d1a1c: Pushed
+976aebd53509: Pushed
+latest: digest: sha256:7d928312526e62cc45f259d0b29c471af0f63d8344da8f71fe799fdee567da2e size: 2406
+DONE
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ID                                    CREATE_TIME                DURATION  SOURCE                                                                                    IMAGES                                   STATUS
+ddfe8f10-5d1b-441d-8d7e-0d881637b58d  2025-11-08T04:49:38+00:00  52S       gs://biohax-777_cloudbuild/source/1762577333.414283-f685a25c9dc84bb69b8a55078287fdc9.tgz  gcr.io/biohax-777/bh-fe-final (+1 more)  SUCCESS
+[deploy] Deploying service bh-fe-final to region europe-west1...
+[deploy] Deployment complete.

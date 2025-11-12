@@ -1,0 +1,1 @@
+/home/aurel/codex-jesus/tools/.tmp/embedded-pg/bin/postgres "-D" "/home/aurel/codex-jesus/devops/.local-e2e/postgres-data" "-p" "5544"

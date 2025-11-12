@@ -1,0 +1,1 @@
+/home/aurel/codex-jesus/tools/.tmp/embedded-pg/bin/postgres "-D" "tools/.tmp/embedded-pg/data" "-p" "6543"

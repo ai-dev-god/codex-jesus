@@ -1,0 +1,230 @@
+{
+  "bindings": [
+    {
+      "members": [
+        "serviceAccount:codexjesus@biohax-777.iam.gserviceaccount.com"
+      ],
+      "role": "roles/artifactregistry.admin"
+    },
+    {
+      "members": [
+        "serviceAccount:service-714223448245@gcp-sa-artifactregistry.iam.gserviceaccount.com"
+      ],
+      "role": "roles/artifactregistry.serviceAgent"
+    },
+    {
+      "members": [
+        "serviceAccount:714223448245@cloudbuild.gserviceaccount.com"
+      ],
+      "role": "roles/artifactregistry.writer"
+    },
+    {
+      "members": [
+        "serviceAccount:codexjesus@biohax-777.iam.gserviceaccount.com"
+      ],
+      "role": "roles/bigquery.admin"
+    },
+    {
+      "members": [
+        "serviceAccount:service-714223448245@gcp-sa-cloudaicompanion.iam.gserviceaccount.com"
+      ],
+      "role": "roles/cloudaicompanion.serviceAgent"
+    },
+    {
+      "members": [
+        "serviceAccount:codexjesus@biohax-777.iam.gserviceaccount.com"
+      ],
+      "role": "roles/cloudbuild.builds.approver"
+    },
+    {
+      "members": [
+        "serviceAccount:714223448245@cloudbuild.gserviceaccount.com"
+      ],
+      "role": "roles/cloudbuild.builds.builder"
+    },
+    {
+      "members": [
+        "serviceAccount:service-714223448245@gcp-sa-cloudbuild.iam.gserviceaccount.com"
+      ],
+      "role": "roles/cloudbuild.serviceAgent"
+    },
+    {
+      "members": [
+        "serviceAccount:service-714223448245@gcp-sa-config.iam.gserviceaccount.com"
+      ],
+      "role": "roles/cloudconfig.serviceAgent"
+    },
+    {
+      "members": [
+        "serviceAccount:codexjesus@biohax-777.iam.gserviceaccount.com"
+      ],
+      "role": "roles/clouddeploy.jobRunner"
+    },
+    {
+      "members": [
+        "user:awrelll@gmail.com"
+      ],
+      "role": "roles/cloudhub.operator"
+    },
+    {
+      "members": [
+        "serviceAccount:codexjesus@biohax-777.iam.gserviceaccount.com"
+      ],
+      "role": "roles/cloudscheduler.admin"
+    },
+    {
+      "members": [
+        "serviceAccount:codexjesus@biohax-777.iam.gserviceaccount.com"
+      ],
+      "role": "roles/cloudsql.admin"
+    },
+    {
+      "members": [
+        "serviceAccount:714223448245-compute@developer.gserviceaccount.com",
+        "serviceAccount:longevity-platform-sa@biohax-777.iam.gserviceaccount.com"
+      ],
+      "role": "roles/cloudsql.client"
+    },
+    {
+      "members": [
+        "user:awrelll@gmail.com"
+      ],
+      "role": "roles/cloudsupport.techSupportEditor"
+    },
+    {
+      "members": [
+        "serviceAccount:biohax-sql@biohax-777.iam.gserviceaccount.com"
+      ],
+      "role": "roles/compute.admin"
+    },
+    {
+      "members": [
+        "serviceAccount:service-714223448245@compute-system.iam.gserviceaccount.com"
+      ],
+      "role": "roles/compute.serviceAgent"
+    },
+    {
+      "members": [
+        "serviceAccount:biohax-sql@biohax-777.iam.gserviceaccount.com"
+      ],
+      "role": "roles/config.agent"
+    },
+    {
+      "members": [
+        "serviceAccount:service-714223448245@container-engine-robot.iam.gserviceaccount.com"
+      ],
+      "role": "roles/container.serviceAgent"
+    },
+    {
+      "members": [
+        "serviceAccount:service-714223448245@containerregistry.iam.gserviceaccount.com"
+      ],
+      "role": "roles/containerregistry.ServiceAgent"
+    },
+    {
+      "members": [
+        "serviceAccount:codexjesus@biohax-777.iam.gserviceaccount.com"
+      ],
+      "role": "roles/designcenter.applicationAdmin"
+    },
+    {
+      "members": [
+        "serviceAccount:codexjesus@biohax-777.iam.gserviceaccount.com"
+      ],
+      "role": "roles/designcenter.applicationEditor"
+    },
+    {
+      "members": [
+        "serviceAccount:714223448245-compute@developer.gserviceaccount.com",
+        "serviceAccount:714223448245@cloudservices.gserviceaccount.com"
+      ],
+      "role": "roles/editor"
+    },
+    {
+      "members": [
+        "serviceAccount:codexjesus@biohax-777.iam.gserviceaccount.com"
+      ],
+      "role": "roles/iam.dataScientist"
+    },
+    {
+      "members": [
+        "serviceAccount:codexjesus@biohax-777.iam.gserviceaccount.com"
+      ],
+      "role": "roles/iam.databasesAdmin"
+    },
+    {
+      "members": [
+        "serviceAccount:codexjesus@biohax-777.iam.gserviceaccount.com"
+      ],
+      "role": "roles/iam.devOps"
+    },
+    {
+      "members": [
+        "serviceAccount:biohax-sql@biohax-777.iam.gserviceaccount.com"
+      ],
+      "role": "roles/iam.serviceAccountUser"
+    },
+    {
+      "members": [
+        "serviceAccount:codexjesus@biohax-777.iam.gserviceaccount.com"
+      ],
+      "role": "roles/ml.admin"
+    },
+    {
+      "members": [
+        "serviceAccount:codexjesus@biohax-777.iam.gserviceaccount.com",
+        "user:awrelll@gmail.com"
+      ],
+      "role": "roles/owner"
+    },
+    {
+      "members": [
+        "serviceAccount:service-714223448245@gcp-sa-pubsub.iam.gserviceaccount.com"
+      ],
+      "role": "roles/pubsub.serviceAgent"
+    },
+    {
+      "members": [
+        "serviceAccount:codexjesus@biohax-777.iam.gserviceaccount.com",
+        "user:awrelll@gmail.com"
+      ],
+      "role": "roles/resourcemanager.organizationAdmin"
+    },
+    {
+      "members": [
+        "serviceAccount:714223448245@cloudbuild.gserviceaccount.com",
+        "serviceAccount:codexjesus@biohax-777.iam.gserviceaccount.com",
+        "serviceAccount:longevity-platform-sa@biohax-777.iam.gserviceaccount.com"
+      ],
+      "role": "roles/run.admin"
+    },
+    {
+      "members": [
+        "serviceAccount:service-714223448245@serverless-robot-prod.iam.gserviceaccount.com"
+      ],
+      "role": "roles/run.serviceAgent"
+    },
+    {
+      "members": [
+        "serviceAccount:714223448245-compute@developer.gserviceaccount.com",
+        "serviceAccount:codexjesus@biohax-777.iam.gserviceaccount.com",
+        "serviceAccount:longevity-platform-sa@biohax-777.iam.gserviceaccount.com"
+      ],
+      "role": "roles/secretmanager.secretAccessor"
+    },
+    {
+      "members": [
+        "serviceAccount:codexjesus@biohax-777.iam.gserviceaccount.com"
+      ],
+      "role": "roles/storage.objectAdmin"
+    },
+    {
+      "members": [
+        "serviceAccount:service-714223448245@gcp-sa-vpcaccess.iam.gserviceaccount.com"
+      ],
+      "role": "roles/vpcaccess.serviceAgent"
+    }
+  ],
+  "etag": "BwZDAGGcGkw=",
+  "version": 1
+}

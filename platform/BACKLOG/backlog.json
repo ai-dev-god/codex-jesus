@@ -1,0 +1,1180 @@
+{
+  "version": 1,
+  "generated_at": "2025-11-07T13:08:37Z",
+  "tasks": [
+    {
+      "id": "T-001",
+      "title": "Resolve open questions & update PRD/UX decisions",
+      "owner": "Planner",
+      "area": "meta",
+      "deps": [],
+      "dod": [
+        "All PRD and UX open questions have documented decisions with accountable owners and dates.",
+        "Updates applied to platform/ARTIFACTS/prd.json and platform/ARTIFACTS/ux_flows.md to reflect the agreed scope.",
+        "Decision log linked from platform/ARTIFACTS/prd.json and referenced in team notes."
+      ],
+      "tests": [],
+      "artifacts": [
+        "platform/ARTIFACTS/prd.json",
+        "platform/ARTIFACTS/ux_flows.md"
+      ],
+      "estimate_points": 2,
+      "tags": [
+        "scope"
+      ],
+      "notes": "Resource plan file was not found; confirm available roles while capturing decisions so downstream owners are unblocked."
+    },
+    {
+      "id": "T-002",
+      "title": "Gate A verification \u2013 documentation completeness",
+      "owner": "Doc",
+      "area": "docs",
+      "deps": [
+        "T-001"
+      ],
+      "dod": [
+        "PRD, architecture, openapi, UX, and research artifacts reviewed for consistency and stored in version control.",
+        "Doc owner records acceptance notes and remaining gaps, if any, in platform/EVAL/gate_a.md.",
+        "Stakeholder sign-off captured for Gate A readiness."
+      ],
+      "tests": [],
+      "artifacts": [
+        "platform/EVAL/gate_a.md"
+      ],
+      "estimate_points": 1,
+      "tags": [
+        "gate-a"
+      ],
+      "notes": "Confirm no additional artifacts are pending before handing off to scaffolding."
+    },
+    {
+      "id": "T-003",
+      "title": "Backend scaffold for Express/Prisma service",
+      "owner": "Scaffolder",
+      "area": "backend",
+      "deps": [
+        "T-002"
+      ],
+      "dod": [
+        "backend/ package created with Express, TypeScript, ESLint, Jest, and Prisma dependencies.",
+        "HTTP server boots with health check route and shared error handler per architecture notes.",
+        "Sample env file (.env.example) documents required secrets including OpenRouter and Whoop tokens."
+      ],
+      "tests": [
+        "npm run lint --prefix backend",
+        "npm run test --prefix backend"
+      ],
+      "artifacts": [
+        "backend/package.json",
+        "backend/src/server.ts",
+        "backend/.env.example"
+      ],
+      "estimate_points": 3,
+      "tags": [
+        "scaffold"
+      ],
+      "notes": "Align folder layout with architecture modules to ease later ownership splits."
+    },
+    {
+      "id": "T-004",
+      "title": "Implement Prisma schema & migration pipeline",
+      "owner": "ModuleDev",
+      "area": "backend",
+      "deps": [
+        "T-003"
+      ],
+      "dod": [
+        "Prisma schema models implemented for users, profiles, auth providers, biomarker entities, insights, community, admin audit logs, and Cloud Task metadata.",
+        "Migration pipeline established with baseline migration checked in and rollback instructions documented.",
+        "Seed script stub creates demo users, biomarkers, and sample posts for local testing."
+      ],
+      "tests": [
+        "npm run prisma:generate --prefix backend",
+        "npm run db:migrate --prefix backend"
+      ],
+      "artifacts": [
+        "backend/prisma/schema.prisma",
+        "backend/prisma/migrations",
+        "backend/scripts/seed.ts"
+      ],
+      "estimate_points": 3,
+      "tags": [
+        "data"
+      ],
+      "notes": "Coordinate field naming with openapi.yaml so schema and contract remain aligned."
+    },
+    {
+      "id": "T-005",
+      "title": "Identity & access module (auth + RBAC)",
+      "owner": "ModuleDev",
+      "area": "backend",
+      "deps": [
+        "T-004"
+      ],
+      "dod": [
+        "Email/password register and login endpoints implemented per platform/ARTIFACTS/openapi.yaml with secure password storage.",
+        "Google OAuth and session middleware wired, issuing tokens with role claims for member, coach, and admin personas.",
+        "RBAC guards enforce admin-only routes and audit login attempts."
+      ],
+      "tests": [
+        "npm run test --prefix backend",
+        "npm run lint --prefix backend"
+      ],
+      "artifacts": [
+        "backend/src/modules/identity",
+        "platform/ARTIFACTS/openapi.yaml"
+      ],
+      "estimate_points": 3,
+      "tags": [
+        "auth"
+      ],
+      "notes": "Use encrypted storage for refresh tokens and respect pending onboarding states before granting dashboard access."
+    },
+    {
+      "id": "T-006",
+      "title": "Onboarding & profile service",
+      "owner": "ModuleDev",
+      "area": "backend",
+      "deps": [
+        "T-005"
+      ],
+      "dod": [
+        "Profile endpoints deliver baseline survey, consents, and timezone handling with validation errors surfaced per UX specs.",
+        "Onboarding completion gate toggles user status to ACTIVE and blocks dashboard calls until satisfied.",
+        "Data export/delete request endpoints stubbed with audit entries."
+      ],
+      "tests": [
+        "npm run test --prefix backend"
+      ],
+      "artifacts": [
+        "backend/src/modules/onboarding"
+      ],
+      "estimate_points": 3,
+      "tags": [
+        "onboarding"
+      ],
+      "notes": "Coordinate with Doc owner to ensure medical disclaimers surface during onboarding per PRD."
+    },
+    {
+      "id": "T-007",
+      "title": "Whoop integration & sync skeleton",
+      "owner": "ModuleDev",
+      "area": "backend",
+      "deps": [
+        "T-005",
+        "T-004"
+      ],
+      "dod": [
+        "OAuth linking flow stores tokens encrypted with rotation metadata and sync status.",
+        "Cloud Task whoop-sync worker stub enqueues and logs pulls with retry configuration.",
+        "Manual fallback documented for users without Whoop accounts."
+      ],
+      "tests": [
+        "npm run test --prefix backend"
+      ],
+      "artifacts": [
+        "backend/src/modules/wearable",
+        "backend/src/workers/whoop-sync.ts"
+      ],
+      "estimate_points": 4,
+      "tags": [
+        "integration"
+      ],
+      "notes": "Requires provider credentials before full verification; capture blockers if secrets are delayed."
+    },
+    {
+      "id": "T-008",
+      "title": "Biomarker definitions & manual logging API",
+      "owner": "ModuleDev",
+      "area": "backend",
+      "deps": [
+        "T-005",
+        "T-004"
+      ],
+      "dod": [
+        "CRUD endpoints for biomarker definitions and manual log submissions implemented with optimistic concurrency handling.",
+        "Validation enforces units, reference ranges, and attribution to source (Whoop/manual).",
+        "Audit entries created for edits/deletes to support compliance needs."
+      ],
+      "tests": [
+        "npm run test --prefix backend"
+      ],
+      "artifacts": [
+        "backend/src/modules/biomarkers"
+      ],
+      "estimate_points": 3,
+      "tags": [
+        "biomarker"
+      ],
+      "notes": "Ensure DTOs align with frontend data-testid requirements for value/unit fields."
+    },
+    {
+      "id": "T-009",
+      "title": "AI insights orchestration & worker",
+      "owner": "ModuleDev",
+      "area": "backend",
+      "deps": [
+        "T-007",
+        "T-008"
+      ],
+      "dod": [
+        "Insights generation endpoint orchestrates dual-model prompts with retries/on-failover logging.",
+        "Cloud Task insights-generate worker persists outputs, acceptance state, and retry counts.",
+        "OpenRouter credential handling centralized with rate limiting safeguards."
+      ],
+      "tests": [
+        "npm run test --prefix backend"
+      ],
+      "artifacts": [
+        "backend/src/modules/insights",
+        "backend/src/workers/insights-generate.ts"
+      ],
+      "estimate_points": 4,
+      "tags": [
+        "ai"
+      ],
+      "notes": "Flag any PHI exposure concerns for Security review before Gate C."
+    },
+    {
+      "id": "T-010",
+      "title": "Dashboard aggregates & caching",
+      "owner": "ModuleDev",
+      "area": "backend",
+      "deps": [
+        "T-009",
+        "T-008"
+      ],
+      "dod": [
+        "Dashboard endpoint delivers combined readiness metrics, daily insights, and empty states.",
+        "Redis caching with invalidation hooks implemented for tiles to hit p95 < 400ms target.",
+        "Offline snapshot endpoint established for PWA caching."
+      ],
+      "tests": [
+        "npm run test --prefix backend"
+      ],
+      "artifacts": [
+        "backend/src/modules/dashboard"
+      ],
+      "estimate_points": 3,
+      "tags": [
+        "dashboard"
+      ],
+      "notes": "Coordinate cache TTLs with performance targets and offline UX expectations."
+    },
+    {
+      "id": "T-011",
+      "title": "Community feed & reactions API",
+      "owner": "ModuleDev",
+      "area": "backend",
+      "deps": [
+        "T-005",
+        "T-004"
+      ],
+      "dod": [
+        "Endpoints for posts, comments, and reactions implemented with moderation flags and pagination.",
+        "Engagement metrics captured to support leaderboard refresh jobs.",
+        "Data access respects RBAC, hiding flagged content from standard members."
+      ],
+      "tests": [
+        "npm run test --prefix backend"
+      ],
+      "artifacts": [
+        "backend/src/modules/community"
+      ],
+      "estimate_points": 3,
+      "tags": [
+        "community"
+      ],
+      "notes": "Document content limits to avoid unexpected payload sizes during perf testing."
+    },
+    {
+      "id": "T-012",
+      "title": "Rooms realtime service baseline",
+      "owner": "ModuleDev",
+      "area": "backend",
+      "deps": [
+        "T-011",
+        "T-009"
+      ],
+      "dod": [
+        "REST endpoints for room create/join implemented with invite code validation and room capacity limits.",
+        "WebSocket/WebRTC gateway stub supports lobby and active play events with reconnect logic.",
+        "Fallback polling documented for environments without realtime support."
+      ],
+      "tests": [
+        "npm run test --prefix backend"
+      ],
+      "artifacts": [
+        "backend/src/modules/rooms",
+        "backend/src/realtime"
+      ],
+      "estimate_points": 4,
+      "tags": [
+        "realtime"
+      ],
+      "notes": "Capture final room capacity decision from T-001; ensure graceful handling when capacity exceeded."
+    },
+    {
+      "id": "T-013",
+      "title": "Moderation & admin backend",
+      "owner": "ModuleDev",
+      "area": "backend",
+      "deps": [
+        "T-011",
+        "T-009",
+        "T-005"
+      ],
+      "dod": [
+        "Admin endpoints provide flag queues, resolution actions, and audit logging per PRD.",
+        "Role management endpoints expose admin/moderator assignment with history.",
+        "System health summary aggregates queue lag, sync failures, and AI retry metrics."
+      ],
+      "tests": [
+        "npm run test --prefix backend"
+      ],
+      "artifacts": [
+        "backend/src/modules/admin"
+      ],
+      "estimate_points": 3,
+      "tags": [
+        "admin"
+      ],
+      "notes": "Coordinate with Security to ensure admin actions leave immutable audit trails."
+    },
+    {
+      "id": "T-014",
+      "title": "Notifications & Cloud Task orchestration",
+      "owner": "ModuleDev",
+      "area": "backend",
+      "deps": [
+        "T-007",
+        "T-009",
+        "T-011"
+      ],
+      "dod": [
+        "Notification service triggers insight alerts, streak nudges, and moderation notices via Cloud Tasks.",
+        "Resend integration configured with templating for onboarding and community events.",
+        "Dead-letter handling implemented with alerting hooks."
+      ],
+      "tests": [
+        "npm run test --prefix backend"
+      ],
+      "artifacts": [
+        "backend/src/modules/notifications",
+        "backend/src/workers/notify.ts"
+      ],
+      "estimate_points": 3,
+      "tags": [
+        "async"
+      ],
+      "notes": "Document rate limits and fallbacks for environments without Resend credentials."
+    },
+    {
+      "id": "T-015",
+      "title": "Observability, rate limiting, and health endpoints",
+      "owner": "ModuleDev",
+      "area": "backend",
+      "deps": [
+        "T-009",
+        "T-011",
+        "T-014"
+      ],
+      "dod": [
+        "Structured logging, metrics, and tracing hooks integrated with Cloud Logging conventions.",
+        "Rate limiting middleware leveraging Redis implemented for sensitive routes.",
+        "Health and readiness endpoints expose database, Redis, and queue status."
+      ],
+      "tests": [
+        "npm run test --prefix backend"
+      ],
+      "artifacts": [
+        "backend/src/observability",
+        "backend/src/routes/health.ts"
+      ],
+      "estimate_points": 2,
+      "tags": [
+        "observability"
+      ],
+      "notes": "Ensure observability exports feed Gate B/Gate C dashboards."
+    },
+    {
+      "id": "T-016",
+      "title": "DevOps e2e scripts wire-up",
+      "owner": "Scaffolder",
+      "area": "devops",
+      "deps": [
+        "T-014",
+        "T-015",
+        "T-003"
+      ],
+      "dod": [
+        "devops/start-e2e.sh boots databases, backend, and bh-fe with seeded data, then waits for readiness.",
+        "devops/stop-e2e.sh tears down services and cleans temp data.",
+        "Scripts document prerequisites and timeouts to avoid hung CI jobs."
+      ],
+      "tests": [
+        "timeout 600 devops/start-e2e.sh",
+        "timeout 300 devops/stop-e2e.sh"
+      ],
+      "artifacts": [
+        "devops/start-e2e.sh",
+        "devops/stop-e2e.sh"
+      ],
+      "estimate_points": 3,
+      "tags": [
+        "devops",
+        "e2e"
+      ],
+      "notes": "Keep scripts idempotent so Playwright runs can chain without manual cleanup."
+    },
+    {
+      "id": "T-017",
+      "title": "Frontend API client & auth shell",
+      "owner": "ModuleDev",
+      "area": "frontend",
+      "deps": [
+        "T-005",
+        "T-006"
+      ],
+      "dod": [
+        "Shared API client created with typed bindings to openapi.yaml and centralized error handling.",
+        "Auth context implements session persistence, role checks, and redirects for onboarding gating.",
+        "Global styles updated to include offline banner and data-testid scaffolding."
+      ],
+      "tests": [
+        "npm run lint --prefix bh-fe",
+        "npm run test --prefix bh-fe"
+      ],
+      "artifacts": [
+        "bh-fe/src/api",
+        "bh-fe/src/app/AuthGuard.tsx"
+      ],
+      "estimate_points": 3,
+      "tags": [
+        "frontend",
+        "auth"
+      ],
+      "notes": "Leverage existing design system tokens in bh-fe to speed up flow implementation."
+    },
+    {
+      "id": "T-018",
+      "title": "UX acceptance package for J-1 onboarding",
+      "owner": "Doc",
+      "area": "docs",
+      "deps": [
+        "T-002"
+      ],
+      "dod": [
+        "Detailed J-1 acceptance criteria added to platform/ARTIFACTS/ux_flows.md, covering error states and offline banners.",
+        "Route map updated with expected parameters and guard conditions.",
+        "data-testid registry cross-checked for all onboarding surfaces."
+      ],
+      "tests": [],
+      "artifacts": [
+        "platform/ARTIFACTS/ux_flows.md",
+        "platform/ARTIFACTS/route_map.json"
+      ],
+      "estimate_points": 1,
+      "tags": [
+        "ux",
+        "journey-j1"
+      ],
+      "notes": "Capture decisions on Whoop optionality versus manual entry requirement."
+    },
+    {
+      "id": "T-019",
+      "title": "Frontend implement J-1 onboarding & dashboard entry",
+      "owner": "ModuleDev",
+      "area": "frontend",
+      "deps": [
+        "T-018",
+        "T-017",
+        "T-006",
+        "T-007"
+      ],
+      "dod": [
+        "Registration, onboarding, and initial dashboard routes implemented with optimistic state handling.",
+        "Whoop connect and manual entry fallback flows presented per UX acceptance.",
+        "All elements instrumented with required data-testid hooks."
+      ],
+      "tests": [
+        "npm run lint --prefix bh-fe",
+        "npm run test --prefix bh-fe"
+      ],
+      "artifacts": [
+        "bh-fe/src/routes/auth",
+        "bh-fe/src/routes/onboarding",
+        "bh-fe/src/routes/dashboard/index.tsx"
+      ],
+      "estimate_points": 4,
+      "tags": [
+        "journey-j1",
+        "frontend"
+      ],
+      "notes": "Coordinate with backend team for onboarding status codes and real-time validation errors."
+    },
+    {
+      "id": "T-020",
+      "title": "QA sign-off J-1 flow",
+      "owner": "Test",
+      "area": "qa",
+      "deps": [
+        "T-019"
+      ],
+      "dod": [
+        "Manual regression checklist executed across supported browsers for J-1 journey.",
+        "Edge cases (409 email conflict, 422 validation, offline snapshot) documented with evidence in platform/EVAL/j1_qa.md.",
+        "Sign-off recorded and shared with Playwright runner."
+      ],
+      "tests": [
+        "npm run test --prefix bh-fe"
+      ],
+      "artifacts": [
+        "platform/EVAL/j1_qa.md"
+      ],
+      "estimate_points": 1,
+      "tags": [
+        "journey-j1",
+        "qa"
+      ],
+      "notes": "Include accessibility spot-check results for onboarding forms."
+    },
+    {
+      "id": "T-021",
+      "title": "Playwright coverage J-1",
+      "owner": "Test",
+      "area": "qa",
+      "deps": [
+        "T-020",
+        "T-016"
+      ],
+      "dod": [
+        "Playwright spec automates full J-1 journey including Whoop optional path and offline banner verification.",
+        "Spec registered in CI pipeline with retries disabled to surface flakiness early.",
+        "Test evidence archived (screenshots/traces) alongside run log."
+      ],
+      "tests": [
+        "timeout 900 devops/start-e2e.sh",
+        "npm run test:e2e --prefix bh-fe",
+        "timeout 120 devops/stop-e2e.sh"
+      ],
+      "artifacts": [
+        "bh-fe/tests/e2e/j1-onboarding.spec.ts",
+        "devops/start-e2e.sh"
+      ],
+      "estimate_points": 2,
+      "tags": [
+        "journey-j1",
+        "playwright"
+      ],
+      "notes": "Publish flaky-test guidance if dashboard data seeds require stabilization."
+    },
+    {
+      "id": "T-022",
+      "title": "UX acceptance package for J-2 insight & logging",
+      "owner": "Doc",
+      "area": "docs",
+      "deps": [
+        "T-018"
+      ],
+      "dod": [
+        "Dashboard and biomarker logging acceptance criteria detailed with empty/optimistic/error states.",
+        "Insight acceptance versus retry interactions explicitly documented.",
+        "data-testid mapping updated for biomarker components."
+      ],
+      "tests": [],
+      "artifacts": [
+        "platform/ARTIFACTS/ux_flows.md",
+        "platform/ARTIFACTS/route_map.json"
+      ],
+      "estimate_points": 1,
+      "tags": [
+        "ux",
+        "journey-j2"
+      ],
+      "notes": "Clarify AI insight acceptance logging expectation for analytics tracking."
+    },
+    {
+      "id": "T-023",
+      "title": "Frontend implement J-2 dashboard & biomarker logging",
+      "owner": "ModuleDev",
+      "area": "frontend",
+      "deps": [
+        "T-022",
+        "T-017",
+        "T-008",
+        "T-009",
+        "T-010"
+      ],
+      "dod": [
+        "Dashboard renders readiness tiles, AI insight cards, and log biomarker CTA with optimistic updates.",
+        "Biomarker index/detail/log pages implemented with retry UI and historical charts.",
+        "Offline snapshot messaging displayed using cached data when API unavailable."
+      ],
+      "tests": [
+        "npm run lint --prefix bh-fe",
+        "npm run test --prefix bh-fe"
+      ],
+      "artifacts": [
+        "bh-fe/src/routes/dashboard",
+        "bh-fe/src/routes/biomarkers"
+      ],
+      "estimate_points": 4,
+      "tags": [
+        "journey-j2",
+        "frontend"
+      ],
+      "notes": "Coordinate with AI module for acceptance state refresh to avoid stale UI."
+    },
+    {
+      "id": "T-024",
+      "title": "QA sign-off J-2 flow",
+      "owner": "Test",
+      "area": "qa",
+      "deps": [
+        "T-023"
+      ],
+      "dod": [
+        "Manual walkthrough validates insight accept/retry, biomarker logging, and offline messaging.",
+        "Defects logged with reproduction steps and severity labels; sign-off recorded once resolved.",
+        "Evidence stored in platform/EVAL/j2_qa.md with screenshots for key states."
+      ],
+      "tests": [
+        "npm run test --prefix bh-fe"
+      ],
+      "artifacts": [
+        "platform/EVAL/j2_qa.md"
+      ],
+      "estimate_points": 1,
+      "tags": [
+        "journey-j2",
+        "qa"
+      ],
+      "notes": "Validate cache invalidation by exercising manual log and verifying dashboard refresh."
+    },
+    {
+      "id": "T-025",
+      "title": "Playwright coverage J-2",
+      "owner": "Test",
+      "area": "qa",
+      "deps": [
+        "T-024",
+        "T-016"
+      ],
+      "dod": [
+        "Playwright spec automates insight accept/retry flow and biomarker logging with optimistic UI checks.",
+        "Spec seeds biomarker data via backend/scripts/seed.ts prior to run.",
+        "CI artifacts (trace, video) archived for Gate C evidence."
+      ],
+      "tests": [
+        "timeout 900 devops/start-e2e.sh",
+        "npm run test:e2e --prefix bh-fe",
+        "timeout 120 devops/stop-e2e.sh"
+      ],
+      "artifacts": [
+        "bh-fe/tests/e2e/j2-dashboard.spec.ts"
+      ],
+      "estimate_points": 2,
+      "tags": [
+        "journey-j2",
+        "playwright"
+      ],
+      "notes": "Ensure spec asserts analytics events to catch regression in AI acceptance tracking."
+    },
+    {
+      "id": "T-026",
+      "title": "UX acceptance package for J-3 community & rooms",
+      "owner": "Doc",
+      "area": "docs",
+      "deps": [
+        "T-022"
+      ],
+      "dod": [
+        "Community feed, rooms lobby, and play states documented with invalid/full room copy.",
+        "Reconnect flows and spectator experiences described for realtime fallback.",
+        "data-testid list validated for community and rooms components."
+      ],
+      "tests": [],
+      "artifacts": [
+        "platform/ARTIFACTS/ux_flows.md",
+        "platform/ARTIFACTS/route_map.json"
+      ],
+      "estimate_points": 1,
+      "tags": [
+        "ux",
+        "journey-j3"
+      ],
+      "notes": "Capture final decision on room invite expiry so backend aligns."
+    },
+    {
+      "id": "T-027",
+      "title": "Frontend implement J-3 community & rooms",
+      "owner": "ModuleDev",
+      "area": "frontend",
+      "deps": [
+        "T-026",
+        "T-017",
+        "T-011",
+        "T-012"
+      ],
+      "dod": [
+        "Community feed, reactions, and post creation UI implemented per UX with moderation hooks.",
+        "Rooms lobby and live play flows integrated with realtime gateway including reconnect banner.",
+        "Invalid room and capacity states rendered with CTA fallback."
+      ],
+      "tests": [
+        "npm run lint --prefix bh-fe",
+        "npm run test --prefix bh-fe"
+      ],
+      "artifacts": [
+        "bh-fe/src/routes/feed",
+        "bh-fe/src/routes/rooms"
+      ],
+      "estimate_points": 4,
+      "tags": [
+        "journey-j3",
+        "frontend"
+      ],
+      "notes": "Coordinate with backend realtime team on payload shapes before wiring client listeners."
+    },
+    {
+      "id": "T-028",
+      "title": "QA sign-off J-3 flow",
+      "owner": "Test",
+      "area": "qa",
+      "deps": [
+        "T-027"
+      ],
+      "dod": [
+        "Manual QA covers posting, commenting, reacting, room create/join, and reconnect scenarios.",
+        "Invalid code and room full cases captured with screenshots and expected copy.",
+        "Sign-off recorded in platform/EVAL/j3_qa.md."
+      ],
+      "tests": [
+        "npm run test --prefix bh-fe"
+      ],
+      "artifacts": [
+        "platform/EVAL/j3_qa.md"
+      ],
+      "estimate_points": 1,
+      "tags": [
+        "journey-j3",
+        "qa"
+      ],
+      "notes": "Ensure moderation flag triggers remove posts from member view during QA."
+    },
+    {
+      "id": "T-029",
+      "title": "Playwright coverage J-3",
+      "owner": "Test",
+      "area": "qa",
+      "deps": [
+        "T-028",
+        "T-016"
+      ],
+      "dod": [
+        "Playwright spec automates community posting and room join flow with websocket assertions.",
+        "Spec verifies roomFull and invalidCode responses using seeded scenarios.",
+        "Artifacts archived for Gate C review."
+      ],
+      "tests": [
+        "timeout 900 devops/start-e2e.sh",
+        "npm run test:e2e --prefix bh-fe",
+        "timeout 120 devops/stop-e2e.sh"
+      ],
+      "artifacts": [
+        "bh-fe/tests/e2e/j3-community.spec.ts"
+      ],
+      "estimate_points": 2,
+      "tags": [
+        "journey-j3",
+        "playwright"
+      ],
+      "notes": "Coordinate with backend to mock realtime channel when running in CI to avoid flakiness."
+    },
+    {
+      "id": "T-030",
+      "title": "UX acceptance package for admin moderation console",
+      "owner": "Doc",
+      "area": "docs",
+      "deps": [
+        "T-026"
+      ],
+      "dod": [
+        "Admin console acceptance documented, including flag resolution, snooze, and audit trails.",
+        "Moderation SLAs and status indicators described.",
+        "data-testid registry updated for admin components."
+      ],
+      "tests": [],
+      "artifacts": [
+        "platform/ARTIFACTS/ux_flows.md",
+        "platform/ARTIFACTS/route_map.json"
+      ],
+      "estimate_points": 1,
+      "tags": [
+        "ux",
+        "admin"
+      ],
+      "notes": "Document whether bulk actions are deferred beyond MVP to guide implementation scope."
+    },
+    {
+      "id": "T-031",
+      "title": "Frontend implement admin moderation console",
+      "owner": "ModuleDev",
+      "area": "frontend",
+      "deps": [
+        "T-030",
+        "T-017",
+        "T-013"
+      ],
+      "dod": [
+        "Admin moderation table, flag resolve/snooze actions, and audit history rendered per UX.",
+        "Role guard prevents non-admin access and displays helpful messaging.",
+        "System health summary widgets connected to observability endpoints."
+      ],
+      "tests": [
+        "npm run lint --prefix bh-fe",
+        "npm run test --prefix bh-fe"
+      ],
+      "artifacts": [
+        "bh-fe/src/routes/admin"
+      ],
+      "estimate_points": 3,
+      "tags": [
+        "admin",
+        "frontend"
+      ],
+      "notes": "Ensure audit log filters match backend query parameters for traceability."
+    },
+    {
+      "id": "T-032",
+      "title": "QA sign-off admin console",
+      "owner": "Test",
+      "area": "qa",
+      "deps": [
+        "T-031"
+      ],
+      "dod": [
+        "Manual QA validates admin-only access, flag resolution workflow, and audit log accuracy.",
+        "Edge cases (stale flags, missing permissions) documented in platform/EVAL/admin_qa.md.",
+        "Sign-off communicated to Playwright runner."
+      ],
+      "tests": [
+        "npm run test --prefix bh-fe"
+      ],
+      "artifacts": [
+        "platform/EVAL/admin_qa.md"
+      ],
+      "estimate_points": 1,
+      "tags": [
+        "admin",
+        "qa"
+      ],
+      "notes": "Include scenario for SLA breach notification to ensure metrics surfaced correctly."
+    },
+    {
+      "id": "T-033",
+      "title": "Playwright coverage admin moderation",
+      "owner": "Test",
+      "area": "qa",
+      "deps": [
+        "T-032",
+        "T-016"
+      ],
+      "dod": [
+        "Playwright spec covers admin login, flag triage, and audit verification flows.",
+        "Spec asserts RBAC by verifying member role is blocked from admin route.",
+        "Artifacts archived for Gate C and release evidence."
+      ],
+      "tests": [
+        "timeout 900 devops/start-e2e.sh",
+        "npm run test:e2e --prefix bh-fe",
+        "timeout 120 devops/stop-e2e.sh"
+      ],
+      "artifacts": [
+        "bh-fe/tests/e2e/admin-moderation.spec.ts"
+      ],
+      "estimate_points": 2,
+      "tags": [
+        "admin",
+        "playwright"
+      ],
+      "notes": "Coordinate with Security on admin credentials used during automated runs."
+    },
+    {
+      "id": "T-034",
+      "title": "Backend integration & contract test suite",
+      "owner": "Test",
+      "area": "qa",
+      "deps": [
+        "T-008",
+        "T-009",
+        "T-010",
+        "T-013",
+        "T-014"
+      ],
+      "dod": [
+        "Integration tests cover critical REST endpoints with seeded database state and contract assertions against openapi.yaml.",
+        "Test runner resets db using backend/scripts/seed.ts before each suite.",
+        "Test evidence stored in platform/EVAL/backend_contract.md."
+      ],
+      "tests": [
+        "npm run test --prefix backend",
+        "npm run lint --prefix backend"
+      ],
+      "artifacts": [
+        "backend/tests/integration",
+        "platform/EVAL/backend_contract.md"
+      ],
+      "estimate_points": 3,
+      "tags": [
+        "backend",
+        "qa"
+      ],
+      "notes": "Coordinate with ModuleDev on shared fixtures for async workers to keep tests deterministic."
+    },
+    {
+      "id": "T-035",
+      "title": "Security hardening & policy update",
+      "owner": "Security",
+      "area": "security",
+      "deps": [
+        "T-015",
+        "T-014",
+        "T-034"
+      ],
+      "dod": [
+        "Threat model documented covering auth, integrations, and admin surfaces.",
+        "Dependency and secret scanning integrated into CI with remediation plan.",
+        "platform/POLICY/security.md updated with OAuth rotation, audit log retention, and scanning procedures."
+      ],
+      "tests": [
+        "npm audit --prefix backend",
+        "npm run lint --prefix backend"
+      ],
+      "artifacts": [
+        "platform/POLICY/security.md",
+        "backend/docs/threat-model.md"
+      ],
+      "estimate_points": 2,
+      "tags": [
+        "security"
+      ],
+      "notes": "Flag any owners missing from resource plan once it is available; coordinate with DevOps on secret storage."
+    },
+    {
+      "id": "T-036",
+      "title": "Performance budget validation",
+      "owner": "Perf",
+      "area": "perf",
+      "deps": [
+        "T-015",
+        "T-010",
+        "T-034"
+      ],
+      "dod": [
+        "API load test verifies dashboard p95 < 400ms with seeded data and cache warm/cold runs.",
+        "Frontend Lighthouse audit captures PWA performance with actionable optimization backlog if targets missed.",
+        "platform/EVAL/perf_report.md summarizes results and follow-ups."
+      ],
+      "tests": [
+        "npm run perf:api --prefix backend",
+        "npm run build --prefix bh-fe"
+      ],
+      "artifacts": [
+        "platform/EVAL/perf_report.md",
+        "backend/scripts/perf.config.ts"
+      ],
+      "estimate_points": 2,
+      "tags": [
+        "perf"
+      ],
+      "notes": "Coordinate with ModuleDev to stub perf scripts if commands do not yet exist."
+    },
+    {
+      "id": "T-037",
+      "title": "Release packaging & deployment playbook",
+      "owner": "Release",
+      "area": "devops",
+      "deps": [
+        "T-033",
+        "T-035",
+        "T-036",
+        "T-016"
+      ],
+      "dod": [
+        "Container build or Cloud Run deploy script created with rollback plan and env documentation.",
+        "Release notes drafted summarizing changes, risks, and smoke checklist.",
+        "Dry run executes end-to-end start/test/stop sequence with artifacts archived."
+      ],
+      "tests": [
+        "npm run build --prefix backend",
+        "npm run build --prefix bh-fe",
+        "timeout 900 devops/start-e2e.sh",
+        "npm run test:e2e --prefix bh-fe",
+        "timeout 120 devops/stop-e2e.sh"
+      ],
+      "artifacts": [
+        "platform/EVAL/release_notes.md",
+        "devops/release.sh"
+      ],
+      "estimate_points": 3,
+      "tags": [
+        "release"
+      ],
+      "notes": "Include checklist for verifying OAuth credentials and background workers post-deploy."
+    },
+    {
+      "id": "T-038",
+      "title": "Gate B verification \u2013 scaffold ready",
+      "owner": "Scaffolder",
+      "area": "devops",
+      "deps": [
+        "T-003",
+        "T-004"
+      ],
+      "dod": [
+        "Baseline lint/test suite executed and passing for backend scaffold.",
+        "Documentation updated outlining setup steps for backend contributors.",
+        "Gate B report recorded in platform/EVAL/gate_b.md with any follow-up actions."
+      ],
+      "tests": [
+        "npm run lint --prefix backend",
+        "npm run test --prefix backend"
+      ],
+      "artifacts": [
+        "platform/EVAL/gate_b.md"
+      ],
+      "estimate_points": 1,
+      "tags": [
+        "gate-b"
+      ],
+      "notes": "Confirm resource plan owners for upcoming module development before closing Gate B."
+    },
+    {
+      "id": "T-039",
+      "title": "Gate C verification \u2013 feature quality",
+      "owner": "Test",
+      "area": "qa",
+      "deps": [
+        "T-021",
+        "T-025",
+        "T-029",
+        "T-033",
+        "T-034",
+        "T-035",
+        "T-036"
+      ],
+      "dod": [
+        "All automated and manual QA evidence reviewed with no blocking defects.",
+        "Security and performance sign-offs attached to gate checklist.",
+        "platform/EVAL/gate_c.md captures status, risks, and go/no-go decision."
+      ],
+      "tests": [
+        "timeout 900 devops/start-e2e.sh",
+        "npm run test:e2e --prefix bh-fe",
+        "timeout 120 devops/stop-e2e.sh"
+      ],
+      "artifacts": [
+        "platform/EVAL/gate_c.md"
+      ],
+      "estimate_points": 2,
+      "tags": [
+        "gate-c"
+      ],
+      "notes": "Include summary of outstanding low-priority issues deferred beyond MVP."
+    },
+    {
+      "id": "T-040",
+      "title": "Gate D verification \u2013 demo readiness",
+      "owner": "Release",
+      "area": "devops",
+      "deps": [
+        "T-037",
+        "T-039"
+      ],
+      "dod": [
+        "Final end-to-end run executed from clean environment with evidence attached.",
+        "Release notes ratified and demo checklist signed by stakeholders.",
+        "platform/EVAL/gate_d.md documents final readiness decision and follow-up items."
+      ],
+      "tests": [
+        "timeout 900 devops/start-e2e.sh",
+        "npm run test:e2e --prefix bh-fe",
+        "timeout 120 devops/stop-e2e.sh"
+      ],
+      "artifacts": [
+        "platform/EVAL/gate_d.md"
+      ],
+      "estimate_points": 2,
+      "tags": [
+        "gate-d"
+      ],
+      "notes": "Verify post-demo rollback plan and data reset instructions are current before closure."
+    },
+    {
+      "id": "T-041",
+      "title": "Expedite backend Dockerfile and Cloud Run wiring",
+      "owner": "DevOps",
+      "area": "devops",
+      "deps": [
+        "T-003"
+      ],
+      "dod": [
+        "backend/Dockerfile created with multi-stage build producing a production-ready image of the Express/Prisma service.",
+        "Cloud Run deployment manifest and Cloud SQL connector configuration added under devops/cloudrun, including environment variable mapping and service account references.",
+        "Secrets documentation updated in backend/.env.example and platform/ARTIFACTS/runbooks/backend_deploy.md covering DATABASE_URL, OPENROUTER_KEY, WHOOP credentials, and Secret Manager retrieval steps.",
+        "Smoke run performed: docker build succeeds and container runs locally against a Cloud SQL proxy or local Postgres instance."
+      ],
+      "tests": [
+        "docker build -t biohax-backend ./backend",
+        "docker run --rm -e DATABASE_URL=postgres://localhost:5432/test biohax-backend npm run start --prefix backend"
+      ],
+      "artifacts": [
+        "backend/Dockerfile",
+        "devops/cloudrun/backend.yaml",
+        "platform/ARTIFACTS/runbooks/backend_deploy.md"
+      ],
+      "estimate_points": 3,
+      "tags": [
+        "urgent",
+        "cloud-run"
+      ],
+      "notes": "High priority today\u2014deliver deployable backend container and document Cloud Run rollout."
+    },
+    {
+      "id": "T-042",
+      "title": "Finalize Express/Prisma service for deployment",
+      "owner": "ModuleDev",
+      "area": "backend",
+      "deps": [
+        "T-003",
+        "T-004"
+      ],
+      "dod": [
+        "Express app exposes health check plus placeholder auth, dashboard, and community routes aligned with platform/ARTIFACTS/openapi.yaml.",
+        "Prisma client lifecycle managed via centralized config supporting both local Postgres and Cloud SQL connection strings.",
+        "Graceful shutdown, structured logging, and environment configuration module implemented per architecture notes.",
+        "backend/scripts/seed.ts populates minimal dataset required by Playwright journeys (member, coach, admin, insights, biomarker logs, community posts, moderation flag)."
+      ],
+      "tests": [
+        "npm run lint --prefix backend",
+        "npm run test --prefix backend",
+        "npm run prisma:generate --prefix backend",
+        "npm run db:seed --prefix backend"
+      ],
+      "artifacts": [
+        "backend/src/app.ts",
+        "backend/src/server.ts",
+        "backend/scripts/seed.ts",
+        "backend/prisma/.env.example"
+      ],
+      "estimate_points": 5,
+      "tags": [
+        "urgent",
+        "backend"
+      ],
+      "notes": "Must land immediately to unblock Docker packaging (T-041) and e2e data requirements."
+    }
+  ]
+}
