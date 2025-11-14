@@ -11,9 +11,8 @@
 
 ## Build & Validation Commands
 - **Frontend install:** `cd bh-fe && npm install`
-- **Frontend dev (placeholder):** No hot-reload script yet — add via DevOps milestone.
-- **Frontend tests:** `cd bh-fe && npm test` (placeholder; implement once tests exist).
-- **Legacy note:** The previous `frontend/` workspace remains checked in for historical reference but is no longer used; route all new UI work through `bh-fe/`.
+- **Frontend dev:** `cd bh-fe && npm run dev` (Vite on port 5173).
+- **Frontend tests:** `cd bh-fe && npm run test:e2e` (Playwright smoke run; ensure backend is running first).
 - **Frontend deploy QA:** Follow `docs/frontend-deploy-checklist.md` (Figma parity review + deploy commands) before shipping.
 - **Backend install:** `# TODO` backend service is not scaffolded yet.
 - **Repo lint/tests:** Define per service once implemented; record in this guide as they appear.

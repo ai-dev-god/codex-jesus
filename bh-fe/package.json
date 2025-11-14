@@ -1,5 +1,5 @@
 {
-  "name": "frontend",
+  "name": "bh-fe",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:e2e": "playwright install chromium && playwright test",
+    "test:e2e:headed": "PLAYWRIGHT_HEADLESS=0 playwright install chromium && PLAYWRIGHT_HEADLESS=0 playwright test --headed"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -64,6 +66,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
+    "@playwright/test": "^1.56.1",
     "@types/node": "^24.9.1",
     "@types/react": "^19.1.16",
     "@types/react-dom": "^19.1.9",

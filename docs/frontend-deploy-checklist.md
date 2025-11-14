@@ -7,14 +7,14 @@ instructions as mandatory to prevent a repeat.
 
 ## 1. Source of Truth
 - **Design reference:** https://dragon-fiber-44254851.figma.site (exported Figma build)
-- **Canonical codebase:** https://github.com/ai-dev-god/bh-fe  
-  Pull updates from this repository before making local modifications. Use
-  `git diff` (or a visual diff) to confirm our workspace still mirrors it.
+- **Canonical codebase:** the checked-in `bh-fe/` workspace in this repo. Keep it
+  as the single source of truth and ensure any upstream references are mirrored
+  here before starting QA.
 
 ## 2. Local Sync
 1. Update the local `bh-fe/` folder from the canonical repo if changes exist.
-2. Confirm no legacy dependencies remain (e.g. Supabase or other unused
-   services)—the app must rely solely on Google Cloud Platform.
+2. Confirm no legacy dependencies remain—the app must rely solely on Google
+   Cloud Platform.
 3. Run `npm install` and ensure there are no unresolved packages or audit
    warnings that block production.
 
