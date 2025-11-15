@@ -1,4 +1,4 @@
-export type Role = 'ADMIN' | 'MEMBER';
+export type Role = 'ADMIN' | 'MEMBER' | 'COACH' | 'PRACTITIONER' | 'MODERATOR';
 export type UserStatus = 'PENDING_ONBOARDING' | 'ACTIVE' | 'SUSPENDED';
 
 export interface SerializedUser {
@@ -122,6 +122,27 @@ export interface DualEngineInsightBody extends Record<string, unknown> {
   insights?: string[];
   recommendations?: string[];
   metadata?: DualEngineInsightMetadata | null;
+}
+
+export type AdminView =
+  | 'overview'
+  | 'users'
+  | 'health'
+  | 'database'
+  | 'config'
+  | 'security'
+  | 'apikeys'
+  | 'llm'
+  | 'audit'
+  | 'metrics'
+  | 'backups';
+
+export interface AdminAccessSummary {
+  role: Role;
+  hasStaffAccess: boolean;
+  hasAdminAccess: boolean;
+  allowedViews: AdminView[];
+  checkedAt: string;
 }
 
 export interface DashboardSummary {

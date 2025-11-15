@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Zap, Activity, Users, Brain, TrendingUp, Lock, CheckCircle2, Menu, X, Moon, Sun, Database, Sparkles, Calendar, Bell, BookOpen, Briefcase, ArrowRight, Shield, Gauge, Star } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '../ui/sheet';
@@ -23,6 +23,16 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
     const element = document.getElementById(id);
     element?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  const handleGetStarted = useCallback(() => {
+    console.log('Get Started clicked!');
+    onGetStarted();
+  }, [onGetStarted]);
+
+  const handleSignIn = useCallback(() => {
+    console.log('Sign In clicked!');
+    onSignIn();
+  }, [onSignIn]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -68,10 +78,10 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
               >
                 {theme === 'light' ? <Moon className="w-5 h-5 text-steel" /> : <Sun className="w-5 h-5 text-steel" />}
               </button>
-              <Button variant="ghost" onClick={onSignIn}>
+              <Button variant="ghost" onClick={handleSignIn}>
                 {t.auth.signIn}
               </Button>
-              <Button onClick={onGetStarted}>
+              <Button onClick={handleGetStarted}>
                 <Zap className="w-4 h-4 mr-2" />
                 {t.landing.ctaPrimary}
               </Button>
@@ -102,10 +112,10 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
                     About
                   </button>
                   <div className="border-t border-cloud pt-6 space-y-3">
-                    <Button variant="outline" onClick={onSignIn} className="w-full">
+                    <Button variant="outline" onClick={handleSignIn} className="w-full">
                       {t.auth.signIn}
                     </Button>
-                    <Button onClick={onGetStarted} className="w-full">
+                    <Button onClick={handleGetStarted} className="w-full">
                       <Zap className="w-4 h-4 mr-2" />
                       {t.landing.ctaPrimary}
                     </Button>
@@ -134,11 +144,16 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-20">
-            <Button size="lg" onClick={onGetStarted} className="shadow-2xl">
+            <Button size="lg" onClick={handleGetStarted} className="shadow-2xl relative z-10">
               <Zap className="w-5 h-5 mr-2" />
               {t.landing.ctaPrimary}
             </Button>
-            <Button size="lg" variant="outline" onClick={() => scrollToSection('features')}>
+            <Button
+              size="lg"
+              variant="outline"
+              onClick={() => scrollToSection('features')}
+              className="relative z-10"
+            >
               {t.landing.ctaSecondary}
               <ArrowRight className="w-5 h-5 ml-2" />
             </Button>
@@ -417,7 +432,7 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
               features={t.pricing.explorer.features}
               color="electric"
               ctaText={t.landing.startFree}
-              onCta={onGetStarted}
+              onCta={handleGetStarted}
             />
             <PricingCard
               tier={t.pricing.biohacker.name}
@@ -428,7 +443,7 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
               color="neural"
               featured
               ctaText={t.landing.startTrial}
-              onCta={onGetStarted}
+              onCta={handleGetStarted}
             />
             <PricingCard
               tier={t.pricing.longevityPro.name}
@@ -438,7 +453,7 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
               features={t.pricing.longevityPro.features}
               color="bio"
               ctaText={t.landing.contactSales}
-              onCta={onGetStarted}
+              onCta={handleGetStarted}
             />
           </div>
         </div>
@@ -523,7 +538,7 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
             </p>
             
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
-              <Button size="lg" onClick={onGetStarted}>
+              <Button size="lg" onClick={handleGetStarted}>
                 <Zap className="w-5 h-5 mr-2" />
                 Start Free Trial
               </Button>

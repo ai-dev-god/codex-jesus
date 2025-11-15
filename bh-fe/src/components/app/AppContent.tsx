@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Activity, Users, Zap, Settings, Link2, Home, Dumbbell, Apple, LogOut, Beaker } from 'lucide-react';
+import { Activity, Users, Zap, Settings, Link2, Home, Dumbbell, Apple, LogOut, Beaker, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 
 import VerticalNav from '../layout/VerticalNav';
@@ -16,6 +16,7 @@ import SettingsPage from '../settings/SettingsPage';
 import IntegrationsPage from '../integrations/IntegrationsPage';
 import GymWorkoutCreator from '../gym/GymWorkoutCreator';
 import NutritionView from '../nutrition/NutritionView';
+import AdminDashboard from '../admin/AdminDashboard';
 import { useTranslation } from '../../lib/i18n/LanguageContext';
 import type {
   AuthResponse,
@@ -23,13 +24,15 @@ import type {
   DashboardSummary,
   LongevityPlan,
   SerializedUser,
-  BiomarkerDefinition
+  BiomarkerDefinition,
+  AdminAccessSummary
 } from '../../lib/api/types';
 import { fetchDashboardSummary } from '../../lib/api/dashboard';
 import { fetchCurrentUser, logoutUser, refreshTokens } from '../../lib/api/auth';
 import { ApiError } from '../../lib/api/error';
 import { fetchLongevityPlans, requestLongevityPlan } from '../../lib/api/ai';
 import { listBiomarkerDefinitions, createManualBiomarkerLog } from '../../lib/api/biomarkers';
+import { fetchAdminAccess } from '../../lib/api/admin';
 import {
   clearPersistedSession,
   createSessionFromAuthResponse,
@@ -59,7 +62,8 @@ type View =
   | 'practitioner'
   | 'community'
   | 'settings'
-  | 'integrations';
+  | 'integrations'
+  | 'admin';
 
 const formatDateTimeLocal = (date: Date): string => {
   const pad = (value: number) => value.toString().padStart(2, '0');
@@ -125,17 +129,44 @@ export default function AppContent() {
     );
   }, [longevityPlans]);
 
-  const navigationItems = [
-    { id: 'dashboard' as View, label: t.nav.dashboard, icon: Home },
-    { id: 'labUpload' as View, label: t.nav.labUpload, icon: Beaker },
-    { id: 'protocols' as View, label: t.nav.protocols, icon: Activity },
-    { id: 'gym' as View, label: t.nav.gym, icon: Dumbbell },
-    { id: 'nutrition' as View, label: t.nav.nutrition, icon: Apple },
-    { id: 'practitioner' as View, label: t.nav.practitioner, icon: Users },
-    { id: 'community' as View, label: t.nav.community, icon: Zap },
-    { id: 'integrations' as View, label: t.nav.integrations, icon: Link2 },
-    { id: 'settings' as View, label: t.nav.settings, icon: Settings },
-  ];
+  const currentUser: SerializedUser | null = session?.user ?? null;
+  const isAdmin = currentUser?.role === 'ADMIN';
+
+  const [adminAccess, setAdminAccess] = useState<AdminAccessSummary | null>(null);
+
+  const allowAdminView = (adminAccess?.hasStaffAccess ?? false) || isAdmin;
+
+  const navigationItems = useMemo(() => {
+    const items = [
+      { id: 'dashboard' as View, label: t.nav.dashboard, icon: Home },
+      { id: 'labUpload' as View, label: t.nav.labUpload, icon: Beaker },
+      { id: 'protocols' as View, label: t.nav.protocols, icon: Activity },
+      { id: 'gym' as View, label: t.nav.gym, icon: Dumbbell },
+      { id: 'nutrition' as View, label: t.nav.nutrition, icon: Apple },
+      { id: 'practitioner' as View, label: t.nav.practitioner, icon: Users },
+      { id: 'community' as View, label: t.nav.community, icon: Zap },
+      { id: 'integrations' as View, label: t.nav.integrations, icon: Link2 },
+      { id: 'settings' as View, label: t.nav.settings, icon: Settings }
+    ];
+
+    if (allowAdminView) {
+      items.push({ id: 'admin' as View, label: t.nav.admin, icon: Shield });
+    }
+
+    return items;
+  }, [
+    allowAdminView,
+    t.nav.admin,
+    t.nav.community,
+    t.nav.dashboard,
+    t.nav.gym,
+    t.nav.integrations,
+    t.nav.labUpload,
+    t.nav.nutrition,
+    t.nav.practitioner,
+    t.nav.protocols,
+    t.nav.settings
+  ]);
 
   const updateSession = useCallback((next: StoredSession | null) => {
     setSession(next);
@@ -223,11 +254,50 @@ export default function AppContent() {
 
   useEffect(() => {
     if (!session) {
+      setAdminAccess(null);
       return;
     }
 
     syncUserProfile();
   }, [session, syncUserProfile]);
+
+  useEffect(() => {
+    if (!session) {
+      setAdminAccess(null);
+      return;
+    }
+
+    let cancelled = false;
+    const loadAccess = async () => {
+      try {
+        const freshSession = await ensureFreshSession();
+        const access = await fetchAdminAccess(freshSession.tokens.accessToken);
+        if (!cancelled) {
+          setAdminAccess(access);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+            setAdminAccess(null);
+          } else {
+            console.warn('Failed to sync admin access', error);
+          }
+        }
+      }
+    };
+
+    void loadAccess();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session, ensureFreshSession]);
+
+  useEffect(() => {
+    if (!allowAdminView && currentView === 'admin') {
+      setCurrentView('dashboard');
+    }
+  }, [allowAdminView, currentView]);
 
   const handleOnboardingComplete = useCallback(async () => {
     await syncUserProfile({ requireActive: true, throwOnError: true });
@@ -482,13 +552,30 @@ export default function AppContent() {
     setShowOnboarding(false);
   }, [session, ensureFreshSession, updateSession]);
 
-  const currentUser: SerializedUser | null = session?.user ?? null;
   const welcomeName = useMemo(() => {
     if (!currentUser) {
       return 'Biohacker';
     }
     const emailPrefix = currentUser.email?.split('@')[0] ?? 'Member';
     return emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
+  }, [currentUser]);
+
+  const profileInitials = useMemo(() => {
+    if (!currentUser?.email) {
+      return 'BH';
+    }
+    const [localPart] = currentUser.email.split('@');
+    if (!localPart) {
+      return 'BH';
+    }
+
+    const letters = localPart
+      .split(/[\W_]+/)
+      .filter(Boolean)
+      .map((segment) => segment.charAt(0).toUpperCase())
+      .join('');
+
+    return letters.slice(0, 2) || 'BH';
   }, [currentUser]);
 
   const authValue = useMemo(
@@ -567,6 +654,34 @@ export default function AppContent() {
     setCurrentView('labUpload');
   }, []);
 
+  const handleOpenNotifications = useCallback(() => {
+    if (!session) {
+      setAppState('auth');
+      return;
+    }
+
+    setShowOnboarding(false);
+    setCurrentView('dashboard');
+    setShowActionsDialog(true);
+  }, [session, setAppState]);
+
+  const handleOpenProfile = useCallback(() => {
+    if (!session) {
+      setAppState('auth');
+      return;
+    }
+
+    setShowOnboarding(false);
+    setCurrentView('settings');
+  }, [session, setAppState]);
+
+  const handleNavigate = useCallback(
+    (nextView: View) => {
+      setCurrentView(nextView);
+    },
+    []
+  );
+
   const handleStartOnboarding = useCallback(() => {
     if (!session) {
       toast.error('Please sign in again to continue onboarding.');
@@ -634,6 +749,8 @@ export default function AppContent() {
         return <SettingsPage />;
       case 'integrations':
         return <IntegrationsPage />;
+      case 'admin':
+        return allowAdminView ? <AdminDashboard /> : renderDashboard();
       default:
         return renderDashboard();
     }
@@ -654,13 +771,16 @@ export default function AppContent() {
           </div>
         )}
         {/* Vertical Navigation */}
-        <VerticalNav items={navigationItems} currentView={currentView} onNavigate={setCurrentView} />
+        <VerticalNav items={navigationItems} currentView={currentView} onNavigate={handleNavigate} />
 
         {/* Command Bar */}
         <CommandBar
           onStartOnboarding={handleStartOnboarding}
           onOpenLabUpload={handleOpenLabUpload}
           onboardingActive={showOnboarding}
+          onOpenNotifications={handleOpenNotifications}
+          onOpenProfile={handleOpenProfile}
+          profileInitials={profileInitials}
         />
 
         {/* Main Content */}

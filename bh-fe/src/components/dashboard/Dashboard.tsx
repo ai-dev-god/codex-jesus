@@ -41,7 +41,7 @@ export default function Dashboard({
   const generatedLabel = summary ? new Date(summary.generatedAt).toLocaleString() : null;
 
 return (
-    <div className="min-h-screen mesh-gradient pt-28 pb-20 px-6" data-testid="view-dashboard">
+    <div className="min-h-screen mesh-gradient py-12 px-6" data-testid="view-dashboard">
       <div className="max-w-7xl mx-auto space-y-12">
         {/* Welcome Section */}
         <div className="text-center mb-12">

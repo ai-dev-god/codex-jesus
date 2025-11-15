@@ -30,6 +30,7 @@ export interface Translations {
     community: string;
     practitioner: string;
     settings: string;
+    admin: string;
     logout: string;
   };
 
@@ -171,6 +172,7 @@ export const translations: Record<Language, Translations> = {
       community: 'Community',
       practitioner: 'Practitioner',
       settings: 'Settings',
+      admin: 'Admin',
       logout: 'Logout',
     },
     landing: {
@@ -316,6 +318,7 @@ export const translations: Record<Language, Translations> = {
       community: 'Comunitate',
       practitioner: 'Practician',
       settings: 'Setări',
+      admin: 'Panou admin',
       logout: 'Deconectare',
     },
     landing: {

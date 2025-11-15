@@ -93,6 +93,23 @@ const validate = <T>(schema: z.ZodType<T>, payload: unknown): T => {
 
 const router = Router();
 
+router.get('/access', requireAuth, (req, res) => {
+  const userRole = req.user?.role ?? Role.MEMBER;
+  const staffRoles = new Set<Role>([Role.ADMIN, Role.MODERATOR]);
+  const hasStaffAccess = staffRoles.has(userRole);
+  const hasAdminAccess = userRole === Role.ADMIN;
+
+  res.status(200).json({
+    role: userRole,
+    hasStaffAccess,
+    hasAdminAccess,
+    allowedViews: hasStaffAccess
+      ? ['overview', 'users', 'health', 'database', 'config', 'security', 'apikeys', 'llm', 'audit', 'metrics', 'backups']
+      : [],
+    checkedAt: new Date().toISOString()
+  });
+});
+
 router.use(requireAuth, requireRoles(Role.ADMIN, Role.MODERATOR));
 
 router.get('/flags', async (req, res, next) => {

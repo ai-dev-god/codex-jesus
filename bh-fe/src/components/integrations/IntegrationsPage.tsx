@@ -85,7 +85,7 @@ export default function IntegrationsPage() {
   const connectedCount = integrations.filter(i => i.status === 'connected').length;
 
   return (
-    <div className="min-h-screen mesh-gradient pt-28 pb-20 px-6" data-testid="view-integrations">
+    <div className="min-h-screen mesh-gradient py-12 px-6" data-testid="view-integrations">
       <div className="max-w-7xl mx-auto space-y-12">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">

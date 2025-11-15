@@ -4,9 +4,29 @@ interface CommandBarProps {
   onStartOnboarding: () => void;
   onOpenLabUpload: () => void;
   onboardingActive?: boolean;
+  onOpenNotifications?: () => void;
+  onOpenProfile?: () => void;
+  profileInitials?: string;
 }
 
-export default function CommandBar({ onStartOnboarding, onOpenLabUpload, onboardingActive = false }: CommandBarProps) {
+export default function CommandBar({
+  onStartOnboarding,
+  onOpenLabUpload,
+  onboardingActive = false,
+  onOpenNotifications,
+  onOpenProfile,
+  profileInitials
+}: CommandBarProps) {
+  const handleOpenNotifications = () => {
+    onOpenNotifications?.();
+  };
+
+  const handleOpenProfile = () => {
+    onOpenProfile?.();
+  };
+
+  const initials = profileInitials?.trim().slice(0, 2).toUpperCase() || 'AR';
+
   return (
     <div className="fixed top-0 left-0 right-0 z-50 px-6 pt-6">
       <div className="max-w-7xl mx-auto">
@@ -53,6 +73,7 @@ export default function CommandBar({ onStartOnboarding, onOpenLabUpload, onboard
             </button>
 
             <button
+              type="button"
               onClick={onOpenLabUpload}
               className="px-4 py-2.5 rounded-xl border border-cloud text-ink font-semibold hover:border-electric hover:text-electric transition-colors"
             >
@@ -62,15 +83,25 @@ export default function CommandBar({ onStartOnboarding, onOpenLabUpload, onboard
               </div>
             </button>
 
-            <button className="relative w-11 h-11 rounded-xl bg-white hover:bg-pearl transition-colors flex items-center justify-center">
+            <button
+              type="button"
+              onClick={handleOpenNotifications}
+              className="relative w-11 h-11 rounded-xl bg-white hover:bg-pearl transition-colors flex items-center justify-center"
+              aria-label="Open notifications"
+            >
               <Bell className="w-5 h-5 text-ink" />
               <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full gradient-pulse flex items-center justify-center">
                 <span className="text-xs font-bold text-white">3</span>
               </div>
             </button>
 
-            <button className="w-11 h-11 rounded-xl gradient-spectrum flex items-center justify-center hover:scale-105 transition-transform">
-              <span className="text-sm font-bold text-white">AR</span>
+            <button
+              type="button"
+              onClick={handleOpenProfile}
+              className="w-11 h-11 rounded-xl gradient-spectrum flex items-center justify-center hover:scale-105 transition-transform"
+              aria-label="Open profile"
+            >
+              <span className="text-sm font-bold text-white">{initials}</span>
             </button>
           </div>
         </div>

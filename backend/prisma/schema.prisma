@@ -39,6 +39,9 @@ model User {
   longevityPlanJobs     LongevityPlanJob[]    @relation("UserLongevityPlanJobs")
   aiResponseAudits      AiResponseAudit[]
   loginAudits           LoginAudit[]
+  apiKeysCreated        ServiceApiKey[]   @relation("ApiKeysCreatedBy")
+  apiKeysRevoked        ServiceApiKey[]   @relation("ApiKeysRevokedBy")
+  backupJobsInitiated   AdminBackupJob[]  @relation("BackupJobInitiatedBy")
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
 }
@@ -97,6 +100,7 @@ model LongevityPlan {
   updatedAt     DateTime             @updatedAt
   jobs          LongevityPlanJob[]
   audits        AiResponseAudit[]
+  panelUploads  PanelUpload[]
 
   @@index([userId, createdAt])
 }
@@ -113,6 +117,7 @@ model Biomarker {
   updatedAt     DateTime        @updatedAt
   logs          BiomarkerLog[]
   measurements  BiomarkerMeasurement[]
+  panelUploadTags PanelUploadBiomarkerTag[]
 }
 
 model BiomarkerLog {
@@ -432,6 +437,45 @@ model AdminAuditLog {
   createdAt  DateTime @default(now())
 }
 
+model AdminBackupJob {
+  id              String            @id @default(cuid())
+  type            AdminBackupType   @default(FULL)
+  status          AdminBackupStatus @default(QUEUED)
+  initiatedBy     User?             @relation("BackupJobInitiatedBy", fields: [initiatedById], references: [id], onDelete: SetNull)
+  initiatedById   String?
+  storageUri      String?
+  sizeBytes       BigInt?
+  durationSeconds Int?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  failureReason   String?
+  metadata        Json?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+}
+
+model ServiceApiKey {
+  id            String               @id @default(cuid())
+  name          String
+  prefix        String               @unique
+  suffix        String
+  hashedSecret  String
+  scope         ServiceApiKeyScope   @default(READ)
+  status        ServiceApiKeyStatus  @default(ACTIVE)
+  createdBy     User?                @relation("ApiKeysCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdById   String?
+  revokedBy     User?                @relation("ApiKeysRevokedBy", fields: [revokedById], references: [id], onDelete: SetNull)
+  revokedById   String?
+  revokedAt     DateTime?
+  lastRotatedAt DateTime?
+  lastUsedAt    DateTime?
+  lastUsedIp    String?
+  requestCount  Int                  @default(0)
+  metadata      Json?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+}
+
 model AiResponseAudit {
   id        String          @id @default(cuid())
   plan      LongevityPlan?  @relation(fields: [planId], references: [id], onDelete: SetNull)
@@ -555,6 +599,29 @@ enum FlagStatus {
   OPEN
   TRIAGED
   RESOLVED
+}
+
+enum AdminBackupType {
+  FULL
+  INCREMENTAL
+}
+
+enum AdminBackupStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum ServiceApiKeyScope {
+  READ
+  WRITE
+  FULL
+}
+
+enum ServiceApiKeyStatus {
+  ACTIVE
+  REVOKED
 }
 
 enum EngagementEventType {

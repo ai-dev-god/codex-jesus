@@ -9,7 +9,7 @@ export type AuthContextValue = {
   user: SerializedUser | null;
   isAuthenticated: boolean;
   ensureAccessToken: () => Promise<string>;
-  refreshUserProfile: () => Promise<void>;
+  refreshUserProfile: (options?: { requireActive?: boolean; throwOnError?: boolean }) => Promise<SerializedUser | null>;
   logout: () => Promise<void>;
 };
 
