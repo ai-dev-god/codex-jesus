@@ -69,14 +69,6 @@ const panelUploadTagSchema = z.object({
   biomarkerIds: z.array(z.string().trim().min(1)).max(25).optional()
 });
 
-const panelUploadTagSchema = z.object({
-  planId: z
-    .union([z.string().trim().min(1), z.null()])
-    .optional()
-    .transform((value) => (value === undefined ? value : value)),
-  biomarkerIds: z.array(z.string().trim().min(1)).max(25).optional()
-});
-
 const planListQuerySchema = z.object({
   limit: z
     .preprocess(

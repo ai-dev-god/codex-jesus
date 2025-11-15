@@ -216,8 +216,7 @@ export class PanelIngestionService {
         if (input.biomarkerIds.length > 0) {
           const biomarkerRecords = await tx.biomarker.findMany({
             where: {
-              id: { in: input.biomarkerIds },
-              userId
+              id: { in: input.biomarkerIds }
             },
             select: { id: true }
           });
