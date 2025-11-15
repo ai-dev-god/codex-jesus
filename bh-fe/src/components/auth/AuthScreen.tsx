@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Mail, Lock, Zap, ArrowRight, Info } from 'lucide-react';
+import { Mail, Lock, Zap, ArrowRight, Info, Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -7,6 +7,8 @@ import { ImageWithFallback } from '../figma/ImageWithFallback';
 import { ApiError } from '../../lib/api/error';
 import { fetchGoogleClientConfig, loginWithEmail, loginWithGoogle, registerWithEmail } from '../../lib/api/auth';
 import type { AuthResponse } from '../../lib/api/types';
+
+const GOOGLE_LOGO_SRC = 'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg';
 
 interface AuthScreenProps {
   onAuth: (response: AuthResponse) => void;
@@ -29,6 +31,7 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
   const [googleReady, setGoogleReady] = useState(false);
   const [googleInitialized, setGoogleInitialized] = useState(false);
   const [googleButtonRendered, setGoogleButtonRendered] = useState(false);
+  const [googlePrompting, setGooglePrompting] = useState(false);
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
 
   const inferredDisplayName = useMemo(() => {
@@ -176,26 +179,43 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
       size: 'large',
       text: 'continue_with',
       shape: 'pill',
-      width: '100%',
+      width: 320,
       logo_alignment: 'left'
     });
     setGoogleButtonRendered(true);
   }, [googleInitialized, googleButtonRendered]);
+
+  const handlePromptNotification = useCallback((notification: google.accounts.id.PromptMomentNotification) => {
+    if (notification.isNotDisplayed() && notification.getNotDisplayedReason()) {
+      console.warn('Google Sign-In not displayed:', notification.getNotDisplayedReason());
+    }
+    if (notification.isSkippedMoment() && notification.getSkippedReason()) {
+      console.warn('Google Sign-In skipped:', notification.getSkippedReason());
+    }
+  }, []);
 
   useEffect(() => {
     if (!googleInitialized || !window.google?.accounts?.id) {
       return;
     }
 
+    window.google.accounts.id.prompt(handlePromptNotification);
+  }, [googleInitialized, handlePromptNotification]);
+
+  const handleGoogleButtonClick = useCallback(() => {
+    if (!googleInitialized || !window.google?.accounts?.id) {
+      return;
+    }
+
+    setGooglePrompting(true);
     window.google.accounts.id.prompt((notification: google.accounts.id.PromptMomentNotification) => {
-      if (notification.isNotDisplayed() && notification.getNotDisplayedReason()) {
-        console.warn('Google Sign-In not displayed:', notification.getNotDisplayedReason());
-      }
-      if (notification.isSkippedMoment() && notification.getSkippedReason()) {
-        console.warn('Google Sign-In skipped:', notification.getSkippedReason());
-      }
+      handlePromptNotification(notification);
+      setGooglePrompting(false);
     });
-  }, [googleInitialized]);
+  }, [googleInitialized, handlePromptNotification]);
+
+  const googleButtonDisabled =
+    googleConfigLoading || !googleClientId || !!googleConfigError || !googleInitialized || loading;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -271,46 +291,44 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
           {/* OAuth Buttons */}
           <div className="space-y-3 mb-8">
             <div className="w-full space-y-2">
+              <button
+                type="button"
+                onClick={handleGoogleButtonClick}
+                disabled={googleButtonDisabled}
+                className="w-full flex items-center justify-between gap-4 px-6 py-4 rounded-2xl border-2 border-cloud bg-white font-semibold text-ink shadow-sm transition-all hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <span className="flex items-center gap-3">
+                  <ImageWithFallback
+                    src={GOOGLE_LOGO_SRC}
+                    alt=""
+                    className="w-5 h-5"
+                    aria-hidden="true"
+                  />
+                  Continue with Google
+                </span>
+                {googlePrompting ? (
+                  <Loader2 className="w-5 h-5 text-steel animate-spin" />
+                ) : (
+                  <ArrowRight className="w-5 h-5 text-steel" />
+                )}
+              </button>
+              {googleConfigLoading && (
+                <p className="text-sm text-steel text-center">Preparing Google Sign-In…</p>
+              )}
               {googleConfigError && (
                 <div className="rounded-xl border border-solar/40 bg-solar/5 px-4 py-2 text-sm text-solar">
                   {googleConfigError}
                 </div>
               )}
-              {googleConfigLoading && (
-                <button
-                  type="button"
-                  disabled
-                  className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl bg-white border-2 border-cloud font-semibold text-ink opacity-60 cursor-wait"
-                >
-                  Loading Google Sign-In…
-                </button>
+              {!googleConfigLoading && !googleConfigError && !googleClientId && (
+                <p className="text-sm text-solar text-center">Google Sign-In is unavailable right now.</p>
               )}
-              {!googleConfigLoading && !googleClientId && !googleConfigError && (
-                <button
-                  type="button"
-                  disabled
-                  className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl bg-white border-2 border-cloud font-semibold text-ink opacity-60 cursor-not-allowed"
-                >
-                  Google Sign-In unavailable
-                </button>
-              )}
-              {googleClientId && (
-                <>
-                  {!googleButtonRendered && (
-                    <button
-                      type="button"
-                      disabled
-                      className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl bg-white border-2 border-cloud font-semibold text-ink opacity-60 cursor-wait"
-                    >
-                      Loading Google Sign-In…
-                    </button>
-                  )}
-                  <div
-                    ref={googleButtonRef}
-                    className={`flex justify-center ${googleButtonRendered ? 'w-full' : 'hidden'}`}
-                  />
-                </>
-              )}
+              <div className="sr-only" aria-hidden="true">
+                <div
+                  ref={googleButtonRef}
+                  className={googleButtonRendered ? '' : 'opacity-0'}
+                />
+              </div>
             </div>
 
             <button

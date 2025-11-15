@@ -1,5 +1,4 @@
-import cors, { type CorsOptions } from 'cors';
-import express from 'express';
+import express, { type NextFunction, type Request, type Response } from 'express';
 import helmet from 'helmet';
 
 import env from './config/env';
@@ -25,29 +24,44 @@ const app = express();
 const allowedOrigins = env.corsOrigins.length > 0 ? env.corsOrigins : ['http://localhost:5173'];
 const normalizeOrigin = (origin: string) => origin.replace(/\/$/, '').toLowerCase();
 const normalizedAllowedOrigins = allowedOrigins.map(normalizeOrigin);
-const corsOptions: CorsOptions = {
-  origin: (origin, callback) => {
-    if (!origin) {
-      callback(null, true);
-      return;
-    }
+const isAllowedOrigin = (origin?: string): origin is string => {
+  if (!origin) {
+    return false;
+  }
 
-    const normalizedOrigin = normalizeOrigin(origin);
-    if (normalizedAllowedOrigins.includes(normalizedOrigin)) {
-      callback(null, true);
-      return;
-    }
-
-    callback(null, false);
-  },
-  credentials: true
+  return normalizedAllowedOrigins.includes(normalizeOrigin(origin));
 };
 
+const applyCorsHeaders = (req: Request, res: Response, next: NextFunction) => {
+  const origin = req.headers.origin;
+  if (isAllowedOrigin(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Vary', 'Origin');
+  }
+  next();
+};
+
+app.use(applyCorsHeaders);
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    const origin = req.headers.origin;
+    if (isAllowedOrigin(origin)) {
+      res.header('Access-Control-Allow-Origin', origin);
+      res.header('Access-Control-Allow-Credentials', 'true');
+      res.header('Access-Control-Allow-Headers', req.headers['access-control-request-headers'] ?? 'Content-Type, Authorization');
+      res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+    }
+
+    res.sendStatus(204);
+    return;
+  }
+
+  next();
+});
 app.use(requestContext);
 app.use(observabilityMiddleware);
 app.use(helmet());
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
 app.use(express.json());
 app.use(sessionMiddleware);
 

@@ -4,7 +4,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.app = void 0;
-const cors_1 = __importDefault(require("cors"));
 const express_1 = __importDefault(require("express"));
 const helmet_1 = __importDefault(require("helmet"));
 const env_1 = __importDefault(require("./config/env"));
@@ -30,26 +29,39 @@ exports.app = app;
 const allowedOrigins = env_1.default.corsOrigins.length > 0 ? env_1.default.corsOrigins : ['http://localhost:5173'];
 const normalizeOrigin = (origin) => origin.replace(/\/$/, '').toLowerCase();
 const normalizedAllowedOrigins = allowedOrigins.map(normalizeOrigin);
-const corsOptions = {
-    origin: (origin, callback) => {
-        if (!origin) {
-            callback(null, true);
-            return;
-        }
-        const normalizedOrigin = normalizeOrigin(origin);
-        if (normalizedAllowedOrigins.includes(normalizedOrigin)) {
-            callback(null, true);
-            return;
-        }
-        callback(null, false);
-    },
-    credentials: true
+const isAllowedOrigin = (origin) => {
+    if (!origin) {
+        return false;
+    }
+    return normalizedAllowedOrigins.includes(normalizeOrigin(origin));
 };
+const applyCorsHeaders = (req, res, next) => {
+    const origin = req.headers.origin;
+    if (isAllowedOrigin(origin)) {
+        res.header('Access-Control-Allow-Origin', origin);
+        res.header('Access-Control-Allow-Credentials', 'true');
+        res.header('Vary', 'Origin');
+    }
+    next();
+};
+app.use(applyCorsHeaders);
+app.use((req, res, next) => {
+    if (req.method === 'OPTIONS') {
+        const origin = req.headers.origin;
+        if (isAllowedOrigin(origin)) {
+            res.header('Access-Control-Allow-Origin', origin);
+            res.header('Access-Control-Allow-Credentials', 'true');
+            res.header('Access-Control-Allow-Headers', req.headers['access-control-request-headers'] ?? 'Content-Type, Authorization');
+            res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+        }
+        res.sendStatus(204);
+        return;
+    }
+    next();
+});
 app.use(request_context_1.requestContext);
 app.use(middleware_1.observabilityMiddleware);
 app.use((0, helmet_1.default)());
-app.use((0, cors_1.default)(corsOptions));
-app.options('*', (0, cors_1.default)(corsOptions));
 app.use(express_1.default.json());
 app.use(session_middleware_1.sessionMiddleware);
 app.use('/healthz', health_1.healthRouter);

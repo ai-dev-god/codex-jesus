@@ -20,7 +20,7 @@ const resolveApiBaseUrl = (): string => {
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
     if (host === 'biohax.pro' || host.endsWith('.biohax.pro')) {
-      return 'https://bh-backend-final-714223448245.europe-west1.run.app';
+      return 'https://api.biohax.pro';
     }
   }
 

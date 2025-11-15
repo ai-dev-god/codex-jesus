@@ -8,19 +8,20 @@ substitutions:
 steps:
   - id: Build frontend image
     name: gcr.io/cloud-builders/docker
+    entrypoint: bash
     env:
       - DOCKER_BUILDKIT=1
     secretEnv:
       - VITE_GOOGLE_CLIENT_ID
     args:
-      - build
-      - --build-arg
-      - VITE_GOOGLE_CLIENT_ID=$$VITE_GOOGLE_CLIENT_ID
-      - -t
-      - $_IMAGE_NAME
-      - -f
-      - $_DOCKERFILE
-      - $_BUILD_CONTEXT
+      - -c
+      - |
+        set -euo pipefail
+        docker build \
+          --build-arg VITE_GOOGLE_CLIENT_ID="$$VITE_GOOGLE_CLIENT_ID" \
+          -t $_IMAGE_NAME \
+          -f $_DOCKERFILE \
+          $_BUILD_CONTEXT
 
   - id: Push image to registry
     name: gcr.io/cloud-builders/docker
