@@ -185,9 +185,10 @@ const parseRiskScorecard = (raw) => {
     }
     const data = parsed;
     const entries = Array.isArray(data.scorecard) ? data.scorecard : [];
-    const mapped = entries.map((entry) => {
+    const mapped = [];
+    for (const entry of entries) {
         if (typeof entry !== 'object' || entry === null) {
-            return null;
+            continue;
         }
         const record = entry;
         const name = typeof record.name === 'string' ? record.name : null;
@@ -203,22 +204,17 @@ const parseRiskScorecard = (raw) => {
             ? record.risk
             : 'moderate';
         if (!name || score === null || Number.isNaN(score)) {
-            return null;
+            continue;
         }
-        const candidate = {
+        mapped.push({
             name,
             score,
-            risk
-        };
-        if (typeof record.driver === 'string') {
-            candidate.driver = record.driver;
-        }
-        if (typeof record.recommendation === 'string') {
-            candidate.recommendation = record.recommendation;
-        }
-        return candidate;
-    });
-    return mapped.filter((entry) => entry !== null);
+            risk,
+            driver: typeof record.driver === 'string' ? record.driver : undefined,
+            recommendation: typeof record.recommendation === 'string' ? record.recommendation : undefined
+        });
+    }
+    return mapped;
 };
 const toPlannerContext = (request, measurements, logs) => {
     const measurementPayload = measurements.map((measurement) => ({
@@ -428,7 +424,7 @@ const createLongevityPlanWorker = (deps = {}) => {
                         role: 'safety',
                         prompt: toJsonValue({
                             system: SAFETY_SYSTEM_PROMPT,
-                            planId: plan.id
+                            context: safetyPrompt
                         }),
                         response: toJsonValue(safetyReview)
                     }

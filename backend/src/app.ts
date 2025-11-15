@@ -1,4 +1,4 @@
-import cors from 'cors';
+import cors, { type CorsOptions } from 'cors';
 import express from 'express';
 import helmet from 'helmet';
 
@@ -23,16 +23,31 @@ import { aiRouter } from './modules/ai/router';
 
 const app = express();
 const allowedOrigins = env.corsOrigins.length > 0 ? env.corsOrigins : ['http://localhost:5173'];
+const normalizeOrigin = (origin: string) => origin.replace(/\/$/, '').toLowerCase();
+const normalizedAllowedOrigins = allowedOrigins.map(normalizeOrigin);
+const corsOptions: CorsOptions = {
+  origin: (origin, callback) => {
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+
+    const normalizedOrigin = normalizeOrigin(origin);
+    if (normalizedAllowedOrigins.includes(normalizedOrigin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(null, false);
+  },
+  credentials: true
+};
 
 app.use(requestContext);
 app.use(observabilityMiddleware);
 app.use(helmet());
-app.use(
-  cors({
-    origin: allowedOrigins,
-    credentials: true
-  })
-);
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json());
 app.use(sessionMiddleware);
 

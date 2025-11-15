@@ -2,6 +2,7 @@ import type { Request } from 'express';
 import { Router } from 'express';
 import { z } from 'zod';
 
+import env from '../../config/env';
 import { rateLimit } from '../../observability/rate-limit';
 import { HttpError } from '../observability-ops/http-error';
 import { requireAuth } from './guards';
@@ -91,6 +92,18 @@ router.post('/google', sensitiveRateLimiter, async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+});
+
+router.get('/google/client', async (_req, res) => {
+  if (!env.GOOGLE_CLIENT_ID) {
+    res.status(200).json({ enabled: false, clientId: null });
+    return;
+  }
+
+  res.status(200).json({
+    enabled: true,
+    clientId: env.GOOGLE_CLIENT_ID
+  });
 });
 
 router.post('/refresh', async (req, res, next) => {

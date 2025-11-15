@@ -198,6 +198,18 @@ wait_for_http() {
     sleep 2
   done
 }
+
+resolve_frontend_google_client_id() {
+  if [[ -n "${VITE_GOOGLE_CLIENT_ID:-}" ]]; then
+    printf '%s' "${VITE_GOOGLE_CLIENT_ID}"
+    return 0
+  fi
+  if [[ -n "${GOOGLE_CLIENT_ID:-}" ]]; then
+    printf '%s' "${GOOGLE_CLIENT_ID}"
+    return 0
+  fi
+  printf '%s' "demo-google-client-id"
+}
 PG_ROOT="${ROOT_DIR}/tools/.tmp/embedded-pg"
 PG_JAR="${PG_ROOT}/embedded-postgres-${EMBEDDED_PG_VERSION}.jar"
 PG_BIN_DIR="${PG_ROOT}/bin"
@@ -437,7 +449,11 @@ run_docker_pipeline() {
   BUILT_FRONTEND_IMAGE="${frontend_image_ref}"
 
   run_step "docker:build-backend" 1800 docker build -f "${ROOT_DIR}/backend/Dockerfile" -t "${backend_image_ref}" "${ROOT_DIR}/backend"
-  run_step "docker:build-frontend" 1800 docker build -f "${ROOT_DIR}/bh-fe/Dockerfile" -t "${frontend_image_ref}" "${ROOT_DIR}/bh-fe"
+  run_step "docker:build-frontend" 1800 docker build \
+    --build-arg VITE_GOOGLE_CLIENT_ID="$(resolve_frontend_google_client_id)" \
+    -f "${ROOT_DIR}/bh-fe/Dockerfile" \
+    -t "${frontend_image_ref}" \
+    "${ROOT_DIR}/bh-fe"
 
   run_step "docker:migrate" 900 env BACKEND_IMAGE="${backend_image_ref}" FRONTEND_IMAGE="${frontend_image_ref}" docker compose -f "${compose_file}" --env-file "${compose_env_file}" run --rm migrate
   run_step "docker:seed" 600 env BACKEND_IMAGE="${backend_image_ref}" FRONTEND_IMAGE="${frontend_image_ref}" docker compose -f "${compose_file}" --env-file "${compose_env_file}" run --rm seed
@@ -604,7 +620,10 @@ if [[ ${SKIP_BUILD} -eq 0 ]]; then
   run_step "frontend:npm-ci" 600 npm ci --prefix bh-fe
   run_step "backend:build" 600 npm run build --prefix backend
   run_step "backend:prisma-generate" 300 npm run prisma:generate --prefix backend
-  run_step "frontend:build" 900 env VITE_API_BASE_URL="http://localhost:${BACKEND_PORT}" npm run build --prefix bh-fe
+  run_step "frontend:build" 900 env \
+    VITE_API_BASE_URL="http://localhost:${BACKEND_PORT}" \
+    VITE_GOOGLE_CLIENT_ID="$(resolve_frontend_google_client_id)" \
+    npm run build --prefix bh-fe
 else
   log_warn "Skipping npm install/build steps (--skip-build provided)."
 fi

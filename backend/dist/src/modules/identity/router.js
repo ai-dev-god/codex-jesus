@@ -1,8 +1,12 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.authRouter = void 0;
 const express_1 = require("express");
 const zod_1 = require("zod");
+const env_1 = __importDefault(require("../../config/env"));
 const rate_limit_1 = require("../../observability/rate-limit");
 const http_error_1 = require("../observability-ops/http-error");
 const guards_1 = require("./guards");
@@ -83,6 +87,16 @@ router.post('/google', sensitiveRateLimiter, async (req, res, next) => {
     catch (error) {
         next(error);
     }
+});
+router.get('/google/client', async (_req, res) => {
+    if (!env_1.default.GOOGLE_CLIENT_ID) {
+        res.status(200).json({ enabled: false, clientId: null });
+        return;
+    }
+    res.status(200).json({
+        enabled: true,
+        clientId: env_1.default.GOOGLE_CLIENT_ID
+    });
 });
 router.post('/refresh', async (req, res, next) => {
     try {

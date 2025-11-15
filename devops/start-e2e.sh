@@ -210,7 +210,9 @@ fi
 
 log "Building backend and frontend artifacts"
 DATABASE_URL="$DATABASE_URL" npm run build --prefix "${ROOT_DIR}/backend" >>"${SETUP_LOG}" 2>&1
-VITE_API_BASE_URL="http://127.0.0.1:${BACKEND_PORT}" npm run build --prefix "${ROOT_DIR}/bh-fe" >>"${SETUP_LOG}" 2>&1
+VITE_API_BASE_URL="http://127.0.0.1:${BACKEND_PORT}" \
+VITE_GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID:-demo-google-client-id}" \
+  npm run build --prefix "${ROOT_DIR}/bh-fe" >>"${SETUP_LOG}" 2>&1
 
 log "Applying migrations and seeding data"
 (

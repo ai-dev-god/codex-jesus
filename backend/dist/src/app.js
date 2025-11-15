@@ -28,13 +28,28 @@ const router_11 = require("./modules/ai/router");
 const app = (0, express_1.default)();
 exports.app = app;
 const allowedOrigins = env_1.default.corsOrigins.length > 0 ? env_1.default.corsOrigins : ['http://localhost:5173'];
+const normalizeOrigin = (origin) => origin.replace(/\/$/, '').toLowerCase();
+const normalizedAllowedOrigins = allowedOrigins.map(normalizeOrigin);
+const corsOptions = {
+    origin: (origin, callback) => {
+        if (!origin) {
+            callback(null, true);
+            return;
+        }
+        const normalizedOrigin = normalizeOrigin(origin);
+        if (normalizedAllowedOrigins.includes(normalizedOrigin)) {
+            callback(null, true);
+            return;
+        }
+        callback(null, false);
+    },
+    credentials: true
+};
 app.use(request_context_1.requestContext);
 app.use(middleware_1.observabilityMiddleware);
 app.use((0, helmet_1.default)());
-app.use((0, cors_1.default)({
-    origin: allowedOrigins,
-    credentials: true
-}));
+app.use((0, cors_1.default)(corsOptions));
+app.options('*', (0, cors_1.default)(corsOptions));
 app.use(express_1.default.json());
 app.use(session_middleware_1.sessionMiddleware);
 app.use('/healthz', health_1.healthRouter);

@@ -18,6 +18,11 @@ export interface GoogleLoginPayload {
   timezone?: string;
 }
 
+export interface GoogleClientConfig {
+  enabled: boolean;
+  clientId: string | null;
+}
+
 export const loginWithEmail = (payload: LoginPayload): Promise<AuthResponse> =>
   apiFetch<AuthResponse>('/auth/login', {
     method: 'POST',
@@ -35,6 +40,9 @@ export const loginWithGoogle = (payload: GoogleLoginPayload): Promise<AuthRespon
     method: 'POST',
     body: JSON.stringify(payload)
   });
+
+export const fetchGoogleClientConfig = (): Promise<GoogleClientConfig> =>
+  apiFetch<GoogleClientConfig>('/auth/google/client');
 
 export const refreshTokens = (refreshToken: string): Promise<AuthTokens> =>
   apiFetch<AuthTokens>('/auth/refresh', {

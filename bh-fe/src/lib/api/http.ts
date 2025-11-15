@@ -1,6 +1,31 @@
 import { ApiError } from './error';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000';
+const resolveApiBaseUrl = (): string => {
+  const envBaseUrl = import.meta.env.VITE_API_BASE_URL;
+
+  if (envBaseUrl) {
+    const isLocalEnv = /^https?:\/\/(localhost|127\.0\.0\.1)/i.test(envBaseUrl);
+    if (!isLocalEnv) {
+      return envBaseUrl;
+    }
+
+    if (typeof window !== 'undefined') {
+      const host = window.location.hostname;
+      if (host === 'localhost' || host === '127.0.0.1') {
+        return envBaseUrl;
+      }
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host === 'biohax.pro' || host.endsWith('.biohax.pro')) {
+      return 'https://bh-backend-final-714223448245.europe-west1.run.app';
+    }
+  }
+
+  return 'http://localhost:4000';
+};
 
 type ApiRequestInit = RequestInit & {
   authToken?: string;
@@ -39,7 +64,8 @@ export async function apiFetch<T>(path: string, options: ApiRequestInit = {}): P
     requestHeaders.set('Authorization', `Bearer ${authToken}`);
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const baseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${baseUrl}${path}`, {
     ...rest,
     body,
     headers: requestHeaders

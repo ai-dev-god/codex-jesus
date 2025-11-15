@@ -236,6 +236,10 @@ async function startFrontend(databaseUrl) {
     NODE_ENV: 'production',
     PORT: String(frontendPort),
     VITE_API_BASE_URL: `http://localhost:${backendPort}`,
+    VITE_GOOGLE_CLIENT_ID:
+      process.env.VITE_GOOGLE_CLIENT_ID ??
+      process.env.GOOGLE_CLIENT_ID ??
+      'demo-google-client-id',
     PLAYWRIGHT_BASE_URL: `http://localhost:${frontendPort}`,
     DATABASE_URL: databaseUrl
   };

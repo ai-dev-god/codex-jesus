@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Mail, Lock, Zap, ArrowRight, Info } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
 import { ApiError } from '../../lib/api/error';
-import { loginWithEmail, loginWithGoogle, registerWithEmail } from '../../lib/api/auth';
+import { fetchGoogleClientConfig, loginWithEmail, loginWithGoogle, registerWithEmail } from '../../lib/api/auth';
 import type { AuthResponse } from '../../lib/api/types';
 
 interface AuthScreenProps {
@@ -22,8 +22,14 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const envGoogleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? null;
+  const [googleClientId, setGoogleClientId] = useState<string | null>(envGoogleClientId);
+  const [googleConfigLoading, setGoogleConfigLoading] = useState(!envGoogleClientId);
+  const [googleConfigError, setGoogleConfigError] = useState<string | null>(null);
   const [googleReady, setGoogleReady] = useState(false);
   const [googleInitialized, setGoogleInitialized] = useState(false);
+  const [googleButtonRendered, setGoogleButtonRendered] = useState(false);
+  const googleButtonRef = useRef<HTMLDivElement | null>(null);
 
   const inferredDisplayName = useMemo(() => {
     if (displayName.trim().length > 0) {
@@ -42,10 +48,46 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
     }
   }, []);
 
-  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadGoogleConfig = async () => {
+      setGoogleConfigLoading(true);
+      try {
+        const config = await fetchGoogleClientConfig();
+        if (cancelled) {
+          return;
+        }
+        if (config.enabled && config.clientId) {
+          setGoogleClientId(config.clientId);
+          setGoogleConfigError(null);
+        } else if (!envGoogleClientId) {
+          setGoogleConfigError('Google Sign-In is not available right now.');
+        }
+      } catch (err) {
+        if (!cancelled && !envGoogleClientId) {
+          setGoogleConfigError('Unable to load Google Sign-In configuration.');
+        }
+        console.error('Failed to load Google Sign-In config', err);
+      } finally {
+        if (!cancelled) {
+          setGoogleConfigLoading(false);
+        }
+      }
+    };
+
+    loadGoogleConfig();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [envGoogleClientId]);
 
   useEffect(() => {
-    if (!googleClientId) {
+    if (!googleClientId || googleConfigError) {
+      setGoogleReady(false);
+      setGoogleInitialized(false);
+      setGoogleButtonRendered(false);
       return;
     }
 
@@ -75,10 +117,12 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
     return () => {
       script.onload = null;
     };
-  }, [googleClientId]);
+  }, [googleClientId, googleConfigError]);
 
   const handleGoogleCredential = useCallback(
     async (response: { credential?: string }) => {
+      setLoading(true);
+      setError(null);
       if (!response.credential) {
         setLoading(false);
         setError('Google authentication failed. Please try again.');
@@ -117,6 +161,42 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
     setGoogleInitialized(true);
   }, [googleReady, googleInitialized, googleClientId, handleGoogleCredential]);
 
+  useEffect(() => {
+    if (
+      !googleInitialized ||
+      !window.google?.accounts?.id ||
+      !googleButtonRef.current ||
+      googleButtonRendered
+    ) {
+      return;
+    }
+
+    window.google.accounts.id.renderButton(googleButtonRef.current, {
+      theme: 'outline',
+      size: 'large',
+      text: 'continue_with',
+      shape: 'pill',
+      width: '100%',
+      logo_alignment: 'left'
+    });
+    setGoogleButtonRendered(true);
+  }, [googleInitialized, googleButtonRendered]);
+
+  useEffect(() => {
+    if (!googleInitialized || !window.google?.accounts?.id) {
+      return;
+    }
+
+    window.google.accounts.id.prompt((notification: google.accounts.id.PromptMomentNotification) => {
+      if (notification.isNotDisplayed() && notification.getNotDisplayedReason()) {
+        console.warn('Google Sign-In not displayed:', notification.getNotDisplayedReason());
+      }
+      if (notification.isSkippedMoment() && notification.getSkippedReason()) {
+        console.warn('Google Sign-In skipped:', notification.getSkippedReason());
+      }
+    });
+  }, [googleInitialized]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -148,28 +228,7 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
     }
   };
 
-  const handleOAuthConnect = async (provider: 'google' | 'whoop') => {
-    if (provider === 'google') {
-      if (!googleClientId) {
-        setError('Google Sign-In is not configured for this environment.');
-        return;
-      }
-      if (!window.google?.accounts?.id || !googleInitialized) {
-        setError('Google Sign-In is still loading. Please try again in a moment.');
-        return;
-      }
-      setError(null);
-      setLoading(true);
-      window.google.accounts.id.prompt((notification: Record<string, unknown>) => {
-        const reason = typeof notification === 'object' ? (notification as { reason?: string }).reason : undefined;
-        if (reason && reason !== '') {
-          setLoading(false);
-          setError('Google Sign-In was canceled. Please try again.');
-        }
-      });
-      return;
-    }
-
+  const handleWhoopConnect = () => {
     setError('Direct Whoop authentication is not configured in this preview build.');
   };
 
@@ -211,23 +270,51 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
 
           {/* OAuth Buttons */}
           <div className="space-y-3 mb-8">
-            <button
-              onClick={() => handleOAuthConnect('google')}
-              type="button"
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl bg-white hover:bg-pearl border-2 border-cloud transition-all font-semibold text-ink disabled:opacity-50"
-            >
-              <svg className="w-5 h-5" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-              </svg>
-              Continue with Google
-            </button>
+            <div className="w-full space-y-2">
+              {googleConfigError && (
+                <div className="rounded-xl border border-solar/40 bg-solar/5 px-4 py-2 text-sm text-solar">
+                  {googleConfigError}
+                </div>
+              )}
+              {googleConfigLoading && (
+                <button
+                  type="button"
+                  disabled
+                  className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl bg-white border-2 border-cloud font-semibold text-ink opacity-60 cursor-wait"
+                >
+                  Loading Google Sign-In…
+                </button>
+              )}
+              {!googleConfigLoading && !googleClientId && !googleConfigError && (
+                <button
+                  type="button"
+                  disabled
+                  className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl bg-white border-2 border-cloud font-semibold text-ink opacity-60 cursor-not-allowed"
+                >
+                  Google Sign-In unavailable
+                </button>
+              )}
+              {googleClientId && (
+                <>
+                  {!googleButtonRendered && (
+                    <button
+                      type="button"
+                      disabled
+                      className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl bg-white border-2 border-cloud font-semibold text-ink opacity-60 cursor-wait"
+                    >
+                      Loading Google Sign-In…
+                    </button>
+                  )}
+                  <div
+                    ref={googleButtonRef}
+                    className={`flex justify-center ${googleButtonRendered ? 'w-full' : 'hidden'}`}
+                  />
+                </>
+              )}
+            </div>
 
             <button
-              onClick={() => handleOAuthConnect('whoop')}
+              onClick={handleWhoopConnect}
               type="button"
               disabled={loading}
               className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl gradient-pulse text-white transition-all font-semibold hover:scale-105 disabled:opacity-50"
