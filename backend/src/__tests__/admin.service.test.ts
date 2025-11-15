@@ -1,4 +1,14 @@
-import { FlagStatus, FlagTargetType, Role, UserStatus, type PrismaClient } from '@prisma/client';
+import {
+  AdminBackupStatus,
+  AdminBackupType,
+  FlagStatus,
+  FlagTargetType,
+  Role,
+  ServiceApiKeyScope,
+  ServiceApiKeyStatus,
+  UserStatus,
+  type PrismaClient
+} from '@prisma/client';
 
 import { AdminService } from '../modules/admin/admin.service';
 import { HttpError } from '../modules/observability-ops/http-error';
@@ -12,9 +22,41 @@ type MockPrisma = {
   adminAuditLog: {
     create: jest.Mock;
     findMany: jest.Mock;
+    findFirst: jest.Mock;
   };
   user: {
     findUnique: jest.Mock;
+    update: jest.Mock;
+    findMany: jest.Mock;
+    create: jest.Mock;
+  };
+  profile: {
+    create: jest.Mock;
+    update: jest.Mock;
+  };
+  authProvider: {
+    create: jest.Mock;
+  };
+  biomarkerLog: {
+    groupBy: jest.Mock;
+  };
+  longevityPlan: {
+    groupBy: jest.Mock;
+  };
+  loginAudit: {
+    groupBy: jest.Mock;
+  };
+  serviceApiKey: {
+    findMany: jest.Mock;
+    findUnique: jest.Mock;
+    create: jest.Mock;
+    update: jest.Mock;
+  };
+  adminBackupJob: {
+    findMany: jest.Mock;
+    findUnique: jest.Mock;
+    create: jest.Mock;
+    delete: jest.Mock;
     update: jest.Mock;
   };
   cloudTaskMetadata: {
@@ -26,6 +68,7 @@ type MockPrisma = {
   insightGenerationJob: {
     findMany: jest.Mock;
   };
+  $queryRaw: jest.Mock;
   $transaction: jest.Mock;
 };
 
@@ -38,10 +81,42 @@ const createMockPrisma = (): MockPrisma => {
     },
     adminAuditLog: {
       create: jest.fn(),
-      findMany: jest.fn()
+      findMany: jest.fn(),
+      findFirst: jest.fn()
     },
     user: {
       findUnique: jest.fn(),
+      update: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn()
+    },
+    profile: {
+      create: jest.fn(),
+      update: jest.fn()
+    },
+    authProvider: {
+      create: jest.fn()
+    },
+    biomarkerLog: {
+      groupBy: jest.fn()
+    },
+    longevityPlan: {
+      groupBy: jest.fn()
+    },
+    loginAudit: {
+      groupBy: jest.fn()
+    },
+    serviceApiKey: {
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn()
+    },
+    adminBackupJob: {
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      delete: jest.fn(),
       update: jest.fn()
     },
     cloudTaskMetadata: {
@@ -53,6 +128,7 @@ const createMockPrisma = (): MockPrisma => {
     insightGenerationJob: {
       findMany: jest.fn()
     },
+    $queryRaw: jest.fn(),
     $transaction: jest.fn()
   };
 
@@ -509,5 +585,192 @@ describe('AdminService', () => {
         retriesLast24h: 3
       })
     });
+  });
+
+  it('creates managed users with onboarding defaults and audit entry', async () => {
+    const prisma = createMockPrisma();
+    const service = new AdminService(prisma as unknown as PrismaClient, {
+      now: () => baseTimestamp
+    });
+
+    const admin = createUser({ id: 'admin-1', email: 'admin@example.com', role: Role.ADMIN });
+    const hydratedUser = createUser({ id: 'new-user', email: 'new.member@example.com', displayName: 'New Member' });
+
+    prisma.user.findUnique
+      .mockResolvedValueOnce(null) // uniqueness check
+      .mockResolvedValueOnce(hydratedUser); // hydration after create
+    prisma.user.create.mockResolvedValue({ ...hydratedUser, profile: null });
+    prisma.profile.create.mockResolvedValue({});
+    prisma.authProvider.create.mockResolvedValue({});
+    prisma.biomarkerLog.groupBy.mockResolvedValue([]);
+    prisma.longevityPlan.groupBy.mockResolvedValue([]);
+    prisma.loginAudit.groupBy.mockResolvedValue([]);
+    prisma.adminAuditLog.create.mockResolvedValue({});
+
+    const result = await service.createManagedUser(admin, {
+      email: 'new.member@example.com',
+      fullName: 'New Member',
+      role: Role.MEMBER
+    });
+
+    expect(prisma.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          email: 'new.member@example.com',
+          role: Role.MEMBER
+        })
+      })
+    );
+    expect(prisma.adminAuditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'ADMIN_USER_CREATED',
+          targetType: 'USER'
+        })
+      })
+    );
+    expect(result.user).toMatchObject({
+      email: 'new.member@example.com',
+      displayName: 'New Member',
+      role: Role.MEMBER
+    });
+    expect(typeof result.temporaryPassword).toBe('string');
+    expect(result.temporaryPassword.length).toBeGreaterThan(10);
+  });
+
+  it('returns database status aggregated from postgres stats', async () => {
+    const prisma = createMockPrisma();
+    const service = new AdminService(prisma as unknown as PrismaClient);
+
+    prisma.$queryRaw
+      .mockResolvedValueOnce([
+        {
+          datname: 'biohax',
+          numbackends: 5,
+          xact_commit: BigInt(120),
+          xact_rollback: BigInt(3),
+          blks_hit: BigInt(900),
+          blks_read: BigInt(100),
+          deadlocks: BigInt(1),
+          stats_reset: new Date('2025-02-01T10:00:00.000Z'),
+          size_bytes: BigInt(10_485_760)
+        }
+      ])
+      .mockResolvedValueOnce([{ active_connections: BigInt(5) }])
+      .mockResolvedValueOnce([{ max_connections: 50 }])
+      .mockResolvedValueOnce([
+        {
+          name: 'User',
+          row_estimate: BigInt(1000),
+          total_bytes: BigInt(2_097_152),
+          idx_scan: BigInt(500)
+        }
+      ]);
+
+    const status = await service.getDatabaseStatus();
+
+    expect(status.database).toMatchObject({
+      name: 'biohax',
+      activeConnections: 5,
+      maxConnections: 50,
+      sizeBytes: 10_485_760,
+      transactionsCommitted: 120,
+      transactionsRolledBack: 3,
+      deadlocks: 1,
+      cacheHitRatio: 0.9
+    });
+    expect(status.tables).toHaveLength(1);
+    expect(status.tables[0]).toMatchObject({
+      name: 'User',
+      rowEstimate: 1000,
+      sizeBytes: 2_097_152,
+      indexScans: 500
+    });
+  });
+
+  it('creates backup jobs and logs audit metadata', async () => {
+    const prisma = createMockPrisma();
+    const service = new AdminService(prisma as unknown as PrismaClient, {
+      now: () => baseTimestamp
+    });
+    const admin = createUser({ id: 'admin-1', role: Role.ADMIN });
+
+    prisma.$queryRaw.mockResolvedValueOnce([{ size_bytes: BigInt(1_000_000) }]);
+    prisma.adminBackupJob.create.mockResolvedValue({
+      id: 'job-1',
+      type: AdminBackupType.FULL,
+      status: AdminBackupStatus.SUCCEEDED,
+      storageUri: 'gs://bucket/job-1.sql.gz',
+      sizeBytes: BigInt(1_000_000),
+      durationSeconds: 60,
+      startedAt: baseTimestamp,
+      completedAt: baseTimestamp,
+      createdAt: baseTimestamp,
+      initiatedBy: admin,
+      metadata: null
+    });
+    prisma.adminAuditLog.create.mockResolvedValue({});
+
+    const job = await service.triggerBackupJob(admin, AdminBackupType.FULL);
+
+    expect(prisma.adminBackupJob.create).toHaveBeenCalled();
+    expect(prisma.adminAuditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'DATABASE_BACKUP_TRIGGERED',
+          targetId: 'job-1'
+        })
+      })
+    );
+    expect(job).toMatchObject({
+      id: 'job-1',
+      status: AdminBackupStatus.SUCCEEDED,
+      storageUri: 'gs://bucket/job-1.sql.gz'
+    });
+  });
+
+  it('creates service API keys and returns plaintext value once', async () => {
+    const prisma = createMockPrisma();
+    const service = new AdminService(prisma as unknown as PrismaClient, {
+      now: () => baseTimestamp
+    });
+    const admin = createUser({ id: 'admin-1', role: Role.ADMIN, displayName: 'Admin User' });
+
+    prisma.serviceApiKey.create.mockResolvedValue({
+      id: 'key-1',
+      name: 'Production',
+      prefix: 'bh_biohax',
+      suffix: 'abcd',
+      hashedSecret: 'hash',
+      scope: ServiceApiKeyScope.READ,
+      status: ServiceApiKeyStatus.ACTIVE,
+      requestCount: 0,
+      createdAt: baseTimestamp,
+      lastUsedAt: null,
+      lastRotatedAt: null,
+      createdBy: admin,
+      revokedBy: null,
+      metadata: null
+    });
+    prisma.adminAuditLog.create.mockResolvedValue({});
+
+    const result = await service.createApiKey(admin, { name: 'Production', scope: ServiceApiKeyScope.READ });
+
+    expect(prisma.serviceApiKey.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          name: 'Production',
+          scope: ServiceApiKeyScope.READ,
+          createdById: 'admin-1'
+        })
+      })
+    );
+    expect(result.apiKey).toMatchObject({
+      name: 'Production',
+      scope: ServiceApiKeyScope.READ,
+      status: ServiceApiKeyStatus.ACTIVE
+    });
+    expect(typeof result.plaintextKey).toBe('string');
+    expect(result.plaintextKey.length).toBeGreaterThan(20);
   });
 });
