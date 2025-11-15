@@ -1,0 +1,361 @@
+@import "tailwindcss";
+
+/* BioHax Performance OS - Revolutionary Design System */
+
+:root {
+  /* Monochrome Base - Ultra Clean */
+  --void: #000000;
+  --ink: #0F1419;
+  --slate: #1C2127;
+  --carbon: #2D3748;
+  --steel: #4A5568;
+  --silver: #718096;
+  --ash: #A0AEC0;
+  --cloud: #CBD5E0;
+  --mist: #E2E8F0;
+  --pearl: #EDF2F7;
+  --snow: #F7FAFC;
+  --pure: #FFFFFF;
+  
+  /* Performance Accent Colors */
+  --electric: #00E5FF;
+  --electric-dim: #00B8D4;
+  --electric-bright: #18FFFF;
+  
+  --pulse: #FF1744;
+  --pulse-dim: #D50000;
+  --pulse-bright: #FF5252;
+  
+  --bio: #00E676;
+  --bio-dim: #00C853;
+  --bio-bright: #69F0AE;
+  
+  --neural: #D500F9;
+  --neural-dim: #AA00FF;
+  --neural-bright: #E254FF;
+  
+  --solar: #FFC400;
+  --solar-dim: #FF6F00;
+  --solar-bright: #FFD740;
+  
+  /* Semantic Colors */
+  --background: var(--snow);
+  --foreground: var(--ink);
+  --card: var(--pure);
+  --card-foreground: var(--ink);
+  
+  --primary: var(--electric);
+  --primary-foreground: var(--void);
+  
+  --secondary: var(--neural);
+  --secondary-foreground: var(--pure);
+  
+  --accent: var(--pulse);
+  --accent-foreground: var(--pure);
+  
+  --muted: var(--pearl);
+  --muted-foreground: var(--steel);
+  
+  --destructive: var(--pulse);
+  --destructive-foreground: var(--pure);
+  
+  --border: var(--cloud);
+  --input: var(--cloud);
+  --ring: var(--electric);
+  
+  --radius: 1rem;
+}
+
+.dark {
+  --background: var(--void);
+  --foreground: var(--snow);
+  --card: var(--slate);
+  --card-foreground: var(--snow);
+  --muted: var(--carbon);
+  --muted-foreground: var(--ash);
+  --border: var(--carbon);
+  --input: var(--carbon);
+}
+
+@theme {
+  /* Color System */
+  --color-void: #000000;
+  --color-ink: #0F1419;
+  --color-slate: #1C2127;
+  --color-carbon: #2D3748;
+  --color-steel: #4A5568;
+  --color-silver: #718096;
+  --color-ash: #A0AEC0;
+  --color-cloud: #CBD5E0;
+  --color-mist: #E2E8F0;
+  --color-pearl: #EDF2F7;
+  --color-snow: #F7FAFC;
+  --color-pure: #FFFFFF;
+  
+  --color-electric: #00E5FF;
+  --color-electric-dim: #00B8D4;
+  --color-electric-bright: #18FFFF;
+  --color-pulse: #FF1744;
+  --color-pulse-dim: #D50000;
+  --color-pulse-bright: #FF5252;
+  --color-bio: #00E676;
+  --color-bio-dim: #00C853;
+  --color-bio-bright: #69F0AE;
+  --color-neural: #D500F9;
+  --color-neural-dim: #AA00FF;
+  --color-neural-bright: #E254FF;
+  --color-solar: #FFC400;
+  --color-solar-dim: #FF6F00;
+  --color-solar-bright: #FFD740;
+  
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  
+  --radius-sm: 0.75rem;
+  --radius-md: 1rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.5rem;
+  --radius-2xl: 2rem;
+  --radius-full: 9999px;
+  
+  --color-chart-1: var(--electric);
+  --color-chart-2: var(--pulse);
+  --color-chart-3: var(--bio);
+  --color-chart-4: var(--neural);
+  --color-chart-5: var(--solar);
+}
+
+/* Base Styles */
+* {
+  border-color: var(--border);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "SF Pro Display", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Typography System */
+h1 {
+  font-size: 3rem;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+
+h2 {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+h3 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+h4 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+p {
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+/* Utility Classes */
+.tag {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.metric-display {
+  font-size: 4rem;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+/* Card System */
+.neo-card {
+  background: white;
+  border-radius: 1.5rem;
+  border: 2px solid var(--mist);
+  box-shadow: 
+    0 0 0 1px rgba(255, 255, 255, 0.8),
+    0 2px 4px rgba(0, 0, 0, 0.02),
+    0 8px 16px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.neo-card:hover {
+  border-color: var(--cloud);
+  box-shadow: 
+    0 0 0 1px rgba(255, 255, 255, 0.8),
+    0 4px 8px rgba(0, 0, 0, 0.04),
+    0 16px 32px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+.neo-card-electric {
+  border-color: var(--electric);
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.03) 0%, rgba(0, 229, 255, 0.08) 100%);
+}
+
+.neo-card-bio {
+  border-color: var(--bio);
+  background: linear-gradient(135deg, rgba(0, 230, 118, 0.03) 0%, rgba(0, 230, 118, 0.08) 100%);
+}
+
+.neo-card-pulse {
+  border-color: var(--pulse);
+  background: linear-gradient(135deg, rgba(255, 23, 68, 0.03) 0%, rgba(255, 23, 68, 0.08) 100%);
+}
+
+.neo-card-neural {
+  border-color: var(--neural);
+  background: linear-gradient(135deg, rgba(213, 0, 249, 0.03) 0%, rgba(213, 0, 249, 0.08) 100%);
+}
+
+/* Gradient Backgrounds */
+.gradient-electric {
+  background: linear-gradient(135deg, var(--electric-dim) 0%, var(--electric-bright) 100%);
+}
+
+.gradient-pulse {
+  background: linear-gradient(135deg, var(--pulse-dim) 0%, var(--pulse-bright) 100%);
+}
+
+.gradient-bio {
+  background: linear-gradient(135deg, var(--bio-dim) 0%, var(--bio-bright) 100%);
+}
+
+.gradient-neural {
+  background: linear-gradient(135deg, var(--neural-dim) 0%, var(--neural-bright) 100%);
+}
+
+.gradient-solar {
+  background: linear-gradient(135deg, var(--solar-dim) 0%, var(--solar-bright) 100%);
+}
+
+.gradient-spectrum {
+  background: linear-gradient(135deg, var(--electric) 0%, var(--neural) 50%, var(--pulse) 100%);
+}
+
+/* Glow Effects */
+.glow-electric {
+  box-shadow: 0 0 30px rgba(0, 229, 255, 0.4);
+}
+
+.glow-bio {
+  box-shadow: 0 0 30px rgba(0, 230, 118, 0.4);
+}
+
+.glow-pulse {
+  box-shadow: 0 0 30px rgba(255, 23, 68, 0.4);
+}
+
+.glow-neural {
+  box-shadow: 0 0 30px rgba(213, 0, 249, 0.4);
+}
+
+/* Mesh Background */
+.mesh-gradient {
+  background: 
+    radial-gradient(at 20% 20%, rgba(0, 229, 255, 0.06) 0px, transparent 50%),
+    radial-gradient(at 80% 20%, rgba(213, 0, 249, 0.06) 0px, transparent 50%),
+    radial-gradient(at 80% 80%, rgba(255, 23, 68, 0.06) 0px, transparent 50%),
+    radial-gradient(at 20% 80%, rgba(0, 230, 118, 0.06) 0px, transparent 50%),
+    var(--snow);
+}
+
+/* Animations */
+@keyframes pulse-scale {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -1000px 0; }
+  100% { background-position: 1000px 0; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.animate-pulse-scale {
+  animation: pulse-scale 2s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  animation: shimmer 3s linear infinite;
+}
+
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+/* Status Indicator */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-optimal {
+  background: var(--bio);
+  box-shadow: 0 0 8px var(--bio);
+}
+
+.status-good {
+  background: var(--electric);
+  box-shadow: 0 0 8px var(--electric);
+}
+
+.status-warning {
+  background: var(--solar);
+  box-shadow: 0 0 8px var(--solar);
+}
+
+.status-critical {
+  background: var(--pulse);
+  box-shadow: 0 0 8px var(--pulse);
+}
