@@ -28,6 +28,11 @@ print(parsed.port or 6543)
 PY
 )
 
+DEFAULT_GCP_CREDENTIALS="/Users/aurel/codex-jesus/.secrets/biohax-777.json"
+if [[ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" ]]; then
+  export GOOGLE_APPLICATION_CREDENTIALS="${DEFAULT_GCP_CREDENTIALS}"
+fi
+
 kill_embedded_pg() {
   if command -v lsof >/dev/null 2>&1; then
     local pids

@@ -21,7 +21,8 @@ instructions as mandatory to prevent a repeat.
    - `VITE_API_BASE_URL` (usually `http://localhost:4000` for dev)
    - `VITE_GOOGLE_CLIENT_ID` retrieved via `gcloud secrets versions access latest --secret=google-client-id`
    This keeps OAuth + fetch flows aligned with the backend.
-5. Build the production container via Cloud Build to catch regressions before deploying:
+5. In the repo root, ensure `.env` exports `GOOGLE_APPLICATION_CREDENTIALS=/Users/aurel/codex-jesus/.secrets/biohax-777.json` (copy from `.env.example`) so every `gcloud`/Cloud Build command picks up the production service account.
+6. Build the production container via Cloud Build to catch regressions before deploying:
    ```bash
    gcloud builds submit bh-fe \
      --config bh-fe/cloudbuild.yaml \

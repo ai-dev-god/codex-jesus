@@ -83,6 +83,11 @@ MANIFEST_PATH="${ARTIFACT_ROOT}/release-manifest.json"
 PLAYWRIGHT_OUTPUT_DIR="${ARTIFACT_ROOT}/playwright-output"
 PLAYWRIGHT_REPORT_DIR="${ARTIFACT_ROOT}/playwright-report"
 
+DEFAULT_GCP_CREDENTIALS="/Users/aurel/codex-jesus/.secrets/biohax-777.json"
+if [[ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" ]]; then
+  export GOOGLE_APPLICATION_CREDENTIALS="${DEFAULT_GCP_CREDENTIALS}"
+fi
+
 mkdir -p "${RUN_DIR}" "${LOG_DIR}"
 
 log_info() { printf '[release] %s\n' "$*"; }

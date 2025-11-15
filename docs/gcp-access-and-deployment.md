@@ -4,7 +4,7 @@
 > The repository does not contain authoritative IAM exports. I could not confirm from within this environment that the Saffloders or DevOps teams currently hold `roles/owner` or equivalent permissions on the `biohax-777` Google Cloud project. Follow the verification steps below on a workstation with `gcloud` access before relying on that assumption.
 
 ## 1. Credential Source
-- The repo-level `.env` declares `GOOGLE_APPLICATION_CREDENTIALS="~/.config/gcloud/biohax-sa.json"`.  
+- The repo-level `.env` declares `GOOGLE_APPLICATION_CREDENTIALS="/Users/aurel/codex-jesus/.secrets/biohax-777.json"`.  
 - Store the service-account key file at `~/.config/gcloud/biohax-sa.json` on trusted machines only.  
 - Load the variable before running DevOps tooling:
 
@@ -33,7 +33,7 @@ gcloud projects get-iam-policy biohax-777 \
 Replace `SAFFLODERS_IDENTIFIER` and `DEVOPS_IDENTIFIER` with the actual Google identities (group emails, user emails, or service accounts). If the command returns no rows, the bindings are missing and must be added manually by a project owner.
 
 ## 3. Google Cloud Authentication Workflow
-1. Source `.env` so `GOOGLE_APPLICATION_CREDENTIALS` is exported.  
+1. Copy `.env.example` to `.env`, ensure the service-account key exists at `/Users/aurel/codex-jesus/.secrets/biohax-777.json`, and `source .env` so `GOOGLE_APPLICATION_CREDENTIALS` is exported.  
 2. Execute `./devops-biohax/gcp-auth.sh`. The script:
    - Creates/uses `~/.config/gcloud`.
    - Activates the service account via the key file or launches browser login if no key is found.
