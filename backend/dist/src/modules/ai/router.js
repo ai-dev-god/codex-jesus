@@ -2,7 +2,6 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.aiRouter = void 0;
 const express_1 = require("express");
-const node_stream_1 = require("node:stream");
 const zod_1 = require("zod");
 const client_1 = require("@prisma/client");
 const guards_1 = require("../identity/guards");
@@ -109,32 +108,6 @@ router.get('/uploads/:uploadId/download', async (req, res, next) => {
     try {
         const payload = await panel_ingest_service_1.panelIngestionService.resolveDownloadUrl(req.user.id, req.params.uploadId);
         res.status(200).json(payload);
-    }
-    catch (error) {
-        next(error);
-    }
-});
-router.get('/uploads/downloads/:token', async (req, res, next) => {
-    try {
-        const { upload, storageUrl } = await panel_ingest_service_1.panelIngestionService.redeemDownloadToken(req.user.id, req.params.token);
-        const remote = await fetch(storageUrl);
-        if (!remote.ok || !remote.body) {
-            throw new http_error_1.HttpError(502, 'Failed to fetch source file from storage.', 'PANEL_DOWNLOAD_UPSTREAM_FAILED');
-        }
-        const contentType = upload.contentType ?? remote.headers.get('content-type') ?? 'application/octet-stream';
-        const contentLength = remote.headers.get('content-length');
-        const filename = upload.storageKey.split('/').pop() ?? `${upload.id}.pdf`;
-        res.setHeader('Content-Type', contentType);
-        if (contentLength) {
-            res.setHeader('Content-Length', contentLength);
-        }
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        const stream = node_stream_1.Readable.fromWeb(remote.body);
-        stream.on('error', (error) => {
-            remote.body?.cancel().catch(() => { });
-            next(error);
-        });
-        stream.pipe(res);
     }
     catch (error) {
         next(error);

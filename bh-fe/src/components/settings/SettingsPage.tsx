@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Shield, Lock, Download, Trash2, Bell, User, CreditCard, CheckCircle2, Zap } from 'lucide-react';
+import { toast } from 'sonner';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Button } from '../ui/button';
@@ -10,6 +11,14 @@ import { Badge } from '../ui/badge';
 import { Separator } from '../ui/separator';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { useProfile } from '../../hooks/useProfile';
+import {
+  getLatestDataDeletionJob,
+  getLatestDataExportJob,
+  requestDataDeletionJob,
+  requestDataExportJob,
+  type DataDeletionJob,
+  type DataExportJob
+} from '../../lib/api/profile';
 
 const pricingPlans = [
   {
@@ -66,8 +75,12 @@ const pricingPlans = [
 export default function SettingsPage() {
   const [isAnnual, setIsAnnual] = useState(false);
   const currentPlan = 'biohacker';
-  const { user } = useAuth();
+  const { user, ensureAccessToken } = useAuth();
   const { profile, loading: profileLoading, error: profileError } = useProfile();
+  const [exportJob, setExportJob] = useState<DataExportJob | null>(null);
+  const [deletionJob, setDeletionJob] = useState<DataDeletionJob | null>(null);
+  const [privacyLoading, setPrivacyLoading] = useState(true);
+  const [privacyAction, setPrivacyAction] = useState<'export' | 'delete' | null>(null);
 
   const displayName = profile?.displayName ?? user?.email ?? 'BioHacker';
   const [firstName, lastName] = useMemo(() => {
@@ -80,6 +93,120 @@ export default function SettingsPage() {
     }
     return [parts[0], parts.slice(1).join(' ')];
   }, [displayName]);
+
+  const statusStyles: Record<
+    DataExportJob['status'],
+    { label: string; badge: string; text: string }
+  > = {
+    QUEUED: {
+      label: 'Queued',
+      badge: 'bg-cloud text-steel border-cloud',
+      text: 'text-steel'
+    },
+    IN_PROGRESS: {
+      label: 'Processing',
+      badge: 'bg-electric/15 text-electric border-electric/40',
+      text: 'text-electric'
+    },
+    COMPLETE: {
+      label: 'Complete',
+      badge: 'bg-bio/15 text-bio border-bio/40',
+      text: 'text-bio'
+    },
+    FAILED: {
+      label: 'Failed',
+      badge: 'bg-pulse/15 text-pulse border-pulse/40',
+      text: 'text-pulse'
+    }
+  };
+
+  const formatTimestamp = (value: string | null): string => {
+    if (!value) {
+      return '—';
+    }
+    try {
+      return new Date(value).toLocaleString();
+    } catch {
+      return value;
+    }
+  };
+
+  const handleRequestDataExport = async () => {
+    try {
+      setPrivacyAction('export');
+      const token = await ensureAccessToken();
+      const job = await requestDataExportJob(token);
+      setExportJob(job);
+      toast.success('Data export request queued.');
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'Unable to request export.';
+      toast.error(message);
+    } finally {
+      setPrivacyAction(null);
+    }
+  };
+
+  const handleDownloadExportPayload = () => {
+    if (!exportJob?.payload) {
+      toast.info('Export bundle not ready yet.');
+      return;
+    }
+    const filename = `biohax-export-${exportJob.id}.json`;
+    const blob = new Blob([JSON.stringify(exportJob.payload, null, 2)], {
+      type: 'application/json'
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleRequestDataDeletion = async () => {
+    try {
+      setPrivacyAction('delete');
+      const token = await ensureAccessToken();
+      const job = await requestDataDeletionJob(token);
+      setDeletionJob(job);
+      toast.success('Deletion request acknowledged. Our team will process it shortly.');
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'Unable to request deletion.';
+      toast.error(message);
+    } finally {
+      setPrivacyAction(null);
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await ensureAccessToken();
+        const [latestExport, latestDeletion] = await Promise.all([
+          getLatestDataExportJob(token),
+          getLatestDataDeletionJob(token)
+        ]);
+        if (!cancelled) {
+          setExportJob(latestExport);
+          setDeletionJob(latestDeletion);
+        }
+      } catch (cause) {
+        if (!cancelled) {
+          const message = cause instanceof Error ? cause.message : 'Unable to load privacy requests.';
+          toast.error(message);
+        }
+      } finally {
+        if (!cancelled) {
+          setPrivacyLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ensureAccessToken]);
 
   return (
     <div className="min-h-screen mesh-gradient py-12 px-6" data-testid="view-settings">
@@ -232,18 +359,136 @@ export default function SettingsPage() {
 
                 <div>
                   <h4 className="mb-4">Data Management</h4>
-                  <div className="flex gap-3 mb-3">
-                    <Button variant="outline">
-                      <Download className="w-5 h-5 mr-2" />
-                      Export All Data
-                    </Button>
-                    <Button variant="outline" className="text-pulse border-pulse/20 hover:bg-pulse/10">
-                      <Trash2 className="w-5 h-5 mr-2" />
-                      Delete Account
-                    </Button>
+                  <div className="grid gap-4">
+                    <div className="rounded-2xl border border-cloud bg-white/80 p-5">
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                          <div className="font-semibold text-ink mb-1">Data Export</div>
+                          <p className="text-sm text-steel">
+                            Generate a machine-readable snapshot of everything we store.
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          onClick={handleRequestDataExport}
+                          disabled={privacyAction === 'export'}
+                        >
+                          <Download className={`w-4 h-4 mr-2 ${privacyAction === 'export' ? 'animate-spin' : ''}`} />
+                          {privacyAction === 'export' ? 'Requesting…' : 'Export All Data'}
+                        </Button>
+                      </div>
+                      {privacyLoading && !exportJob && (
+                        <p className="text-xs text-steel mt-3">Checking for existing exports…</p>
+                      )}
+                      {exportJob && (
+                        <div className="mt-4 rounded-xl border border-cloud p-4 bg-pearl/60 space-y-3">
+                          <div className="flex items-center gap-3">
+                            <Badge className={`border ${statusStyles[exportJob.status].badge}`}>
+                              {statusStyles[exportJob.status].label}
+                            </Badge>
+                            <span className={`text-xs ${statusStyles[exportJob.status].text}`}>
+                              {exportJob.status === 'COMPLETE'
+                                ? 'Ready for download'
+                                : exportJob.status === 'FAILED'
+                                  ? exportJob.errorMessage ?? 'See audit logs for details'
+                                  : 'Processing'}
+                            </span>
+                          </div>
+                          <dl className="grid grid-cols-2 gap-3 text-xs text-steel">
+                            <div>
+                              <dt className="uppercase tracking-wide text-[10px] text-cloud">Requested</dt>
+                              <dd className="font-semibold text-ink">{formatTimestamp(exportJob.requestedAt)}</dd>
+                            </div>
+                            <div>
+                              <dt className="uppercase tracking-wide text-[10px] text-cloud">Completed</dt>
+                              <dd className="font-semibold text-ink">{formatTimestamp(exportJob.completedAt)}</dd>
+                            </div>
+                            <div>
+                              <dt className="uppercase tracking-wide text-[10px] text-cloud">Expires</dt>
+                              <dd className="font-semibold text-ink">{formatTimestamp(exportJob.expiresAt)}</dd>
+                            </div>
+                          </dl>
+                          {exportJob.payload && (
+                            <Button variant="outline" size="sm" onClick={handleDownloadExportPayload}>
+                              <Download className="w-4 h-4 mr-2" />
+                              Download JSON Archive
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="rounded-2xl border border-cloud bg-white/80 p-5">
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                          <div className="font-semibold text-ink mb-1">Data Deletion</div>
+                          <p className="text-sm text-steel">
+                            Permanently erase all personal data once compliance review completes.
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          className="text-pulse border-pulse/20 hover:bg-pulse/10"
+                          onClick={handleRequestDataDeletion}
+                          disabled={privacyAction === 'delete' || deletionJob?.status === 'IN_PROGRESS'}
+                        >
+                          <Trash2 className={`w-4 h-4 mr-2 ${privacyAction === 'delete' ? 'animate-spin' : ''}`} />
+                          {privacyAction === 'delete' ? 'Submitting…' : 'Delete Account'}
+                        </Button>
+                      </div>
+                      {privacyLoading && !deletionJob && (
+                        <p className="text-xs text-steel mt-3">Checking previous deletion requests…</p>
+                      )}
+                      {deletionJob && (
+                        <div className="mt-4 rounded-xl border border-cloud p-4 bg-pearl/60 space-y-3">
+                          <div className="flex items-center gap-3">
+                            <Badge className={`border ${statusStyles[deletionJob.status].badge}`}>
+                              {statusStyles[deletionJob.status].label}
+                            </Badge>
+                            <span className={`text-xs ${statusStyles[deletionJob.status].text}`}>
+                              {deletionJob.status === 'COMPLETE'
+                                ? 'All records anonymized'
+                                : deletionJob.status === 'FAILED'
+                                  ? deletionJob.errorMessage ?? 'Action required'
+                                  : 'Processing with compliance'}
+                            </span>
+                          </div>
+                          <dl className="grid grid-cols-2 gap-3 text-xs text-steel">
+                            <div>
+                              <dt className="uppercase tracking-wide text-[10px] text-cloud">Requested</dt>
+                              <dd className="font-semibold text-ink">
+                                {formatTimestamp(deletionJob.requestedAt)}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt className="uppercase tracking-wide text-[10px] text-cloud">Completed</dt>
+                              <dd className="font-semibold text-ink">
+                                {formatTimestamp(deletionJob.completedAt)}
+                              </dd>
+                            </div>
+                          </dl>
+                          {deletionJob.summary && (
+                            <div className="text-xs text-steel">
+                              <p className="uppercase tracking-wide text-[10px] text-cloud mb-1">Records removed</p>
+                              <div className="flex flex-wrap gap-2">
+                                {Object.entries(deletionJob.summary).map(([key, value]) => (
+                                  <span
+                                    key={key}
+                                    className="px-3 py-1 rounded-lg bg-white border border-cloud text-[11px] font-semibold text-ink"
+                                  >
+                                    {key}: <span className="text-steel">{String(value)}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-sm text-steel">
-                    Download a copy of your data or permanently delete your account and all associated data.
+                  <p className="text-sm text-steel mt-3">
+                    Download a copy of your data or permanently delete your account and all associated records with
+                    auditable transparency.
                   </p>
                 </div>
 

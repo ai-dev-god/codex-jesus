@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import {
   Prisma,
   type PrismaClient,
@@ -7,7 +6,6 @@ import {
   type LongevityPlan,
   type PanelUploadBiomarkerTag,
   type Biomarker,
-  type PanelUploadDownloadToken,
   PanelUploadSource,
   BiomarkerSource,
   MeasurementStatus
@@ -15,7 +13,6 @@ import {
 
 import prismaClient from '../../lib/prisma';
 import { HttpError } from '../observability-ops/http-error';
-import env from '../../config/env';
 
 export type PanelMeasurementInput = {
   biomarkerId?: string | null;
@@ -42,7 +39,6 @@ export type PanelUploadInput = {
 
 type PanelIngestionOptions = Partial<{
   now: () => Date;
-  idFactory: () => string;
 }>;
 
 const toDecimal = (value?: number | null): Prisma.Decimal | null => {
@@ -56,8 +52,6 @@ const toDecimal = (value?: number | null): Prisma.Decimal | null => {
 const toJsonValue = (value: unknown): Prisma.InputJsonValue =>
   JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 
-const DOWNLOAD_TOKEN_TTL_MS = 5 * 60 * 1000;
-
 type UploadPlanSummary = Pick<LongevityPlan, 'id' | 'title' | 'status' | 'createdAt'>;
 type UploadBiomarkerSummary = Pick<Biomarker, 'id' | 'name' | 'unit'>;
 
@@ -69,7 +63,6 @@ type UploadWithRelations = PanelUpload & {
 
 export class PanelIngestionService {
   private readonly now: () => Date;
-  private readonly idFactory: () => string;
   private readonly uploadInclude = {
     measurements: {
       orderBy: { capturedAt: 'desc' },
@@ -98,7 +91,6 @@ export class PanelIngestionService {
 
   constructor(private readonly prisma: PrismaClient, options: PanelIngestionOptions = {}) {
     this.now = options.now ?? (() => new Date());
-    this.idFactory = options.idFactory ?? (() => randomUUID());
   }
 
   async recordUpload(userId: string, input: PanelUploadInput): Promise<PanelUpload> {
@@ -245,63 +237,13 @@ export class PanelIngestionService {
     return this.getUpload(userId, uploadId);
   }
 
-  async resolveDownloadUrl(
-    userId: string,
-    uploadId: string
-  ): Promise<{ url: string; expiresAt: string }> {
-    const upload = await this.getUpload(userId, uploadId);
-
-    if (!upload.storageKey) {
-      throw new HttpError(400, 'Upload is missing storage metadata.', 'PANEL_UPLOAD_STORAGE_KEY_MISSING');
-    }
-
-    const token = await this.createDownloadToken(userId, upload.id);
-    return {
-      url: `/ai/uploads/downloads/${token.token}`,
-      expiresAt: token.expiresAt.toISOString()
-    };
-  }
-
-  async redeemDownloadToken(
-    userId: string,
-    tokenValue: string
-  ): Promise<{ upload: PanelUpload; storageUrl: string }> {
-    const token = await this.prisma.panelUploadDownloadToken.findUnique({
-      where: { token: tokenValue },
-      include: {
-        upload: true
-      }
-    });
-
-    if (!token) {
-      throw new HttpError(404, 'Download token not found', 'PANEL_DOWNLOAD_TOKEN_INVALID');
-    }
-
-    if (token.userId !== userId) {
-      throw new HttpError(403, 'Download token does not belong to this user', 'PANEL_DOWNLOAD_TOKEN_FORBIDDEN');
-    }
-
-    if (token.usedAt) {
-      throw new HttpError(410, 'Download token already used', 'PANEL_DOWNLOAD_TOKEN_USED');
-    }
-
-    if (token.expiresAt.getTime() <= this.now().getTime()) {
-      throw new HttpError(410, 'Download token expired', 'PANEL_DOWNLOAD_TOKEN_EXPIRED');
-    }
-
-    if (!token.upload.storageKey) {
-      throw new HttpError(400, 'Upload is missing storage metadata.', 'PANEL_UPLOAD_STORAGE_KEY_MISSING');
-    }
-
-    await this.prisma.panelUploadDownloadToken.update({
-      where: { id: token.id },
-      data: { usedAt: this.now() }
-    });
-
-    return {
-      upload: token.upload,
-      storageUrl: this.buildStorageUrl(token.upload.storageKey)
-    };
+  async resolveDownloadUrl(userId: string, uploadId: string): Promise<never> {
+    await this.getUpload(userId, uploadId);
+    throw new HttpError(
+      503,
+      'Secure panel downloads are temporarily disabled while we roll out signed URLs.',
+      'PANEL_DOWNLOAD_DISABLED'
+    );
   }
 
   private async createMeasurements(

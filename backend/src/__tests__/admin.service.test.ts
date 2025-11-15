@@ -3,6 +3,7 @@ import {
   AdminBackupType,
   FlagStatus,
   FlagTargetType,
+  Prisma,
   Role,
   ServiceApiKeyScope,
   ServiceApiKeyStatus,
@@ -175,6 +176,15 @@ const createUser = (overrides: Partial<{
       : null
   };
 };
+
+const createMissingBackupTableError = () =>
+  new Prisma.PrismaClientKnownRequestError('AdminBackupJob table is missing', {
+    code: 'P2021',
+    clientVersion: Prisma.prismaVersion.client,
+    meta: {
+      table: 'AdminBackupJob'
+    }
+  });
 
 const createFlagRecord = (overrides: Partial<Record<string, unknown>> = {}) => {
   const openedBy = createUser({ id: 'opened-1', email: 'opened@example.com', displayName: 'Opened User' });
@@ -772,5 +782,32 @@ describe('AdminService', () => {
     });
     expect(typeof result.plaintextKey).toBe('string');
     expect(result.plaintextKey.length).toBeGreaterThan(20);
+  });
+
+  it('returns an empty backup list when the table has not been provisioned', async () => {
+    const prisma = createMockPrisma();
+    const service = new AdminService(prisma as unknown as PrismaClient);
+
+    prisma.adminBackupJob.findMany.mockRejectedValue(createMissingBackupTableError());
+
+    const jobs = await service.listBackupJobs();
+
+    expect(jobs).toEqual({ data: [] });
+  });
+
+  it('surfaces a descriptive error when triggering backups before migrations run', async () => {
+    const prisma = createMockPrisma();
+    const service = new AdminService(prisma as unknown as PrismaClient, {
+      now: () => baseTimestamp
+    });
+    const admin = createUser({ id: 'admin-1', role: Role.ADMIN, displayName: 'Admin User' });
+
+    prisma.$queryRaw.mockResolvedValue([{ size_bytes: BigInt(1_000_000) }]);
+    prisma.adminBackupJob.create.mockRejectedValue(createMissingBackupTableError());
+
+    await expect(service.triggerBackupJob(admin, AdminBackupType.FULL)).rejects.toMatchObject({
+      status: 503,
+      code: 'BACKUPS_NOT_READY'
+    });
   });
 });

@@ -27,8 +27,21 @@ import SecurityCenter from './SecurityCenter';
 import BackupManagement from './BackupManagement';
 import ApiKeyManagement from './ApiKeyManagement';
 import LlmUsageTracking from './LlmUsageTracking';
+import PrivacyCenter from './PrivacyCenter';
 
-type AdminTab = 'overview' | 'users' | 'health' | 'database' | 'config' | 'security' | 'audit' | 'metrics' | 'backups' | 'apikeys' | 'llm';
+type AdminTab =
+  | 'overview'
+  | 'users'
+  | 'health'
+  | 'database'
+  | 'config'
+  | 'security'
+  | 'privacy'
+  | 'audit'
+  | 'metrics'
+  | 'backups'
+  | 'apikeys'
+  | 'llm';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
@@ -73,6 +86,10 @@ export default function AdminDashboard() {
             <TabsTrigger value="security" className="data-[state=active]:gradient-electric data-[state=active]:text-white">
               <Lock className="w-4 h-4 mr-2" />
               Security
+            </TabsTrigger>
+            <TabsTrigger value="privacy" className="data-[state=active]:gradient-electric data-[state=active]:text-white">
+              <Shield className="w-4 h-4 mr-2" />
+              Privacy
             </TabsTrigger>
             <TabsTrigger value="apikeys" className="data-[state=active]:gradient-electric data-[state=active]:text-white">
               <Key className="w-4 h-4 mr-2" />
@@ -119,6 +136,10 @@ export default function AdminDashboard() {
 
           <TabsContent value="security">
             <SecurityCenter />
+          </TabsContent>
+
+          <TabsContent value="privacy">
+            <PrivacyCenter />
           </TabsContent>
 
           <TabsContent value="apikeys">

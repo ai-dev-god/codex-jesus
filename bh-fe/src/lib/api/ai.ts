@@ -89,11 +89,18 @@ export async function updatePanelUploadTags(
   });
 }
 
-export async function fetchPanelUploadDownloadUrl(accessToken: string, uploadId: string): Promise<string> {
-  const response = await apiFetch<{ url: string }>(`/ai/uploads/${uploadId}/download`, {
+export type PanelDownloadSession = {
+  url: string;
+  expiresAt: string;
+};
+
+export async function fetchPanelUploadDownloadUrl(
+  accessToken: string,
+  uploadId: string
+): Promise<PanelDownloadSession> {
+  return apiFetch<PanelDownloadSession>(`/ai/uploads/${uploadId}/download`, {
     authToken: accessToken,
     method: 'GET'
   });
-  return response.url;
 }
 

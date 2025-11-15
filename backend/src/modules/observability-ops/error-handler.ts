@@ -15,7 +15,7 @@ const resolveStatus = (error: ExpressError): number => {
 
 const safeMessage = (error: ExpressError, status: number): string => {
   if (status >= 500) {
-    return DEFAULT_ERROR_MESSAGE;
+    return error instanceof HttpError ? error.message : DEFAULT_ERROR_MESSAGE;
   }
 
   return error.message;

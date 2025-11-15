@@ -644,7 +644,11 @@ class AdminService {
         const take = Math.min(Math.max(options.limit, 1), 50);
         const records = await this.prisma.dataExportJob.findMany({
             include: {
-                user: true
+                user: {
+                    include: {
+                        profile: true
+                    }
+                }
             },
             orderBy: { requestedAt: 'desc' },
             cursor: options.cursor ? { id: options.cursor } : undefined,
@@ -665,7 +669,11 @@ class AdminService {
         const take = Math.min(Math.max(options.limit, 1), 50);
         const records = await this.prisma.dataDeletionJob.findMany({
             include: {
-                user: true
+                user: {
+                    include: {
+                        profile: true
+                    }
+                }
             },
             orderBy: { requestedAt: 'desc' },
             cursor: options.cursor ? { id: options.cursor } : undefined,
@@ -1379,6 +1387,31 @@ class AdminService {
             planTier: derivePlanTier(user),
             biomarkersLogged: metrics.biomarkersLogged,
             protocolsActive: metrics.protocolsActive
+        };
+    }
+    mapDataExportJob(record) {
+        return {
+            id: record.id,
+            status: record.status,
+            requestedAt: record.requestedAt.toISOString(),
+            processedAt: record.processedAt ? record.processedAt.toISOString() : null,
+            completedAt: record.completedAt ? record.completedAt.toISOString() : null,
+            expiresAt: record.expiresAt ? record.expiresAt.toISOString() : null,
+            errorMessage: record.errorMessage,
+            resultAvailable: Boolean(record.result),
+            user: buildUserSummary(record.user)
+        };
+    }
+    mapDataDeletionJob(record) {
+        return {
+            id: record.id,
+            status: record.status,
+            requestedAt: record.requestedAt.toISOString(),
+            processedAt: record.processedAt ? record.processedAt.toISOString() : null,
+            completedAt: record.completedAt ? record.completedAt.toISOString() : null,
+            errorMessage: record.errorMessage,
+            summaryAvailable: Boolean(record.deletedSummary),
+            user: buildUserSummary(record.user)
         };
     }
     computeQueueStats(now, records) {

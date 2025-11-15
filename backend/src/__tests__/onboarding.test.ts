@@ -9,8 +9,10 @@ jest.mock('../modules/data-subject/data-subject.service', () => ({
   dataSubjectService: {
     requestExport: jest.fn(),
     getExportJob: jest.fn(),
+    getLatestExportJob: jest.fn(),
     requestDeletion: jest.fn(),
-    getDeletionJob: jest.fn()
+    getDeletionJob: jest.fn(),
+    getLatestDeletionJob: jest.fn()
   }
 }));
 

@@ -53,7 +53,10 @@ const isJsonBody = (body: BodyInit | null | undefined): body is string | ArrayBu
   return body instanceof Blob || body instanceof ArrayBuffer;
 };
 
-export async function apiFetch<T>(path: string, options: ApiRequestInit = {}): Promise<T> {
+const buildRequest = async (
+  path: string,
+  options: ApiRequestInit
+): Promise<Response> => {
   const { authToken, headers, body, ...rest } = options;
   const requestHeaders = new Headers(headers ?? {});
 
@@ -70,26 +73,44 @@ export async function apiFetch<T>(path: string, options: ApiRequestInit = {}): P
   }
 
   const baseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${baseUrl}${path}`, {
+  return fetch(`${baseUrl}${path}`, {
     ...rest,
     body,
     headers: requestHeaders
   });
+};
 
+const parseAndThrow = async (response: Response): Promise<never> => {
+  const text = await response.text();
+  const parsed = text ? safeParseJson(text) : null;
+  const errorPayload =
+    parsed && typeof parsed === 'object' && 'error' in parsed ? (parsed as { error: any }).error : undefined;
+  const message =
+    typeof errorPayload?.message === 'string'
+      ? errorPayload.message
+      : text || response.statusText || 'Request failed';
+  const code = typeof errorPayload?.code === 'string' ? errorPayload.code : undefined;
+  throw new ApiError(message, response.status, code, parsed ?? text);
+};
+
+export async function apiFetch<T>(path: string, options: ApiRequestInit = {}): Promise<T> {
+  const response = await buildRequest(path, options);
   const text = await response.text();
   const parsed = text ? safeParseJson(text) : null;
 
   if (!response.ok) {
-    const errorPayload = parsed && typeof parsed === 'object' && 'error' in parsed ? (parsed as { error: any }).error : undefined;
-    const message =
-      typeof errorPayload?.message === 'string'
-        ? errorPayload.message
-        : text || response.statusText || 'Request failed';
-    const code = typeof errorPayload?.code === 'string' ? errorPayload.code : undefined;
-    throw new ApiError(message, response.status, code, parsed ?? text);
+    await parseAndThrow(response);
   }
 
   return (parsed as T) ?? (null as T);
+}
+
+export async function apiFetchBlob(path: string, options: ApiRequestInit = {}): Promise<Blob> {
+  const response = await buildRequest(path, options);
+  if (!response.ok) {
+    await parseAndThrow(response);
+  }
+  return await response.blob();
 }
 
 const safeParseJson = (payload: string): unknown => {

@@ -8,6 +8,7 @@ import {
   fetchPanelUploads,
   updatePanelUploadTags
 } from '../../lib/api/ai';
+import { apiFetchBlob } from '../../lib/api/http';
 import type { LongevityPlan, PanelUploadSummary, BiomarkerDefinition } from '../../lib/api/types';
 import { listBiomarkerDefinitions } from '../../lib/api/biomarkers';
 import { useAuth } from '../../lib/auth/AuthContext';
@@ -233,8 +234,14 @@ export default function LabUploadHistory({ refreshKey }: LabUploadHistoryProps) 
     try {
       setDownloadTarget(upload.id);
       const token = await ensureAccessToken();
-      const url = await fetchPanelUploadDownloadUrl(token, upload.id);
-      window.open(url, '_blank', 'noopener,noreferrer');
+      const session = await fetchPanelUploadDownloadUrl(token, upload.id);
+      const blob = await apiFetchBlob(session.url, { authToken: token, method: 'GET' });
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = getFileLabel(upload).replace(/\s+/g, '_');
+      anchor.click();
+      URL.revokeObjectURL(objectUrl);
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : 'Unable to generate download link.';
       toast.error(message);

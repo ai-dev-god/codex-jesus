@@ -4,11 +4,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.panelIngestionService = exports.PanelIngestionService = void 0;
-const node_crypto_1 = require("node:crypto");
 const client_1 = require("@prisma/client");
 const prisma_1 = __importDefault(require("../../lib/prisma"));
 const http_error_1 = require("../observability-ops/http-error");
-const env_1 = __importDefault(require("../../config/env"));
 const toDecimal = (value) => {
     if (value === null || value === undefined) {
         return null;
@@ -16,7 +14,6 @@ const toDecimal = (value) => {
     return new client_1.Prisma.Decimal(value);
 };
 const toJsonValue = (value) => JSON.parse(JSON.stringify(value));
-const DOWNLOAD_TOKEN_TTL_MS = 5 * 60 * 1000;
 class PanelIngestionService {
     constructor(prisma, options = {}) {
         this.prisma = prisma;
@@ -46,7 +43,6 @@ class PanelIngestionService {
             }
         };
         this.now = options.now ?? (() => new Date());
-        this.idFactory = options.idFactory ?? (() => (0, node_crypto_1.randomUUID)());
     }
     async recordUpload(userId, input) {
         const measurements = input.measurements ?? [];
@@ -173,46 +169,8 @@ class PanelIngestionService {
         return this.getUpload(userId, uploadId);
     }
     async resolveDownloadUrl(userId, uploadId) {
-        const upload = await this.getUpload(userId, uploadId);
-        if (!upload.storageKey) {
-            throw new http_error_1.HttpError(400, 'Upload is missing storage metadata.', 'PANEL_UPLOAD_STORAGE_KEY_MISSING');
-        }
-        const token = await this.createDownloadToken(userId, upload.id);
-        return {
-            url: `/ai/uploads/downloads/${token.token}`,
-            expiresAt: token.expiresAt.toISOString()
-        };
-    }
-    async redeemDownloadToken(userId, tokenValue) {
-        const token = await this.prisma.panelUploadDownloadToken.findUnique({
-            where: { token: tokenValue },
-            include: {
-                upload: true
-            }
-        });
-        if (!token) {
-            throw new http_error_1.HttpError(404, 'Download token not found', 'PANEL_DOWNLOAD_TOKEN_INVALID');
-        }
-        if (token.userId !== userId) {
-            throw new http_error_1.HttpError(403, 'Download token does not belong to this user', 'PANEL_DOWNLOAD_TOKEN_FORBIDDEN');
-        }
-        if (token.usedAt) {
-            throw new http_error_1.HttpError(410, 'Download token already used', 'PANEL_DOWNLOAD_TOKEN_USED');
-        }
-        if (token.expiresAt.getTime() <= this.now().getTime()) {
-            throw new http_error_1.HttpError(410, 'Download token expired', 'PANEL_DOWNLOAD_TOKEN_EXPIRED');
-        }
-        if (!token.upload.storageKey) {
-            throw new http_error_1.HttpError(400, 'Upload is missing storage metadata.', 'PANEL_UPLOAD_STORAGE_KEY_MISSING');
-        }
-        await this.prisma.panelUploadDownloadToken.update({
-            where: { id: token.id },
-            data: { usedAt: this.now() }
-        });
-        return {
-            upload: token.upload,
-            storageUrl: this.buildStorageUrl(token.upload.storageKey)
-        };
+        await this.getUpload(userId, uploadId);
+        throw new http_error_1.HttpError(503, 'Secure panel downloads are temporarily disabled while we roll out signed URLs.', 'PANEL_DOWNLOAD_DISABLED');
     }
     async createMeasurements(uploadId, userId, measurements) {
         for (const measurement of measurements) {
@@ -244,23 +202,6 @@ class PanelIngestionService {
         }
         const message = error instanceof Error ? error.message : 'Unknown panel ingestion failure.';
         return new http_error_1.HttpError(500, message, 'PANEL_INGESTION_FAILED');
-    }
-    async createDownloadToken(userId, uploadId) {
-        const expiresAt = new Date(this.now().getTime() + DOWNLOAD_TOKEN_TTL_MS);
-        return this.prisma.panelUploadDownloadToken.create({
-            data: {
-                id: this.idFactory(),
-                token: (0, node_crypto_1.randomUUID)(),
-                userId,
-                uploadId,
-                expiresAt
-            }
-        });
-    }
-    buildStorageUrl(storageKey) {
-        const baseUrl = env_1.default.PANEL_UPLOAD_DOWNLOAD_BASE_URL.replace(/\/+$/, '');
-        const normalizedKey = storageKey.replace(/^\/+/, '');
-        return `${baseUrl}/${normalizedKey}`;
     }
 }
 exports.PanelIngestionService = PanelIngestionService;

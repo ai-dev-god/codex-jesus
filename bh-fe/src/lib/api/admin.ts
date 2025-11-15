@@ -1,5 +1,5 @@
 import { apiFetch } from './http';
-import type { Role, UserStatus } from './types';
+import type { AdminAccessSummary, Role, UserStatus } from './types';
 
 export type AdminUserPlanTier = 'explorer' | 'biohacker' | 'longevity_pro';
 
@@ -132,6 +132,37 @@ export type ApiKey = {
 
 export type ApiKeysResponse = {
   data: ApiKey[];
+};
+
+export type AdminDataExportJob = {
+  id: string;
+  status: 'QUEUED' | 'IN_PROGRESS' | 'COMPLETE' | 'FAILED';
+  requestedAt: string;
+  processedAt: string | null;
+  completedAt: string | null;
+  expiresAt: string | null;
+  errorMessage: string | null;
+  resultAvailable: boolean;
+  user: UserSummary;
+};
+
+export type AdminDataDeletionJob = {
+  id: string;
+  status: 'QUEUED' | 'IN_PROGRESS' | 'COMPLETE' | 'FAILED';
+  requestedAt: string;
+  processedAt: string | null;
+  completedAt: string | null;
+  errorMessage: string | null;
+  summaryAvailable: boolean;
+  user: UserSummary;
+};
+
+export type AdminDsarJobsResponse<T> = {
+  data: T[];
+  meta: {
+    nextCursor: string | null;
+    hasMore: boolean;
+  };
 };
 
 export type CreateApiKeyPayload = {
@@ -304,8 +335,47 @@ export const revokeApiKey = (token: string, keyId: string): Promise<ApiKey> =>
     method: 'POST',
     authToken: token
   });
-import { apiFetch } from './http';
-import type { AdminAccessSummary } from './types';
+
+type DsraListParams = Partial<{
+  cursor: string;
+  limit: number;
+}>;
+
+export const listDataExportJobs = (
+  token: string,
+  params: DsraListParams = {}
+): Promise<AdminDsarJobsResponse<AdminDataExportJob>> => {
+  const query = buildQueryString({
+    cursor: params.cursor,
+    limit: params.limit
+  });
+
+  return apiFetch<AdminDsarJobsResponse<AdminDataExportJob>>(
+    `/admin/privacy/data-exports${query}`,
+    {
+      method: 'GET',
+      authToken: token
+    }
+  );
+};
+
+export const listDataDeletionJobs = (
+  token: string,
+  params: DsraListParams = {}
+): Promise<AdminDsarJobsResponse<AdminDataDeletionJob>> => {
+  const query = buildQueryString({
+    cursor: params.cursor,
+    limit: params.limit
+  });
+
+  return apiFetch<AdminDsarJobsResponse<AdminDataDeletionJob>>(
+    `/admin/privacy/data-deletions${query}`,
+    {
+      method: 'GET',
+      authToken: token
+    }
+  );
+};
 
 export const fetchAdminAccess = (accessToken: string): Promise<AdminAccessSummary> =>
   apiFetch<AdminAccessSummary>('/admin/access', {

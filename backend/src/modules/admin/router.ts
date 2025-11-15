@@ -95,6 +95,11 @@ const managedUsersQuerySchema = z.object({
   limit: limitSchema
 });
 
+const dsarListQuerySchema = z.object({
+  cursor: cursorSchema.optional(),
+  limit: limitSchema
+});
+
 const createManagedUserSchema = z.object({
   email: z.string().email(),
   fullName: z.string().trim().min(1),
@@ -430,6 +435,32 @@ router.post('/api-keys/:keyId/revoke', async (req, res, next) => {
   try {
     const key = await adminService.revokeApiKey(req.user!, req.params.keyId);
     res.status(200).json(key);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/privacy/data-exports', async (req, res, next) => {
+  try {
+    const query = validate(dsarListQuerySchema, req.query);
+    const data = await adminService.listDataExportJobs({
+      limit: query.limit,
+      cursor: query.cursor
+    });
+    res.status(200).json(data);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/privacy/data-deletions', async (req, res, next) => {
+  try {
+    const query = validate(dsarListQuerySchema, req.query);
+    const data = await adminService.listDataDeletionJobs({
+      limit: query.limit,
+      cursor: query.cursor
+    });
+    res.status(200).json(data);
   } catch (error) {
     next(error);
   }
