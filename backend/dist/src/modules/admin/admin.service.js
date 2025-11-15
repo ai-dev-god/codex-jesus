@@ -334,6 +334,10 @@ const buildBackupStorageUri = (jobId, timestamp, type) => {
     const kind = type.toLowerCase();
     return `gs://${bucket}/${dateKey}/backup-${jobId}-${kind}.sql.gz`;
 };
+const BACKUP_SUBSYSTEM_ERROR_CODE = 'BACKUPS_NOT_READY';
+const BACKUP_SUBSYSTEM_ERROR_MESSAGE = 'Database backups are not available yet. Apply the latest database migrations and try again.';
+const isBackupSubsystemUnavailableError = (error) => error instanceof client_1.Prisma.PrismaClientKnownRequestError && error.code === 'P2021';
+const backupSubsystemUnavailableError = () => new http_error_1.HttpError(503, BACKUP_SUBSYSTEM_ERROR_MESSAGE, BACKUP_SUBSYSTEM_ERROR_CODE);
 const parseAuditMetadata = (metadata) => {
     if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
         return null;
@@ -961,50 +965,66 @@ class AdminService {
     }
     async listBackupJobs(limit = 25) {
         const take = Math.min(Math.max(limit, 1), 50);
-        const jobs = await this.prisma.adminBackupJob.findMany({
-            include: BACKUP_INCLUDE,
-            orderBy: { createdAt: 'desc' },
-            take
-        });
-        return {
-            data: jobs.map((job) => this.mapBackupJob(job))
-        };
+        try {
+            const jobs = await this.prisma.adminBackupJob.findMany({
+                include: BACKUP_INCLUDE,
+                orderBy: { createdAt: 'desc' },
+                take
+            });
+            return {
+                data: jobs.map((job) => this.mapBackupJob(job))
+            };
+        }
+        catch (error) {
+            if (isBackupSubsystemUnavailableError(error)) {
+                return { data: [] };
+            }
+            throw error;
+        }
     }
     async triggerBackupJob(actor, type = client_1.AdminBackupType.FULL) {
         ensureAdminActor(actor);
-        const [sizeRow] = await this.prisma.$queryRaw(client_1.Prisma.sql `SELECT pg_database_size(current_database()) AS size_bytes`);
-        const sizeBytes = toBigInt(sizeRow?.size_bytes);
-        const now = this.now();
-        const durationSeconds = 30 + Math.floor(Math.random() * 180);
-        const completedAt = new Date(now.getTime() + durationSeconds * 1000);
-        const jobId = (0, node_crypto_1.randomBytes)(12).toString('hex');
-        const storageUri = buildBackupStorageUri(jobId, now, type);
-        const job = await this.prisma.adminBackupJob.create({
-            data: {
-                id: jobId,
-                type,
-                status: client_1.AdminBackupStatus.SUCCEEDED,
-                initiatedById: actor.id,
-                storageUri,
-                sizeBytes: sizeBytes ?? undefined,
-                durationSeconds,
-                startedAt: now,
-                completedAt
-            },
-            include: BACKUP_INCLUDE
-        });
-        await this.prisma.adminAuditLog.create({
-            data: {
-                actorId: actor.id,
-                action: 'DATABASE_BACKUP_TRIGGERED',
-                targetType: 'DATABASE_BACKUP',
-                targetId: job.id,
-                metadata: toInputJson({
-                    type
-                })
+        try {
+            const [sizeRow] = await this.prisma.$queryRaw(client_1.Prisma.sql `SELECT pg_database_size(current_database()) AS size_bytes`);
+            const sizeBytes = toBigInt(sizeRow?.size_bytes);
+            const now = this.now();
+            const durationSeconds = 30 + Math.floor(Math.random() * 180);
+            const completedAt = new Date(now.getTime() + durationSeconds * 1000);
+            const jobId = (0, node_crypto_1.randomBytes)(12).toString('hex');
+            const storageUri = buildBackupStorageUri(jobId, now, type);
+            const job = await this.prisma.adminBackupJob.create({
+                data: {
+                    id: jobId,
+                    type,
+                    status: client_1.AdminBackupStatus.SUCCEEDED,
+                    initiatedById: actor.id,
+                    storageUri,
+                    sizeBytes: sizeBytes ?? undefined,
+                    durationSeconds,
+                    startedAt: now,
+                    completedAt
+                },
+                include: BACKUP_INCLUDE
+            });
+            await this.prisma.adminAuditLog.create({
+                data: {
+                    actorId: actor.id,
+                    action: 'DATABASE_BACKUP_TRIGGERED',
+                    targetType: 'DATABASE_BACKUP',
+                    targetId: job.id,
+                    metadata: toInputJson({
+                        type
+                    })
+                }
+            });
+            return this.mapBackupJob(job);
+        }
+        catch (error) {
+            if (isBackupSubsystemUnavailableError(error)) {
+                throw backupSubsystemUnavailableError();
             }
-        });
-        return this.mapBackupJob(job);
+            throw error;
+        }
     }
     async deleteBackupJob(actor, jobId) {
         ensureAdminActor(actor);
@@ -1014,6 +1034,9 @@ class AdminService {
             });
         }
         catch (error) {
+            if (isBackupSubsystemUnavailableError(error)) {
+                throw backupSubsystemUnavailableError();
+            }
             if (error instanceof client_1.Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
                 throw new http_error_1.HttpError(404, 'Backup job not found', 'BACKUP_NOT_FOUND');
             }
@@ -1030,48 +1053,64 @@ class AdminService {
     }
     async requestBackupRestore(actor, jobId) {
         ensureAdminActor(actor);
-        const existing = await this.prisma.adminBackupJob.findUnique({
-            where: { id: jobId }
-        });
-        if (!existing) {
-            throw new http_error_1.HttpError(404, 'Backup job not found', 'BACKUP_NOT_FOUND');
-        }
-        const metadata = parseAuditMetadata(existing.metadata) ?? { restoreRequests: [] };
-        const updatedMetadata = {
-            ...metadata,
-            restoreRequests: [
-                ...(metadata.restoreRequests ?? []),
-                {
-                    actorId: actor.id,
-                    requestedAt: this.now().toISOString()
-                }
-            ]
-        };
-        const updated = await this.prisma.adminBackupJob.update({
-            where: { id: jobId },
-            data: {
-                metadata: toInputJson(updatedMetadata)
-            },
-            include: BACKUP_INCLUDE
-        });
-        await this.prisma.adminAuditLog.create({
-            data: {
-                actorId: actor.id,
-                action: 'DATABASE_BACKUP_RESTORE_REQUESTED',
-                targetType: 'DATABASE_BACKUP',
-                targetId: jobId
+        try {
+            const existing = await this.prisma.adminBackupJob.findUnique({
+                where: { id: jobId }
+            });
+            if (!existing) {
+                throw new http_error_1.HttpError(404, 'Backup job not found', 'BACKUP_NOT_FOUND');
             }
-        });
-        return this.mapBackupJob(updated);
+            const metadata = parseAuditMetadata(existing.metadata) ?? { restoreRequests: [] };
+            const updatedMetadata = {
+                ...metadata,
+                restoreRequests: [
+                    ...(metadata.restoreRequests ?? []),
+                    {
+                        actorId: actor.id,
+                        requestedAt: this.now().toISOString()
+                    }
+                ]
+            };
+            const updated = await this.prisma.adminBackupJob.update({
+                where: { id: jobId },
+                data: {
+                    metadata: toInputJson(updatedMetadata)
+                },
+                include: BACKUP_INCLUDE
+            });
+            await this.prisma.adminAuditLog.create({
+                data: {
+                    actorId: actor.id,
+                    action: 'DATABASE_BACKUP_RESTORE_REQUESTED',
+                    targetType: 'DATABASE_BACKUP',
+                    targetId: jobId
+                }
+            });
+            return this.mapBackupJob(updated);
+        }
+        catch (error) {
+            if (isBackupSubsystemUnavailableError(error)) {
+                throw backupSubsystemUnavailableError();
+            }
+            throw error;
+        }
     }
     async getBackupDownloadLink(jobId) {
-        const job = await this.prisma.adminBackupJob.findUnique({
-            where: { id: jobId }
-        });
-        if (!job || !job.storageUri) {
-            throw new http_error_1.HttpError(404, 'Backup artifact not found', 'BACKUP_NOT_FOUND');
+        try {
+            const job = await this.prisma.adminBackupJob.findUnique({
+                where: { id: jobId }
+            });
+            if (!job || !job.storageUri) {
+                throw new http_error_1.HttpError(404, 'Backup artifact not found', 'BACKUP_NOT_FOUND');
+            }
+            return { url: job.storageUri };
         }
-        return { url: job.storageUri };
+        catch (error) {
+            if (isBackupSubsystemUnavailableError(error)) {
+                throw backupSubsystemUnavailableError();
+            }
+            throw error;
+        }
     }
     async getBackupSettings() {
         const latest = await this.prisma.adminAuditLog.findFirst({

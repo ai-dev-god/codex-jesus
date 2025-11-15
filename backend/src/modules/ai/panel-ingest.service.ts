@@ -285,26 +285,6 @@ export class PanelIngestionService {
     const message = error instanceof Error ? error.message : 'Unknown panel ingestion failure.';
     return new HttpError(500, message, 'PANEL_INGESTION_FAILED');
   }
-
-  private async createDownloadToken(userId: string, uploadId: string): Promise<PanelUploadDownloadToken> {
-    const expiresAt = new Date(this.now().getTime() + DOWNLOAD_TOKEN_TTL_MS);
-
-    return this.prisma.panelUploadDownloadToken.create({
-      data: {
-        id: this.idFactory(),
-        token: randomUUID(),
-        userId,
-        uploadId,
-        expiresAt
-      }
-    });
-  }
-
-  private buildStorageUrl(storageKey: string): string {
-    const baseUrl = env.PANEL_UPLOAD_DOWNLOAD_BASE_URL.replace(/\/+$/, '');
-    const normalizedKey = storageKey.replace(/^\/+/, '');
-    return `${baseUrl}/${normalizedKey}`;
-  }
 }
 
 export const panelIngestionService = new PanelIngestionService(prismaClient);

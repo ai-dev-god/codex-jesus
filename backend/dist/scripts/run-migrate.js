@@ -56,9 +56,14 @@ function main() {
         return;
     }
     const combinedOutput = `${deployResult.stdout}\n${deployResult.stderr}`.toLowerCase();
+    const hasFailedMigration = combinedOutput.includes('p3009') || combinedOutput.includes('failed migrations');
     const isConnectionIssue = combinedOutput.includes('p1001') ||
         combinedOutput.includes("can't reach database server") ||
         combinedOutput.includes('connect ECONNREFUSED'.toLowerCase());
+    if (hasFailedMigration) {
+        console.warn('[db:migrate] Detected previously failed migrations (P3009). Skipping automatic migration so the service can boot.');
+        return;
+    }
     if (isConnectionIssue && fallbackEnabled) {
         const fallbackResult = runDiffFallback();
         if (fallbackResult.status === 0) {

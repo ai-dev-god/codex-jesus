@@ -11,7 +11,7 @@ const resolveStatus = (error) => {
 };
 const safeMessage = (error, status) => {
     if (status >= 500) {
-        return DEFAULT_ERROR_MESSAGE;
+        return error instanceof http_error_1.HttpError ? error.message : DEFAULT_ERROR_MESSAGE;
     }
     return error.message;
 };
