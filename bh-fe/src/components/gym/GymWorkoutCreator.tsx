@@ -101,7 +101,7 @@ export default function GymWorkoutCreator() {
   const [selectedExercises, setSelectedExercises] = useState<string[]>([]);
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-8 space-y-6" data-testid="view-gym">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-neutral-900 mb-2">Workout & Training Protocols</h1>

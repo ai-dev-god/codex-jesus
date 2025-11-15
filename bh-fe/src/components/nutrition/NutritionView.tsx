@@ -156,7 +156,7 @@ export default function NutritionView() {
   };
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-8 space-y-6" data-testid="view-nutrition">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-neutral-900 mb-2">Nutrition & Supplementation</h1>

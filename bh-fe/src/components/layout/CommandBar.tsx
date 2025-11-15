@@ -1,10 +1,12 @@
-import { Search, Zap, Bell } from 'lucide-react';
+import { Search, Zap, Bell, Beaker, Loader2 } from 'lucide-react';
 
 interface CommandBarProps {
   onStartOnboarding: () => void;
+  onOpenLabUpload: () => void;
+  onboardingActive?: boolean;
 }
 
-export default function CommandBar({ onStartOnboarding }: CommandBarProps) {
+export default function CommandBar({ onStartOnboarding, onOpenLabUpload, onboardingActive = false }: CommandBarProps) {
   return (
     <div className="fixed top-0 left-0 right-0 z-50 px-6 pt-6">
       <div className="max-w-7xl mx-auto">
@@ -26,12 +28,37 @@ export default function CommandBar({ onStartOnboarding }: CommandBarProps) {
           {/* Quick Actions */}
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={onStartOnboarding}
-              className="px-5 py-2.5 rounded-xl gradient-electric text-void font-bold hover:scale-105 transition-transform shadow-lg"
+              disabled={onboardingActive}
+              aria-busy={onboardingActive}
+              aria-pressed={onboardingActive}
+              className={`px-5 py-2.5 rounded-xl gradient-electric text-void font-bold transition-transform shadow-lg ${
+                onboardingActive ? 'opacity-80 cursor-not-allowed' : 'hover:scale-105'
+              }`}
             >
               <div className="flex items-center gap-2">
-                <Zap className="w-4 h-4" />
-                <span>Get Started</span>
+                {onboardingActive ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Opening…</span>
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-4 h-4" />
+                    <span>Get Started</span>
+                  </>
+                )}
+              </div>
+            </button>
+
+            <button
+              onClick={onOpenLabUpload}
+              className="px-4 py-2.5 rounded-xl border border-cloud text-ink font-semibold hover:border-electric hover:text-electric transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Beaker className="w-4 h-4" />
+                <span>Upload Labs</span>
               </div>
             </button>
 

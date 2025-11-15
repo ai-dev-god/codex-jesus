@@ -24,6 +24,9 @@ export default function VerticalNav({ items, currentView, onNavigate }: Vertical
             <button
               key={item.id}
               onClick={() => onNavigate(item.id)}
+              type="button"
+              aria-label={item.label}
+              title={item.label}
               className={`group relative w-14 h-14 rounded-xl flex items-center justify-center transition-all ${
                 isActive
                   ? 'gradient-electric shadow-lg'

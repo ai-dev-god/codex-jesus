@@ -1,5 +1,5 @@
 import { apiFetch } from './http';
-import type { LongevityPlan } from './types';
+import type { LongevityPlan, PanelUploadSummary } from './types';
 
 export interface LongevityPlanRequestInput {
   focusAreas?: string[];
@@ -50,10 +50,50 @@ export async function requestLongevityPlan(accessToken: string, payload: Longevi
 }
 
 export async function recordPanelUpload(accessToken: string, payload: PanelUploadInput) {
-  return apiFetch(`/ai/uploads`, {
+  return apiFetch<PanelUploadSummary>(`/ai/uploads`, {
     authToken: accessToken,
     method: 'POST',
     body: JSON.stringify(payload)
   });
+}
+
+export async function fetchPanelUploads(accessToken: string, limit = 10): Promise<PanelUploadSummary[]> {
+  const search = new URLSearchParams({ limit: limit.toString() }).toString();
+  return apiFetch<PanelUploadSummary[]>(`/ai/uploads?${search}`, {
+    authToken: accessToken,
+    method: 'GET'
+  });
+}
+
+export async function fetchPanelUpload(accessToken: string, uploadId: string): Promise<PanelUploadSummary> {
+  return apiFetch<PanelUploadSummary>(`/ai/uploads/${uploadId}`, {
+    authToken: accessToken,
+    method: 'GET'
+  });
+}
+
+export interface PanelUploadTagPayload {
+  planId?: string | null;
+  biomarkerIds?: string[];
+}
+
+export async function updatePanelUploadTags(
+  accessToken: string,
+  uploadId: string,
+  payload: PanelUploadTagPayload
+): Promise<PanelUploadSummary> {
+  return apiFetch<PanelUploadSummary>(`/ai/uploads/${uploadId}/tags`, {
+    authToken: accessToken,
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function fetchPanelUploadDownloadUrl(accessToken: string, uploadId: string): Promise<string> {
+  const response = await apiFetch<{ url: string }>(`/ai/uploads/${uploadId}/download`, {
+    authToken: accessToken,
+    method: 'GET'
+  });
+  return response.url;
 }
 

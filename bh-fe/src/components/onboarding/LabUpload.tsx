@@ -17,6 +17,10 @@ interface UploadedFile {
   error?: string;
 }
 
+interface LabUploadProps {
+  onUploadComplete?: (fileName: string) => void;
+}
+
 const formatFileSize = (size: number): string => {
   if (size === 0) {
     return '0 B';
@@ -27,7 +31,7 @@ const formatFileSize = (size: number): string => {
   return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[index]}`;
 };
 
-export default function LabUpload() {
+export default function LabUpload({ onUploadComplete }: LabUploadProps) {
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { ensureAccessToken } = useAuth();
@@ -74,6 +78,7 @@ export default function LabUpload() {
         prev.map((item) => (item.id === id ? { ...item, status: 'complete' } : item))
       );
       toast.success(`${file.name} uploaded successfully.`);
+      onUploadComplete?.(file.name);
     } catch (error) {
       const message = error instanceof ApiError ? error.message : 'Unable to upload this file.';
       setFiles((prev) =>

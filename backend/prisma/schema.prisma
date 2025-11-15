@@ -151,11 +151,15 @@ model PanelUpload {
   processedAt      DateTime?
   errorCode        String?
   errorMessage     String?
+  plan             LongevityPlan?      @relation(fields: [planId], references: [id], onDelete: SetNull)
+  planId           String?
+  biomarkerTags    PanelUploadBiomarkerTag[]
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
   measurements     BiomarkerMeasurement[]
 
   @@index([userId, createdAt])
+  @@index([planId])
 }
 
 model BiomarkerMeasurement {
@@ -180,6 +184,18 @@ model BiomarkerMeasurement {
   updatedAt      DateTime          @updatedAt
 
   @@index([userId, capturedAt])
+}
+
+model PanelUploadBiomarkerTag {
+  id             String      @id @default(cuid())
+  panelUpload    PanelUpload @relation(fields: [panelUploadId], references: [id], onDelete: Cascade)
+  panelUploadId  String
+  biomarker      Biomarker   @relation(fields: [biomarkerId], references: [id], onDelete: Cascade)
+  biomarkerId    String
+  taggedAt       DateTime    @default(now())
+
+  @@unique([panelUploadId, biomarkerId])
+  @@index([biomarkerId])
 }
 
 model AuthProvider {

@@ -9,6 +9,7 @@ import HealthQuestionnaire from './HealthQuestionnaire';
 
 interface OnboardingFlowProps {
   onComplete: () => Promise<void>;
+  onDismiss?: () => void;
 }
 
 const steps = [
@@ -18,7 +19,7 @@ const steps = [
   { id: 4, title: 'Genetic Data', icon: Dna },
 ];
 
-export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
+export default function OnboardingFlow({ onComplete, onDismiss }: OnboardingFlowProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [isCompleting, setIsCompleting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -35,6 +36,14 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     } finally {
       setIsCompleting(false);
     }
+  };
+
+  const handleDismiss = () => {
+    if (onDismiss) {
+      onDismiss();
+      return;
+    }
+    void finishFlow();
   };
 
   const handleNext = () => {
@@ -79,7 +88,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               <p className="text-steel">Let's set up your personalized performance profile</p>
             </div>
             <button 
-              onClick={() => void finishFlow()}
+              onClick={handleDismiss}
               className="w-11 h-11 rounded-xl bg-pearl hover:bg-cloud transition-colors flex items-center justify-center"
               disabled={isCompleting}
             >

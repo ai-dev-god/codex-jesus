@@ -153,7 +153,7 @@ export default function PractitionerWorkspace() {
   };
 
   return (
-    <div className="min-h-screen mesh-gradient pt-28 pb-20 px-6">
+    <div className="min-h-screen mesh-gradient pt-28 pb-20 px-6" data-testid="view-practitioner">
       <div className="max-w-7xl mx-auto space-y-12">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">

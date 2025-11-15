@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Activity, Users, Zap, Settings, Link2, Home, Dumbbell, Apple, LogOut } from 'lucide-react';
+import { Activity, Users, Zap, Settings, Link2, Home, Dumbbell, Apple, LogOut, Beaker } from 'lucide-react';
 import { toast } from 'sonner';
 
 import VerticalNav from '../layout/VerticalNav';
@@ -8,6 +8,7 @@ import LandingPage from '../landing/LandingPage';
 import AuthScreen from '../auth/AuthScreen';
 import Dashboard from '../dashboard/Dashboard';
 import OnboardingFlow from '../onboarding/OnboardingFlow';
+import LabUploadPage from '../labs/LabUploadPage';
 import ProtocolsView from '../protocols/ProtocolsView';
 import PractitionerWorkspace from '../practitioner/PractitionerWorkspace';
 import CommunityFeed from '../community/CommunityFeed';
@@ -49,7 +50,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { parseDualEngineBody } from '../../lib/dashboardInsight';
 
 type AppState = 'landing' | 'auth' | 'authenticated';
-type View = 'dashboard' | 'protocols' | 'gym' | 'nutrition' | 'practitioner' | 'community' | 'settings' | 'integrations';
+type View =
+  | 'dashboard'
+  | 'labUpload'
+  | 'protocols'
+  | 'gym'
+  | 'nutrition'
+  | 'practitioner'
+  | 'community'
+  | 'settings'
+  | 'integrations';
 
 const formatDateTimeLocal = (date: Date): string => {
   const pad = (value: number) => value.toString().padStart(2, '0');
@@ -117,6 +127,7 @@ export default function AppContent() {
 
   const navigationItems = [
     { id: 'dashboard' as View, label: t.nav.dashboard, icon: Home },
+    { id: 'labUpload' as View, label: t.nav.labUpload, icon: Beaker },
     { id: 'protocols' as View, label: t.nav.protocols, icon: Activity },
     { id: 'gym' as View, label: t.nav.gym, icon: Dumbbell },
     { id: 'nutrition' as View, label: t.nav.nutrition, icon: Apple },
@@ -551,6 +562,38 @@ export default function AppContent() {
     );
   }
 
+  const handleOpenLabUpload = useCallback(() => {
+    setShowOnboarding(false);
+    setCurrentView('labUpload');
+  }, []);
+
+  const handleStartOnboarding = useCallback(() => {
+    if (!session) {
+      toast.error('Please sign in again to continue onboarding.');
+      setAppState('auth');
+      return;
+    }
+
+    if (showOnboarding) {
+      return;
+    }
+
+    setShowActionsDialog(false);
+    setShowInsightDialog(false);
+    setShowCalendarDialog(false);
+    setShowBiomarkerDialog(false);
+    setPendingAction(null);
+    setShowOnboarding(true);
+  }, [
+    session,
+    showOnboarding,
+    setAppState,
+    setShowActionsDialog,
+    setShowInsightDialog,
+    setShowCalendarDialog,
+    setShowBiomarkerDialog
+  ]);
+
   const renderDashboard = () => (
     <Dashboard
       userName={welcomeName}
@@ -572,13 +615,11 @@ export default function AppContent() {
   );
 
   const renderView = () => {
-    if (showOnboarding) {
-      return <OnboardingFlow onComplete={handleOnboardingComplete} />;
-    }
-
     switch (currentView) {
       case 'dashboard':
         return renderDashboard();
+      case 'labUpload':
+        return <LabUploadPage />;
       case 'protocols':
         return <ProtocolsView />;
       case 'gym':
@@ -616,10 +657,21 @@ export default function AppContent() {
         <VerticalNav items={navigationItems} currentView={currentView} onNavigate={setCurrentView} />
 
         {/* Command Bar */}
-        <CommandBar onStartOnboarding={() => setShowOnboarding(true)} />
+        <CommandBar
+          onStartOnboarding={handleStartOnboarding}
+          onOpenLabUpload={handleOpenLabUpload}
+          onboardingActive={showOnboarding}
+        />
 
         {/* Main Content */}
         <main>{renderView()}</main>
+
+        {showOnboarding && (
+          <OnboardingFlow
+            onComplete={handleOnboardingComplete}
+            onDismiss={session?.user.status === 'ACTIVE' ? () => setShowOnboarding(false) : undefined}
+          />
+        )}
 
         <Dialog open={showActionsDialog} onOpenChange={setShowActionsDialog}>
           <DialogContent className="max-w-2xl">

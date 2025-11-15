@@ -23,6 +23,7 @@ export interface Translations {
     dashboard: string;
     biomarkers: string;
     protocols: string;
+    labUpload: string;
     nutrition: string;
     gym: string;
     integrations: string;
@@ -163,6 +164,7 @@ export const translations: Record<Language, Translations> = {
       dashboard: 'Dashboard',
       biomarkers: 'Biomarkers',
       protocols: 'Protocols',
+      labUpload: 'Lab Uploads',
       nutrition: 'Nutrition',
       gym: 'Gym',
       integrations: 'Integrations',
@@ -307,6 +309,7 @@ export const translations: Record<Language, Translations> = {
       dashboard: 'Tablou de bord',
       biomarkers: 'Biomarkeri',
       protocols: 'Protocoale',
+      labUpload: 'Încărcări analize',
       nutrition: 'Nutriție',
       gym: 'Antrenament',
       integrations: 'Integrări',

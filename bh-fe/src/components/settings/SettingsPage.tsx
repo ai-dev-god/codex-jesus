@@ -82,7 +82,7 @@ export default function SettingsPage() {
   }, [displayName]);
 
   return (
-    <div className="min-h-screen mesh-gradient pt-28 pb-20 px-6">
+    <div className="min-h-screen mesh-gradient pt-28 pb-20 px-6" data-testid="view-settings">
       <div className="max-w-6xl mx-auto space-y-12">
         {/* Header */}
         <div>

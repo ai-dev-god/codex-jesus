@@ -202,3 +202,54 @@ export interface LongevityPlan {
   updatedAt: string;
 }
 
+export type PanelUploadStatus = 'PENDING' | 'NORMALIZED' | 'FAILED';
+export type PanelUploadSource = 'LAB_REPORT' | 'WEARABLE_EXPORT' | 'MANUAL_ENTRY';
+
+export interface PanelUploadMeasurement {
+  id: string;
+  markerName: string;
+  biomarkerId: string | null;
+  value: number | string | null;
+  unit: string | null;
+  capturedAt: string | null;
+}
+
+export interface PanelUploadPlanSummary {
+  id: string;
+  title: string | null;
+  status: LongevityPlan['status'];
+  createdAt: string;
+}
+
+export interface PanelUploadBiomarkerTag {
+  id: string;
+  biomarkerId: string;
+  taggedAt: string;
+  biomarker: {
+    id: string;
+    name: string;
+    unit: string | null;
+  };
+}
+
+export interface PanelUploadSummary {
+  id: string;
+  status: PanelUploadStatus;
+  source: PanelUploadSource;
+  storageKey: string;
+  contentType: string | null;
+  pageCount: number | null;
+  rawMetadata: Record<string, unknown> | null;
+  normalizedPayload: Record<string, unknown> | null;
+  measurementCount: number;
+  processedAt: string | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+  planId: string | null;
+  plan: PanelUploadPlanSummary | null;
+  biomarkerTags: PanelUploadBiomarkerTag[];
+  measurements?: PanelUploadMeasurement[];
+}
+

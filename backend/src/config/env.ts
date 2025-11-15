@@ -37,7 +37,11 @@ const envSchema = z.object({
   AUTH_REFRESH_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(60 * 60 * 24 * 30),
   AUTH_REFRESH_ENCRYPTION_KEY: z.string().min(10).default('dev-refresh-secret'),
   DASHBOARD_CACHE_TTL_SECONDS: z.coerce.number().int().positive().default(300),
-  DASHBOARD_SNAPSHOT_TTL_SECONDS: z.coerce.number().int().positive().default(900)
+  DASHBOARD_SNAPSHOT_TTL_SECONDS: z.coerce.number().int().positive().default(900),
+  PANEL_UPLOAD_DOWNLOAD_BASE_URL: z
+    .string()
+    .url()
+    .default('https://storage.biohax.pro')
 });
 
 const parsed = envSchema.parse(process.env);

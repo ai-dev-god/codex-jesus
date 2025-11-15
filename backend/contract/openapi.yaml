@@ -78,6 +78,26 @@ paths:
               schema:
                 $ref: '#/components/schemas/BiomarkerLog'
   /ai/uploads:
+    get:
+      summary: List recent panel uploads for the authenticated member
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 25
+          required: false
+          description: Maximum number of uploads to return (default 10)
+      responses:
+        '200':
+          description: Collection of recent uploads
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PanelUpload'
     post:
       summary: Record a panel upload with optional normalized measurements
       responses:
@@ -87,6 +107,74 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PanelUpload'
+  /ai/uploads/{uploadId}:
+    get:
+      summary: Fetch a specific panel upload with tagging metadata
+      parameters:
+        - in: path
+          name: uploadId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Panel upload details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PanelUpload'
+  /ai/uploads/{uploadId}/tags:
+    patch:
+      summary: Update plan and biomarker tags for a panel upload
+      parameters:
+        - in: path
+          name: uploadId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                planId:
+                  type: string
+                  nullable: true
+                biomarkerIds:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Updated upload payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PanelUpload'
+  /ai/uploads/{uploadId}/download:
+    get:
+      summary: Retrieve a download URL for the original uploaded artifact
+      parameters:
+        - in: path
+          name: uploadId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Signed download URL
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - url
+                properties:
+                  url:
+                    type: string
+                    format: uri
   /ai/plans:
     get:
       summary: List recently generated longevity plans
@@ -559,16 +647,65 @@ components:
           type: object
           additionalProperties: true
           nullable: true
+        planId:
+          type: string
+          nullable: true
+        plan:
+          $ref: '#/components/schemas/PanelUploadPlanSummary'
+        biomarkerTags:
+          type: array
+          items:
+            $ref: '#/components/schemas/PanelUploadBiomarkerTag'
         measurements:
           type: array
           items:
             $ref: '#/components/schemas/BiomarkerMeasurement'
+        processedAt:
+          type: string
+          format: date-time
+          nullable: true
+        errorCode:
+          type: string
+          nullable: true
+        errorMessage:
+          type: string
+          nullable: true
         createdAt:
           type: string
           format: date-time
         updatedAt:
           type: string
           format: date-time
+    PanelUploadPlanSummary:
+      type: object
+      nullable: true
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+          nullable: true
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    PanelUploadBiomarkerTag:
+      type: object
+      properties:
+        taggedAt:
+          type: string
+          format: date-time
+        biomarker:
+          type: object
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+            unit:
+              type: string
+              nullable: true
     BiomarkerMeasurement:
       type: object
       required:

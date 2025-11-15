@@ -53,6 +53,30 @@ const planRequestSchema = z.object({
   retryOf: z.string().trim().min(1).optional()
 });
 
+const listLimitSchema = z
+  .preprocess(
+    (value) => (value === undefined || value === null || value === '' ? 10 : Number(value)),
+    z.number().int().min(1).max(25)
+  )
+  .optional();
+
+const panelUploadListQuerySchema = z.object({
+  limit: listLimitSchema
+});
+
+const panelUploadTagSchema = z.object({
+  planId: z.union([z.string().trim().min(1), z.null()]).optional(),
+  biomarkerIds: z.array(z.string().trim().min(1)).max(25).optional()
+});
+
+const panelUploadTagSchema = z.object({
+  planId: z
+    .union([z.string().trim().min(1), z.null()])
+    .optional()
+    .transform((value) => (value === undefined ? value : value)),
+  biomarkerIds: z.array(z.string().trim().min(1)).max(25).optional()
+});
+
 const planListQuerySchema = z.object({
   limit: z
     .preprocess(
@@ -71,6 +95,44 @@ router.post('/uploads', async (req, res, next) => {
     const payload = validate(panelUploadSchema, req.body) as PanelUploadInput;
     const upload = await panelIngestionService.recordUpload(req.user!.id, payload);
     res.status(201).json(upload);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/uploads', async (req, res, next) => {
+  try {
+    const query = validate(panelUploadListQuerySchema, req.query) as { limit?: number };
+    const uploads = await panelIngestionService.listUploads(req.user!.id, query.limit ?? 10);
+    res.status(200).json(uploads);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/uploads/:uploadId', async (req, res, next) => {
+  try {
+    const upload = await panelIngestionService.getUpload(req.user!.id, req.params.uploadId);
+    res.status(200).json(upload);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch('/uploads/:uploadId/tags', async (req, res, next) => {
+  try {
+    const payload = validate(panelUploadTagSchema, req.body) as { planId?: string | null; biomarkerIds?: string[] };
+    const upload = await panelIngestionService.updateTags(req.user!.id, req.params.uploadId, payload);
+    res.status(200).json(upload);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/uploads/:uploadId/download', async (req, res, next) => {
+  try {
+    const url = await panelIngestionService.resolveDownloadUrl(req.user!.id, req.params.uploadId);
+    res.status(200).json({ url });
   } catch (error) {
     next(error);
   }
