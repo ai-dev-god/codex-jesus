@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Mail, Lock, ArrowRight, Info, Loader2 } from 'lucide-react';
 import { Input } from '../ui/input';
+import { Button } from '../ui/button';
 import { Label } from '../ui/label';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
 import { ApiError } from '../../lib/api/error';
