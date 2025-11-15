@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { Readable } from 'node:stream';
 import { z } from 'zod';
 import { PanelUploadSource } from '@prisma/client';
 
@@ -123,8 +124,42 @@ router.patch('/uploads/:uploadId/tags', async (req, res, next) => {
 
 router.get('/uploads/:uploadId/download', async (req, res, next) => {
   try {
-    const url = await panelIngestionService.resolveDownloadUrl(req.user!.id, req.params.uploadId);
-    res.status(200).json({ url });
+    const payload = await panelIngestionService.resolveDownloadUrl(req.user!.id, req.params.uploadId);
+    res.status(200).json(payload);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/uploads/downloads/:token', async (req, res, next) => {
+  try {
+    const { upload, storageUrl } = await panelIngestionService.redeemDownloadToken(
+      req.user!.id,
+      req.params.token
+    );
+
+    const remote = await fetch(storageUrl);
+    if (!remote.ok || !remote.body) {
+      throw new HttpError(502, 'Failed to fetch source file from storage.', 'PANEL_DOWNLOAD_UPSTREAM_FAILED');
+    }
+
+    const contentType =
+      upload.contentType ?? remote.headers.get('content-type') ?? 'application/octet-stream';
+    const contentLength = remote.headers.get('content-length');
+    const filename = upload.storageKey.split('/').pop() ?? `${upload.id}.pdf`;
+
+    res.setHeader('Content-Type', contentType);
+    if (contentLength) {
+      res.setHeader('Content-Length', contentLength);
+    }
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    const stream = Readable.fromWeb(remote.body as unknown as ReadableStream);
+    stream.on('error', (error) => {
+      remote.body?.cancel().catch(() => {});
+      next(error);
+    });
+    stream.pipe(res);
   } catch (error) {
     next(error);
   }

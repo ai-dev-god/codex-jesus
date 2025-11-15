@@ -30,6 +30,16 @@ function runCommand(command: string, args: string[]): CommandResult {
   };
 }
 
+const isFallbackEnabled = (): boolean => {
+  const raw = process.env.ALLOW_DB_MIGRATE_FALLBACK;
+  if (!raw) {
+    return true;
+  }
+
+  const normalized = raw.trim().toLowerCase();
+  return normalized !== '0' && normalized !== 'false' && normalized !== 'off';
+};
+
 function runMigrateDeploy(): CommandResult {
   console.info('[db:migrate] Running prisma migrate deploy');
   return runCommand('npx', ['prisma', 'migrate', 'deploy', '--schema', 'prisma/schema.prisma']);
@@ -55,6 +65,7 @@ function runDiffFallback(): CommandResult {
 }
 
 function main() {
+  const fallbackEnabled = isFallbackEnabled();
   const deployResult = runMigrateDeploy();
 
   if (deployResult.status === 0) {
@@ -67,7 +78,7 @@ function main() {
     combinedOutput.includes("can't reach database server") ||
     combinedOutput.includes('connect ECONNREFUSED'.toLowerCase());
 
-  if (isConnectionIssue) {
+  if (isConnectionIssue && fallbackEnabled) {
     const fallbackResult = runDiffFallback();
     if (fallbackResult.status === 0) {
       return;

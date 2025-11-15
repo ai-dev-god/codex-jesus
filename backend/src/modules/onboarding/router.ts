@@ -96,6 +96,15 @@ router.post('/data-export', requireAuth, async (req, res, next) => {
   }
 });
 
+router.get('/data-export', requireAuth, async (req, res, next) => {
+  try {
+    const status = await onboardingService.getLatestDataExport(req.user!.id);
+    res.status(200).json(status);
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/data-export/:requestId', requireAuth, async (req, res, next) => {
   try {
     const status = await onboardingService.getDataExportRequest(req.user!.id, req.params.requestId);
@@ -109,6 +118,24 @@ router.post('/data-delete', requireAuth, async (req, res, next) => {
   try {
     const result = await onboardingService.requestDataDeletion(req.user!.id);
     res.status(202).json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/data-delete', requireAuth, async (req, res, next) => {
+  try {
+    const status = await onboardingService.getLatestDataDeletion(req.user!.id);
+    res.status(200).json(status);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/data-delete/:requestId', requireAuth, async (req, res, next) => {
+  try {
+    const status = await onboardingService.getDataDeletionStatus(req.user!.id, req.params.requestId);
+    res.status(200).json(status);
   } catch (error) {
     next(error);
   }

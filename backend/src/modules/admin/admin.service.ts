@@ -2,6 +2,8 @@ import {
   AdminBackupStatus,
   AdminBackupType,
   AuthProviderType,
+  DataDeletionJobStatus,
+  DataExportJobStatus,
   FlagStatus,
   FlagTargetType,
   Prisma,
@@ -149,6 +151,34 @@ export type RoleHistoryOptions = {
 
 export type RoleUpdateInput = {
   role: Role;
+};
+
+export type AdminDataExportJob = {
+  id: string;
+  status: DataExportJobStatus;
+  requestedAt: string;
+  processedAt: string | null;
+  completedAt: string | null;
+  expiresAt: string | null;
+  errorMessage: string | null;
+  resultAvailable: boolean;
+  user: UserSummary;
+};
+
+export type AdminDataDeletionJob = {
+  id: string;
+  status: DataDeletionJobStatus;
+  requestedAt: string;
+  processedAt: string | null;
+  completedAt: string | null;
+  errorMessage: string | null;
+  summaryAvailable: boolean;
+  user: UserSummary;
+};
+
+export type ListDsarJobsOptions = {
+  limit: number;
+  cursor?: string;
 };
 
 export type SystemHealthSummary = {
@@ -1062,6 +1092,58 @@ export class AdminService {
     };
   }
 
+  async listDataExportJobs(
+    options: ListDsarJobsOptions
+  ): Promise<{ data: AdminDataExportJob[]; meta: PaginationMeta }> {
+    const take = Math.min(Math.max(options.limit, 1), 50);
+    const records = await this.prisma.dataExportJob.findMany({
+      include: {
+        user: true
+      },
+      orderBy: { requestedAt: 'desc' },
+      cursor: options.cursor ? { id: options.cursor } : undefined,
+      skip: options.cursor ? 1 : 0,
+      take: take + 1
+    });
+
+    const items = records.slice(0, take).map((record) => this.mapDataExportJob(record));
+    const nextCursor = records.length > take ? records[take].id : null;
+
+    return {
+      data: items,
+      meta: {
+        nextCursor,
+        hasMore: nextCursor !== null
+      }
+    };
+  }
+
+  async listDataDeletionJobs(
+    options: ListDsarJobsOptions
+  ): Promise<{ data: AdminDataDeletionJob[]; meta: PaginationMeta }> {
+    const take = Math.min(Math.max(options.limit, 1), 50);
+    const records = await this.prisma.dataDeletionJob.findMany({
+      include: {
+        user: true
+      },
+      orderBy: { requestedAt: 'desc' },
+      cursor: options.cursor ? { id: options.cursor } : undefined,
+      skip: options.cursor ? 1 : 0,
+      take: take + 1
+    });
+
+    const items = records.slice(0, take).map((record) => this.mapDataDeletionJob(record));
+    const nextCursor = records.length > take ? records[take].id : null;
+
+    return {
+      data: items,
+      meta: {
+        nextCursor,
+        hasMore: nextCursor !== null
+      }
+    };
+  }
+
   async createManagedUser(
     actor: AuthenticatedUser,
     input: CreateManagedUserInput
@@ -1933,6 +2015,37 @@ export class AdminService {
       planTier: derivePlanTier(user),
       biomarkersLogged: metrics.biomarkersLogged,
       protocolsActive: metrics.protocolsActive
+    };
+  }
+
+  private mapDataExportJob(
+    record: Prisma.DataExportJobGetPayload<{ include: { user: true } }>
+  ): AdminDataExportJob {
+    return {
+      id: record.id,
+      status: record.status,
+      requestedAt: record.requestedAt.toISOString(),
+      processedAt: record.processedAt ? record.processedAt.toISOString() : null,
+      completedAt: record.completedAt ? record.completedAt.toISOString() : null,
+      expiresAt: record.expiresAt ? record.expiresAt.toISOString() : null,
+      errorMessage: record.errorMessage,
+      resultAvailable: Boolean(record.result),
+      user: buildUserSummary(record.user)
+    };
+  }
+
+  private mapDataDeletionJob(
+    record: Prisma.DataDeletionJobGetPayload<{ include: { user: true } }>
+  ): AdminDataDeletionJob {
+    return {
+      id: record.id,
+      status: record.status,
+      requestedAt: record.requestedAt.toISOString(),
+      processedAt: record.processedAt ? record.processedAt.toISOString() : null,
+      completedAt: record.completedAt ? record.completedAt.toISOString() : null,
+      errorMessage: record.errorMessage,
+      summaryAvailable: Boolean(record.deletedSummary),
+      user: buildUserSummary(record.user)
     };
   }
 

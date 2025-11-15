@@ -1,6 +1,7 @@
 import { Prisma, type LongevityPlan, type LongevityPlanJob, type PrismaClient } from '@prisma/client';
 
 import prismaClient from '../../lib/prisma';
+import env from '../../config/env';
 import { HttpError } from '../observability-ops/http-error';
 import {
   enqueueLongevityPlanTask,
@@ -54,6 +55,14 @@ export class LongevityPlanService {
   }
 
   async requestPlan(userId: string, request: LongevityPlanRequest): Promise<PlanRequestResult> {
+    if (!env.AI_LONGEVITY_PLAN_ENABLED) {
+      throw new HttpError(
+        503,
+        'Longevity plan generation is temporarily disabled while we complete privacy hardening.',
+        'LONGEVITY_PLAN_PAUSED'
+      );
+    }
+
     await this.ensureNoActiveJob(userId);
     await this.enforceDailyLimit(userId);
 

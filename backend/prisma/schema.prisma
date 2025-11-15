@@ -42,6 +42,9 @@ model User {
   apiKeysCreated        ServiceApiKey[]   @relation("ApiKeysCreatedBy")
   apiKeysRevoked        ServiceApiKey[]   @relation("ApiKeysRevokedBy")
   backupJobsInitiated   AdminBackupJob[]  @relation("BackupJobInitiatedBy")
+  panelDownloadTokens   PanelUploadDownloadToken[]
+  dataExportJobs        DataExportJob[]
+  dataDeletionJobs      DataDeletionJob[]
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
 }
@@ -162,6 +165,7 @@ model PanelUpload {
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
   measurements     BiomarkerMeasurement[]
+  downloadTokens   PanelUploadDownloadToken[]
 
   @@index([userId, createdAt])
   @@index([planId])
@@ -201,6 +205,20 @@ model PanelUploadBiomarkerTag {
 
   @@unique([panelUploadId, biomarkerId])
   @@index([biomarkerId])
+}
+
+model PanelUploadDownloadToken {
+  id        String       @id @default(cuid())
+  token     String       @unique
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  upload    PanelUpload  @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+  uploadId  String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime      @default(now())
+
+  @@index([expiresAt])
 }
 
 model AuthProvider {
@@ -476,6 +494,39 @@ model ServiceApiKey {
   updatedAt     DateTime             @updatedAt
 }
 
+model DataExportJob {
+  id          String              @id @default(cuid())
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  status      DataExportJobStatus @default(QUEUED)
+  result      Json?
+  errorMessage String?
+  requestedAt DateTime            @default(now())
+  processedAt DateTime?
+  completedAt DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([userId, requestedAt])
+}
+
+model DataDeletionJob {
+  id             String                @id @default(cuid())
+  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String
+  status         DataDeletionJobStatus @default(QUEUED)
+  deletedSummary Json?
+  errorMessage   String?
+  requestedAt    DateTime              @default(now())
+  processedAt    DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  @@index([userId, requestedAt])
+}
+
 model AiResponseAudit {
   id        String          @id @default(cuid())
   plan      LongevityPlan?  @relation(fields: [planId], references: [id], onDelete: SetNull)
@@ -631,6 +682,20 @@ enum EngagementEventType {
   COMMENT_DELETED
   REACTION_ADDED
   REACTION_REMOVED
+}
+
+enum DataExportJobStatus {
+  QUEUED
+  IN_PROGRESS
+  COMPLETE
+  FAILED
+}
+
+enum DataDeletionJobStatus {
+  QUEUED
+  IN_PROGRESS
+  COMPLETE
+  FAILED
 }
 
 model Room {

@@ -36,10 +36,12 @@ COPY --from=build /app/package.json /app/package-lock.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
+COPY docker-entrypoint.sh ./docker-entrypoint.sh
 
 RUN chown -R node:node /app
 USER node
 
 EXPOSE 4000
 
+ENTRYPOINT ["./docker-entrypoint.sh"]
 CMD ["node", "dist/src/server.js"]

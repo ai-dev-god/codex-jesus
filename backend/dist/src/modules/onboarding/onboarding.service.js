@@ -9,6 +9,7 @@ const node_crypto_1 = require("node:crypto");
 const prisma_1 = __importDefault(require("../../lib/prisma"));
 const token_service_1 = require("../identity/token-service");
 const http_error_1 = require("../observability-ops/http-error");
+const data_subject_service_1 = require("../data-subject/data-subject.service");
 const REQUIRED_CONSENT_TYPES = ['TERMS_OF_SERVICE', 'PRIVACY_POLICY', 'MEDICAL_DISCLAIMER'];
 const isJsonObject = (value) => Boolean(value && typeof value === 'object' && !Array.isArray(value));
 const parseBaselineSurvey = (value) => {
@@ -173,81 +174,41 @@ class OnboardingService {
         });
     }
     async requestDataExport(userId) {
-        const now = new Date();
-        const requestId = this.idFactory();
-        await this.prisma.adminAuditLog.create({
-            data: {
-                actorId: userId,
-                action: 'PROFILE_DATA_EXPORT_REQUESTED',
-                targetType: 'DATA_EXPORT_REQUEST',
-                targetId: requestId,
-                metadata: cloneAsJsonValue({
-                    status: 'PENDING',
-                    requestedAt: now.toISOString()
-                })
-            }
-        });
-        return {
-            id: requestId,
-            status: 'PENDING',
-            requestedAt: now,
-            completedAt: null,
-            downloadUrl: null,
-            expiresAt: null,
-            failureReason: null
-        };
+        const job = await data_subject_service_1.dataSubjectService.requestExport(userId);
+        return this.mapExportJob(job);
     }
     async getDataExportRequest(userId, requestId) {
-        const record = await this.prisma.adminAuditLog.findFirst({
-            where: {
-                actorId: userId,
-                targetType: 'DATA_EXPORT_REQUEST',
-                targetId: requestId
-            },
-            orderBy: { createdAt: 'desc' }
-        });
-        if (!record) {
-            throw new http_error_1.HttpError(404, 'Data export request not found', 'DATA_EXPORT_NOT_FOUND');
-        }
-        return {
-            id: requestId,
-            status: 'PENDING',
-            requestedAt: record.createdAt,
-            completedAt: null,
-            downloadUrl: null,
-            expiresAt: null,
-            failureReason: null
-        };
+        const job = await data_subject_service_1.dataSubjectService.getExportJob(userId, requestId);
+        return this.mapExportJob(job);
+    }
+    async getLatestDataExport(userId) {
+        const job = await data_subject_service_1.dataSubjectService.getLatestExportJob(userId);
+        return job ? this.mapExportJob(job) : null;
     }
     async requestDataDeletion(userId) {
-        return this.prisma.$transaction(async (tx) => {
-            const profile = await tx.profile.findUnique({ where: { userId } });
-            if (!profile) {
-                throw new http_error_1.HttpError(404, 'Profile not found', 'PROFILE_NOT_FOUND');
+        const profile = await this.prisma.profile.findUnique({ where: { userId } });
+        if (!profile) {
+            throw new http_error_1.HttpError(404, 'Profile not found', 'PROFILE_NOT_FOUND');
+        }
+        if (profile.deleteRequested) {
+            throw new http_error_1.HttpError(409, 'Deletion already requested', 'PROFILE_DELETE_PENDING');
+        }
+        await this.prisma.profile.update({
+            where: { userId },
+            data: {
+                deleteRequested: true
             }
-            if (profile.deleteRequested) {
-                throw new http_error_1.HttpError(409, 'Deletion already requested', 'PROFILE_DELETE_PENDING');
-            }
-            const requestedAt = new Date();
-            await tx.profile.update({
-                where: { userId },
-                data: {
-                    deleteRequested: true
-                }
-            });
-            await tx.adminAuditLog.create({
-                data: {
-                    actorId: userId,
-                    action: 'PROFILE_DATA_DELETE_REQUESTED',
-                    targetType: 'DATA_DELETE_REQUEST',
-                    targetId: userId,
-                    metadata: cloneAsJsonValue({
-                        requestedAt: requestedAt.toISOString()
-                    })
-                }
-            });
-            return { requestedAt };
         });
+        const job = await data_subject_service_1.dataSubjectService.requestDeletion(userId);
+        return this.mapDeletionJob(job);
+    }
+    async getDataDeletionStatus(userId, requestId) {
+        const job = await data_subject_service_1.dataSubjectService.getDeletionJob(userId, requestId);
+        return this.mapDeletionJob(job);
+    }
+    async getLatestDataDeletion(userId) {
+        const job = await data_subject_service_1.dataSubjectService.getLatestDeletionJob(userId);
+        return job ? this.mapDeletionJob(job) : null;
     }
     mapProfile(profile) {
         const { baselineSurvey, consents, ...rest } = profile;
@@ -255,6 +216,30 @@ class OnboardingService {
             ...rest,
             baselineSurvey: parseBaselineSurvey(baselineSurvey),
             consents: parseConsents(consents)
+        };
+    }
+    mapExportJob(job) {
+        return {
+            id: job.id,
+            status: job.status,
+            requestedAt: job.requestedAt,
+            processedAt: job.processedAt ?? null,
+            completedAt: job.completedAt ?? null,
+            expiresAt: job.expiresAt ?? null,
+            downloadUrl: null,
+            payload: job.result ? job.result : null,
+            errorMessage: job.errorMessage ?? null
+        };
+    }
+    mapDeletionJob(job) {
+        return {
+            id: job.id,
+            status: job.status,
+            requestedAt: job.requestedAt,
+            processedAt: job.processedAt ?? null,
+            completedAt: job.completedAt ?? null,
+            summary: job.deletedSummary ? job.deletedSummary : null,
+            errorMessage: job.errorMessage ?? null
         };
     }
 }

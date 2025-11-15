@@ -40,9 +40,31 @@ const envSchema = zod_1.z.object({
     AUTH_REFRESH_TOKEN_TTL_SECONDS: zod_1.z.coerce.number().int().positive().default(60 * 60 * 24 * 30),
     AUTH_REFRESH_ENCRYPTION_KEY: zod_1.z.string().min(10).default('dev-refresh-secret'),
     DASHBOARD_CACHE_TTL_SECONDS: zod_1.z.coerce.number().int().positive().default(300),
-    DASHBOARD_SNAPSHOT_TTL_SECONDS: zod_1.z.coerce.number().int().positive().default(900)
+    DASHBOARD_SNAPSHOT_TTL_SECONDS: zod_1.z.coerce.number().int().positive().default(900),
+    PANEL_UPLOAD_DOWNLOAD_BASE_URL: zod_1.z
+        .string()
+        .url()
+        .default('https://storage.biohax.pro'),
+    AI_LONGEVITY_PLAN_ENABLED: zod_1.z.coerce.boolean().default(false)
 });
 const parsed = envSchema.parse(process.env);
+if (parsed.NODE_ENV === 'production') {
+    const forbiddenDefaults = [
+        ['AUTH_JWT_SECRET', 'dev-jwt-secret'],
+        ['AUTH_REFRESH_ENCRYPTION_KEY', 'dev-refresh-secret'],
+        ['WHOOP_TOKEN_ENCRYPTION_KEY', 'dev-whoop-token-secret']
+    ];
+    const requireSecret = (key, defaultValue) => {
+        const value = parsed[key];
+        if (!value || typeof value !== 'string') {
+            throw new Error(`${key} is required when NODE_ENV=${parsed.NODE_ENV}`);
+        }
+        if (value === defaultValue) {
+            throw new Error(`${key} must be set to a non-default value when NODE_ENV=${parsed.NODE_ENV}. Provide a strong secret via environment variables.`);
+        }
+    };
+    forbiddenDefaults.forEach(([key, defaultValue]) => requireSecret(key, defaultValue));
+}
 const parseCorsOrigins = (value) => {
     if (!value) {
         return [];

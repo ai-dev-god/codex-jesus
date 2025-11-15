@@ -286,6 +286,38 @@ const createLongevityPlanWorker = (deps = {}) => {
             });
             return;
         }
+        if (!env_1.default.AI_LONGEVITY_PLAN_ENABLED) {
+            const disabledMessage = 'Longevity plan generation is temporarily disabled while we complete privacy hardening.';
+            await prisma.longevityPlan.update({
+                where: { id: plan.id },
+                data: {
+                    status: 'FAILED',
+                    errorCode: 'PLAN_DISABLED',
+                    errorMessage: disabledMessage
+                }
+            });
+            await prisma.longevityPlanJob.update({
+                where: { id: job.id },
+                data: {
+                    status: 'FAILED',
+                    completedAt: now(),
+                    errorCode: 'PLAN_DISABLED',
+                    errorMessage: disabledMessage
+                }
+            });
+            await prisma.cloudTaskMetadata.update({
+                where: { id: metadata.id },
+                data: {
+                    status: 'FAILED',
+                    attemptCount: metadata.attemptCount + 1,
+                    firstAttemptAt: metadata.firstAttemptAt ?? now(),
+                    lastAttemptAt: now(),
+                    errorMessage: disabledMessage
+                }
+            });
+            logger.warn('Skipped longevity plan job because feature is disabled', { jobId, planId });
+            return;
+        }
         const jobPayload = parseJobPayload(job);
         const measurements = await prisma.biomarkerMeasurement.findMany({
             where: { userId },

@@ -65,6 +65,47 @@ const historyQuerySchema = zod_1.z.object({
     limit: limitSchema,
     cursor: cursorSchema.optional()
 });
+const managedUsersQuerySchema = zod_1.z.object({
+    search: zod_1.z
+        .string()
+        .trim()
+        .min(1)
+        .optional(),
+    role: zod_1.z.nativeEnum(client_1.Role).optional(),
+    status: zod_1.z.nativeEnum(client_1.UserStatus).optional(),
+    cursor: cursorSchema.optional(),
+    limit: limitSchema
+});
+const createManagedUserSchema = zod_1.z.object({
+    email: zod_1.z.string().email(),
+    fullName: zod_1.z.string().trim().min(1),
+    role: zod_1.z.nativeEnum(client_1.Role),
+    status: zod_1.z.nativeEnum(client_1.UserStatus).optional(),
+    timezone: zod_1.z.string().trim().min(1).optional()
+});
+const updateManagedUserSchema = zod_1.z
+    .object({
+    fullName: zod_1.z.string().trim().min(1).optional(),
+    role: zod_1.z.nativeEnum(client_1.Role).optional(),
+    status: zod_1.z.nativeEnum(client_1.UserStatus).optional()
+})
+    .refine((payload) => Boolean(payload.fullName || payload.role || payload.status), {
+    message: 'At least one field must be provided'
+});
+const updateUserStatusSchema = zod_1.z.object({
+    status: zod_1.z.nativeEnum(client_1.UserStatus)
+});
+const backupTriggerSchema = zod_1.z.object({
+    type: zod_1.z.nativeEnum(client_1.AdminBackupType).optional()
+});
+const backupSettingsSchema = zod_1.z.object({
+    autoBackupEnabled: zod_1.z.boolean(),
+    frequency: zod_1.z.enum(['hourly', 'six_hours', 'daily', 'weekly'])
+});
+const createApiKeySchema = zod_1.z.object({
+    name: zod_1.z.string().trim().min(3).max(100),
+    scope: zod_1.z.nativeEnum(client_1.ServiceApiKeyScope).default(client_1.ServiceApiKeyScope.READ)
+});
 const validate = (schema, payload) => {
     const result = schema.safeParse(payload);
     if (!result.success) {
@@ -73,6 +114,21 @@ const validate = (schema, payload) => {
     return result.data;
 };
 const router = (0, express_1.Router)();
+router.get('/access', guards_1.requireAuth, (req, res) => {
+    const userRole = req.user?.role ?? client_1.Role.MEMBER;
+    const staffRoles = new Set([client_1.Role.ADMIN, client_1.Role.MODERATOR]);
+    const hasStaffAccess = staffRoles.has(userRole);
+    const hasAdminAccess = userRole === client_1.Role.ADMIN;
+    res.status(200).json({
+        role: userRole,
+        hasStaffAccess,
+        hasAdminAccess,
+        allowedViews: hasStaffAccess
+            ? ['overview', 'users', 'health', 'database', 'config', 'security', 'apikeys', 'llm', 'audit', 'metrics', 'backups']
+            : [],
+        checkedAt: new Date().toISOString()
+    });
+});
 router.use(guards_1.requireAuth, (0, guards_1.requireRoles)(client_1.Role.ADMIN, client_1.Role.MODERATOR));
 router.get('/flags', async (req, res, next) => {
     try {
@@ -152,6 +208,73 @@ router.get('/roles/:userId/history', async (req, res, next) => {
         next(error);
     }
 });
+router.get('/users', async (req, res, next) => {
+    try {
+        const query = validate(managedUsersQuerySchema, req.query);
+        const data = await admin_service_1.adminService.listManagedUsers(query);
+        res.status(200).json(data);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.post('/users', async (req, res, next) => {
+    try {
+        const payload = validate(createManagedUserSchema, req.body);
+        const result = await admin_service_1.adminService.createManagedUser(req.user, payload);
+        res.status(201).json(result);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.put('/users/:userId', async (req, res, next) => {
+    try {
+        const payload = validate(updateManagedUserSchema, req.body);
+        const user = await admin_service_1.adminService.updateManagedUser(req.user, req.params.userId, payload);
+        res.status(200).json(user);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.delete('/users/:userId', async (req, res, next) => {
+    try {
+        await admin_service_1.adminService.deleteManagedUser(req.user, req.params.userId);
+        res.status(204).send();
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.post('/users/:userId/status', async (req, res, next) => {
+    try {
+        const payload = validate(updateUserStatusSchema, req.body);
+        const user = await admin_service_1.adminService.setManagedUserStatus(req.user, req.params.userId, payload.status);
+        res.status(200).json(user);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.post('/users/:userId/suspend', async (req, res, next) => {
+    try {
+        const user = await admin_service_1.adminService.setManagedUserStatus(req.user, req.params.userId, client_1.UserStatus.SUSPENDED);
+        res.status(200).json(user);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.post('/users/:userId/activate', async (req, res, next) => {
+    try {
+        const user = await admin_service_1.adminService.setManagedUserStatus(req.user, req.params.userId, client_1.UserStatus.ACTIVE);
+        res.status(200).json(user);
+    }
+    catch (error) {
+        next(error);
+    }
+});
 router.get('/system-health', async (req, res, next) => {
     try {
         if (!req.user || req.user.role !== client_1.Role.ADMIN) {
@@ -159,6 +282,117 @@ router.get('/system-health', async (req, res, next) => {
         }
         const summary = await admin_service_1.adminService.getSystemHealthSummary();
         res.status(200).json(summary);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.get('/database/status', async (_req, res, next) => {
+    try {
+        const status = await admin_service_1.adminService.getDatabaseStatus();
+        res.status(200).json(status);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.get('/backups', async (_req, res, next) => {
+    try {
+        const data = await admin_service_1.adminService.listBackupJobs();
+        res.status(200).json(data);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.post('/backups', async (req, res, next) => {
+    try {
+        const payload = validate(backupTriggerSchema, req.body);
+        const job = await admin_service_1.adminService.triggerBackupJob(req.user, payload.type ?? client_1.AdminBackupType.FULL);
+        res.status(201).json(job);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.delete('/backups/:backupId', async (req, res, next) => {
+    try {
+        await admin_service_1.adminService.deleteBackupJob(req.user, req.params.backupId);
+        res.status(204).send();
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.post('/backups/:backupId/restore', async (req, res, next) => {
+    try {
+        const job = await admin_service_1.adminService.requestBackupRestore(req.user, req.params.backupId);
+        res.status(200).json(job);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.get('/backups/:backupId/download', async (req, res, next) => {
+    try {
+        const link = await admin_service_1.adminService.getBackupDownloadLink(req.params.backupId);
+        res.status(200).json(link);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.get('/backups/settings', async (_req, res, next) => {
+    try {
+        const settings = await admin_service_1.adminService.getBackupSettings();
+        res.status(200).json(settings);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.post('/backups/settings', async (req, res, next) => {
+    try {
+        const payload = validate(backupSettingsSchema, req.body);
+        const settings = await admin_service_1.adminService.updateBackupSettings(req.user, payload);
+        res.status(200).json(settings);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.get('/api-keys', async (_req, res, next) => {
+    try {
+        const data = await admin_service_1.adminService.listApiKeys();
+        res.status(200).json(data);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.post('/api-keys', async (req, res, next) => {
+    try {
+        const payload = validate(createApiKeySchema, req.body);
+        const result = await admin_service_1.adminService.createApiKey(req.user, payload);
+        res.status(201).json(result);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.post('/api-keys/:keyId/rotate', async (req, res, next) => {
+    try {
+        const result = await admin_service_1.adminService.rotateApiKey(req.user, req.params.keyId);
+        res.status(200).json(result);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.post('/api-keys/:keyId/revoke', async (req, res, next) => {
+    try {
+        const key = await admin_service_1.adminService.revokeApiKey(req.user, req.params.keyId);
+        res.status(200).json(key);
     }
     catch (error) {
         next(error);

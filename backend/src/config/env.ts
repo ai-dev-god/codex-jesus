@@ -41,10 +41,35 @@ const envSchema = z.object({
   PANEL_UPLOAD_DOWNLOAD_BASE_URL: z
     .string()
     .url()
-    .default('https://storage.biohax.pro')
+    .default('https://storage.biohax.pro'),
+  AI_LONGEVITY_PLAN_ENABLED: z.coerce.boolean().default(false)
 });
 
 const parsed = envSchema.parse(process.env);
+
+if (parsed.NODE_ENV === 'production') {
+  type SecretKey = 'AUTH_JWT_SECRET' | 'AUTH_REFRESH_ENCRYPTION_KEY' | 'WHOOP_TOKEN_ENCRYPTION_KEY';
+  const forbiddenDefaults: Array<[SecretKey, string]> = [
+    ['AUTH_JWT_SECRET', 'dev-jwt-secret'],
+    ['AUTH_REFRESH_ENCRYPTION_KEY', 'dev-refresh-secret'],
+    ['WHOOP_TOKEN_ENCRYPTION_KEY', 'dev-whoop-token-secret']
+  ];
+
+  const requireSecret = (key: SecretKey, defaultValue: string): void => {
+    const value = parsed[key];
+    if (!value || typeof value !== 'string') {
+      throw new Error(`${key} is required when NODE_ENV=${parsed.NODE_ENV}`);
+    }
+
+    if (value === defaultValue) {
+      throw new Error(
+        `${key} must be set to a non-default value when NODE_ENV=${parsed.NODE_ENV}. Provide a strong secret via environment variables.`
+      );
+    }
+  };
+
+  forbiddenDefaults.forEach(([key, defaultValue]) => requireSecret(key, defaultValue));
+}
 const parseCorsOrigins = (value: string): string[] => {
   if (!value) {
     return [];

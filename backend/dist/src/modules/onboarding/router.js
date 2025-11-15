@@ -90,6 +90,15 @@ router.post('/data-export', guards_1.requireAuth, async (req, res, next) => {
         next(error);
     }
 });
+router.get('/data-export', guards_1.requireAuth, async (req, res, next) => {
+    try {
+        const status = await onboarding_service_1.onboardingService.getLatestDataExport(req.user.id);
+        res.status(200).json(status);
+    }
+    catch (error) {
+        next(error);
+    }
+});
 router.get('/data-export/:requestId', guards_1.requireAuth, async (req, res, next) => {
     try {
         const status = await onboarding_service_1.onboardingService.getDataExportRequest(req.user.id, req.params.requestId);
@@ -103,6 +112,24 @@ router.post('/data-delete', guards_1.requireAuth, async (req, res, next) => {
     try {
         const result = await onboarding_service_1.onboardingService.requestDataDeletion(req.user.id);
         res.status(202).json(result);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.get('/data-delete', guards_1.requireAuth, async (req, res, next) => {
+    try {
+        const status = await onboarding_service_1.onboardingService.getLatestDataDeletion(req.user.id);
+        res.status(200).json(status);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.get('/data-delete/:requestId', guards_1.requireAuth, async (req, res, next) => {
+    try {
+        const status = await onboarding_service_1.onboardingService.getDataDeletionStatus(req.user.id, req.params.requestId);
+        res.status(200).json(status);
     }
     catch (error) {
         next(error);

@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.aiRouter = void 0;
 const express_1 = require("express");
+const node_stream_1 = require("node:stream");
 const zod_1 = require("zod");
 const client_1 = require("@prisma/client");
 const guards_1 = require("../identity/guards");
@@ -49,6 +50,16 @@ const planRequestSchema = zod_1.z.object({
     lifestyleNotes: zod_1.z.string().trim().max(1000).optional(),
     retryOf: zod_1.z.string().trim().min(1).optional()
 });
+const listLimitSchema = zod_1.z
+    .preprocess((value) => (value === undefined || value === null || value === '' ? 10 : Number(value)), zod_1.z.number().int().min(1).max(25))
+    .optional();
+const panelUploadListQuerySchema = zod_1.z.object({
+    limit: listLimitSchema
+});
+const panelUploadTagSchema = zod_1.z.object({
+    planId: zod_1.z.union([zod_1.z.string().trim().min(1), zod_1.z.null()]).optional(),
+    biomarkerIds: zod_1.z.array(zod_1.z.string().trim().min(1)).max(25).optional()
+});
 const planListQuerySchema = zod_1.z.object({
     limit: zod_1.z
         .preprocess((value) => (value === undefined || value === null || value === '' ? 10 : Number(value)), zod_1.z.number().int().min(1).max(25))
@@ -60,6 +71,70 @@ router.post('/uploads', async (req, res, next) => {
         const payload = validate(panelUploadSchema, req.body);
         const upload = await panel_ingest_service_1.panelIngestionService.recordUpload(req.user.id, payload);
         res.status(201).json(upload);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.get('/uploads', async (req, res, next) => {
+    try {
+        const query = validate(panelUploadListQuerySchema, req.query);
+        const uploads = await panel_ingest_service_1.panelIngestionService.listUploads(req.user.id, query.limit ?? 10);
+        res.status(200).json(uploads);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.get('/uploads/:uploadId', async (req, res, next) => {
+    try {
+        const upload = await panel_ingest_service_1.panelIngestionService.getUpload(req.user.id, req.params.uploadId);
+        res.status(200).json(upload);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.patch('/uploads/:uploadId/tags', async (req, res, next) => {
+    try {
+        const payload = validate(panelUploadTagSchema, req.body);
+        const upload = await panel_ingest_service_1.panelIngestionService.updateTags(req.user.id, req.params.uploadId, payload);
+        res.status(200).json(upload);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.get('/uploads/:uploadId/download', async (req, res, next) => {
+    try {
+        const payload = await panel_ingest_service_1.panelIngestionService.resolveDownloadUrl(req.user.id, req.params.uploadId);
+        res.status(200).json(payload);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.get('/uploads/downloads/:token', async (req, res, next) => {
+    try {
+        const { upload, storageUrl } = await panel_ingest_service_1.panelIngestionService.redeemDownloadToken(req.user.id, req.params.token);
+        const remote = await fetch(storageUrl);
+        if (!remote.ok || !remote.body) {
+            throw new http_error_1.HttpError(502, 'Failed to fetch source file from storage.', 'PANEL_DOWNLOAD_UPSTREAM_FAILED');
+        }
+        const contentType = upload.contentType ?? remote.headers.get('content-type') ?? 'application/octet-stream';
+        const contentLength = remote.headers.get('content-length');
+        const filename = upload.storageKey.split('/').pop() ?? `${upload.id}.pdf`;
+        res.setHeader('Content-Type', contentType);
+        if (contentLength) {
+            res.setHeader('Content-Length', contentLength);
+        }
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        const stream = node_stream_1.Readable.fromWeb(remote.body);
+        stream.on('error', (error) => {
+            remote.body?.cancel().catch(() => { });
+            next(error);
+        });
+        stream.pipe(res);
     }
     catch (error) {
         next(error);

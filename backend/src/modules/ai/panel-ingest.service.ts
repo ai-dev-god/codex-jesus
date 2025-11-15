@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   Prisma,
   type PrismaClient,
@@ -6,6 +7,7 @@ import {
   type LongevityPlan,
   type PanelUploadBiomarkerTag,
   type Biomarker,
+  type PanelUploadDownloadToken,
   PanelUploadSource,
   BiomarkerSource,
   MeasurementStatus
@@ -40,6 +42,7 @@ export type PanelUploadInput = {
 
 type PanelIngestionOptions = Partial<{
   now: () => Date;
+  idFactory: () => string;
 }>;
 
 const toDecimal = (value?: number | null): Prisma.Decimal | null => {
@@ -53,6 +56,8 @@ const toDecimal = (value?: number | null): Prisma.Decimal | null => {
 const toJsonValue = (value: unknown): Prisma.InputJsonValue =>
   JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 
+const DOWNLOAD_TOKEN_TTL_MS = 5 * 60 * 1000;
+
 type UploadPlanSummary = Pick<LongevityPlan, 'id' | 'title' | 'status' | 'createdAt'>;
 type UploadBiomarkerSummary = Pick<Biomarker, 'id' | 'name' | 'unit'>;
 
@@ -64,6 +69,7 @@ type UploadWithRelations = PanelUpload & {
 
 export class PanelIngestionService {
   private readonly now: () => Date;
+  private readonly idFactory: () => string;
   private readonly uploadInclude = {
     measurements: {
       orderBy: { capturedAt: 'desc' },
@@ -92,6 +98,7 @@ export class PanelIngestionService {
 
   constructor(private readonly prisma: PrismaClient, options: PanelIngestionOptions = {}) {
     this.now = options.now ?? (() => new Date());
+    this.idFactory = options.idFactory ?? (() => randomUUID());
   }
 
   async recordUpload(userId: string, input: PanelUploadInput): Promise<PanelUpload> {
@@ -238,16 +245,63 @@ export class PanelIngestionService {
     return this.getUpload(userId, uploadId);
   }
 
-  async resolveDownloadUrl(userId: string, uploadId: string): Promise<string> {
+  async resolveDownloadUrl(
+    userId: string,
+    uploadId: string
+  ): Promise<{ url: string; expiresAt: string }> {
     const upload = await this.getUpload(userId, uploadId);
 
     if (!upload.storageKey) {
       throw new HttpError(400, 'Upload is missing storage metadata.', 'PANEL_UPLOAD_STORAGE_KEY_MISSING');
     }
 
-    const baseUrl = env.PANEL_UPLOAD_DOWNLOAD_BASE_URL.replace(/\/+$/, '');
-    const storageKey = upload.storageKey.replace(/^\/+/, '');
-    return `${baseUrl}/${storageKey}`;
+    const token = await this.createDownloadToken(userId, upload.id);
+    return {
+      url: `/ai/uploads/downloads/${token.token}`,
+      expiresAt: token.expiresAt.toISOString()
+    };
+  }
+
+  async redeemDownloadToken(
+    userId: string,
+    tokenValue: string
+  ): Promise<{ upload: PanelUpload; storageUrl: string }> {
+    const token = await this.prisma.panelUploadDownloadToken.findUnique({
+      where: { token: tokenValue },
+      include: {
+        upload: true
+      }
+    });
+
+    if (!token) {
+      throw new HttpError(404, 'Download token not found', 'PANEL_DOWNLOAD_TOKEN_INVALID');
+    }
+
+    if (token.userId !== userId) {
+      throw new HttpError(403, 'Download token does not belong to this user', 'PANEL_DOWNLOAD_TOKEN_FORBIDDEN');
+    }
+
+    if (token.usedAt) {
+      throw new HttpError(410, 'Download token already used', 'PANEL_DOWNLOAD_TOKEN_USED');
+    }
+
+    if (token.expiresAt.getTime() <= this.now().getTime()) {
+      throw new HttpError(410, 'Download token expired', 'PANEL_DOWNLOAD_TOKEN_EXPIRED');
+    }
+
+    if (!token.upload.storageKey) {
+      throw new HttpError(400, 'Upload is missing storage metadata.', 'PANEL_UPLOAD_STORAGE_KEY_MISSING');
+    }
+
+    await this.prisma.panelUploadDownloadToken.update({
+      where: { id: token.id },
+      data: { usedAt: this.now() }
+    });
+
+    return {
+      upload: token.upload,
+      storageUrl: this.buildStorageUrl(token.upload.storageKey)
+    };
   }
 
   private async createMeasurements(
@@ -288,6 +342,26 @@ export class PanelIngestionService {
 
     const message = error instanceof Error ? error.message : 'Unknown panel ingestion failure.';
     return new HttpError(500, message, 'PANEL_INGESTION_FAILED');
+  }
+
+  private async createDownloadToken(userId: string, uploadId: string): Promise<PanelUploadDownloadToken> {
+    const expiresAt = new Date(this.now().getTime() + DOWNLOAD_TOKEN_TTL_MS);
+
+    return this.prisma.panelUploadDownloadToken.create({
+      data: {
+        id: this.idFactory(),
+        token: randomUUID(),
+        userId,
+        uploadId,
+        expiresAt
+      }
+    });
+  }
+
+  private buildStorageUrl(storageKey: string): string {
+    const baseUrl = env.PANEL_UPLOAD_DOWNLOAD_BASE_URL.replace(/\/+$/, '');
+    const normalizedKey = storageKey.replace(/^\/+/, '');
+    return `${baseUrl}/${normalizedKey}`;
   }
 }
 

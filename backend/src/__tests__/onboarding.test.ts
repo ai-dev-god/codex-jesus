@@ -3,6 +3,18 @@ import { Role, UserStatus } from '@prisma/client';
 
 import { OnboardingService } from '../modules/onboarding/onboarding.service';
 import { HttpError } from '../modules/observability-ops/http-error';
+import { dataSubjectService } from '../modules/data-subject/data-subject.service';
+
+jest.mock('../modules/data-subject/data-subject.service', () => ({
+  dataSubjectService: {
+    requestExport: jest.fn(),
+    getExportJob: jest.fn(),
+    requestDeletion: jest.fn(),
+    getDeletionJob: jest.fn()
+  }
+}));
+
+const mockedDataSubjectService = dataSubjectService as jest.Mocked<typeof dataSubjectService>;
 
 type MockPrisma = {
   profile: {
@@ -11,10 +23,6 @@ type MockPrisma = {
   };
   user: {
     update: jest.Mock;
-  };
-  adminAuditLog: {
-    create: jest.Mock;
-    findFirst: jest.Mock;
   };
   $transaction: jest.Mock;
 };
@@ -27,10 +35,6 @@ const createMockPrisma = (): MockPrisma => {
     },
     user: {
       update: jest.fn()
-    },
-    adminAuditLog: {
-      create: jest.fn(),
-      findFirst: jest.fn()
     },
     $transaction: jest.fn()
   };
@@ -64,6 +68,7 @@ describe('OnboardingService', () => {
   afterEach(() => {
     jest.restoreAllMocks();
     jest.useRealTimers();
+    jest.clearAllMocks();
   });
 
   it('rejects invalid timezone when updating profile', async () => {
@@ -152,33 +157,28 @@ describe('OnboardingService', () => {
     expect(updateCall.data.deleteRequested).toBeUndefined();
   });
 
-  it('records audit metadata when requesting a data export', async () => {
+  it('returns export job details from the data subject service', async () => {
     const prisma = createMockPrisma();
-    const service = new OnboardingService(prisma as unknown as PrismaClient, () => 'export-request-1');
+    const service = new OnboardingService(prisma as unknown as PrismaClient);
 
-    jest.useFakeTimers().setSystemTime(new Date('2025-02-02T00:00:00.000Z'));
+    mockedDataSubjectService.requestExport.mockResolvedValue({
+      id: 'export-job-1',
+      status: 'COMPLETE',
+      requestedAt: new Date('2025-02-02T00:00:00.000Z'),
+      processedAt: new Date('2025-02-02T00:05:00.000Z'),
+      completedAt: new Date('2025-02-02T00:06:00.000Z'),
+      expiresAt: new Date('2025-02-16T00:06:00.000Z'),
+      result: { data: [] },
+      errorMessage: null
+    } as never);
 
     const response = await service.requestDataExport('user-456');
 
-    expect(prisma.adminAuditLog.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          actorId: 'user-456',
-          action: 'PROFILE_DATA_EXPORT_REQUESTED',
-          targetType: 'DATA_EXPORT_REQUEST',
-          targetId: 'export-request-1'
-        })
-      })
-    );
-
-    expect(response).toEqual({
-      id: 'export-request-1',
-      status: 'PENDING',
-      requestedAt: new Date('2025-02-02T00:00:00.000Z'),
-      completedAt: null,
-      downloadUrl: null,
-      expiresAt: null,
-      failureReason: null
+    expect(mockedDataSubjectService.requestExport).toHaveBeenCalledWith('user-456');
+    expect(response).toMatchObject({
+      id: 'export-job-1',
+      status: 'COMPLETE',
+      payload: { data: [] }
     });
   });
 
@@ -193,5 +193,32 @@ describe('OnboardingService', () => {
 
     await expect(service.requestDataDeletion('user-123')).rejects.toBeInstanceOf(HttpError);
     expect(prisma.profile.update).not.toHaveBeenCalled();
+    expect(mockedDataSubjectService.requestDeletion).not.toHaveBeenCalled();
+  });
+
+  it('creates a deletion job after marking the profile as pending deletion', async () => {
+    const prisma = createMockPrisma();
+    const service = new OnboardingService(prisma as unknown as PrismaClient);
+    prisma.profile.findUnique.mockResolvedValue(createProfileRecord({ deleteRequested: false }));
+    prisma.profile.update.mockResolvedValue(createProfileRecord({ deleteRequested: true }));
+
+    mockedDataSubjectService.requestDeletion.mockResolvedValue({
+      id: 'delete-job-1',
+      status: 'IN_PROGRESS',
+      requestedAt: new Date(),
+      processedAt: null,
+      completedAt: null,
+      deletedSummary: null,
+      errorMessage: null
+    } as never);
+
+    const response = await service.requestDataDeletion('user-123');
+
+    expect(prisma.profile.update).toHaveBeenCalledWith({
+      where: { userId: 'user-123' },
+      data: { deleteRequested: true }
+    });
+    expect(mockedDataSubjectService.requestDeletion).toHaveBeenCalledWith('user-123');
+    expect(response).toHaveProperty('id', 'delete-job-1');
   });
 });

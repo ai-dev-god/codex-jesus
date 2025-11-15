@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.longevityPlanService = exports.LongevityPlanService = void 0;
 const client_1 = require("@prisma/client");
 const prisma_1 = __importDefault(require("../../lib/prisma"));
+const env_1 = __importDefault(require("../../config/env"));
 const http_error_1 = require("../observability-ops/http-error");
 const queue_1 = require("./queue");
 const ACTIVE_JOB_STATUSES = ['QUEUED', 'RUNNING'];
@@ -18,6 +19,9 @@ class LongevityPlanService {
         this.dailyLimit = options.dailyLimit ?? DEFAULT_DAILY_LIMIT;
     }
     async requestPlan(userId, request) {
+        if (!env_1.default.AI_LONGEVITY_PLAN_ENABLED) {
+            throw new http_error_1.HttpError(503, 'Longevity plan generation is temporarily disabled while we complete privacy hardening.', 'LONGEVITY_PLAN_PAUSED');
+        }
         await this.ensureNoActiveJob(userId);
         await this.enforceDailyLimit(userId);
         const sanitized = this.sanitizeRequest(request);

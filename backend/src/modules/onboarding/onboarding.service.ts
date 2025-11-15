@@ -1,10 +1,17 @@
-import type { Prisma, PrismaClient, Profile as PrismaProfile } from '@prisma/client';
+import type {
+  Prisma,
+  PrismaClient,
+  Profile as PrismaProfile,
+  DataExportJob,
+  DataDeletionJob
+} from '@prisma/client';
 import { UserStatus as PrismaUserStatus } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 
 import prismaClient from '../../lib/prisma';
 import { tokenService } from '../identity/token-service';
 import { HttpError } from '../observability-ops/http-error';
+import { dataSubjectService } from '../data-subject/data-subject.service';
 
 type ConsentRecord = {
   type: string;
@@ -29,12 +36,24 @@ type ProfileUpdateInput = {
 
 type DataExportStatus = {
   id: string;
-  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETE' | 'FAILED';
+  status: 'QUEUED' | 'IN_PROGRESS' | 'COMPLETE' | 'FAILED';
   requestedAt: Date;
+  processedAt: Date | null;
   completedAt: Date | null;
   downloadUrl: string | null;
   expiresAt: Date | null;
-  failureReason: string | null;
+  payload?: Record<string, unknown> | null;
+  errorMessage: string | null;
+};
+
+type DataDeletionStatus = {
+  id: string;
+  status: 'QUEUED' | 'IN_PROGRESS' | 'COMPLETE' | 'FAILED';
+  requestedAt: Date;
+  processedAt: Date | null;
+  completedAt: Date | null;
+  summary?: Record<string, unknown> | null;
+  errorMessage: string | null;
 };
 
 type CompletionTokens = {
@@ -263,92 +282,49 @@ export class OnboardingService {
   }
 
   async requestDataExport(userId: string): Promise<DataExportStatus> {
-    const now = new Date();
-    const requestId = this.idFactory();
-
-    await this.prisma.adminAuditLog.create({
-      data: {
-        actorId: userId,
-        action: 'PROFILE_DATA_EXPORT_REQUESTED',
-        targetType: 'DATA_EXPORT_REQUEST',
-        targetId: requestId,
-        metadata: cloneAsJsonValue({
-          status: 'PENDING',
-          requestedAt: now.toISOString()
-        }) as Prisma.InputJsonValue
-      }
-    });
-
-    return {
-      id: requestId,
-      status: 'PENDING',
-      requestedAt: now,
-      completedAt: null,
-      downloadUrl: null,
-      expiresAt: null,
-      failureReason: null
-    };
+    const job = await dataSubjectService.requestExport(userId);
+    return this.mapExportJob(job);
   }
 
   async getDataExportRequest(userId: string, requestId: string): Promise<DataExportStatus> {
-    const record = await this.prisma.adminAuditLog.findFirst({
-      where: {
-        actorId: userId,
-        targetType: 'DATA_EXPORT_REQUEST',
-        targetId: requestId
-      },
-      orderBy: { createdAt: 'desc' }
-    });
-
-    if (!record) {
-      throw new HttpError(404, 'Data export request not found', 'DATA_EXPORT_NOT_FOUND');
-    }
-
-    return {
-      id: requestId,
-      status: 'PENDING',
-      requestedAt: record.createdAt,
-      completedAt: null,
-      downloadUrl: null,
-      expiresAt: null,
-      failureReason: null
-    };
+    const job = await dataSubjectService.getExportJob(userId, requestId);
+    return this.mapExportJob(job);
   }
 
-  async requestDataDeletion(userId: string): Promise<{ requestedAt: Date }> {
-    return this.prisma.$transaction(async (tx) => {
-      const profile = await tx.profile.findUnique({ where: { userId } });
-      if (!profile) {
-        throw new HttpError(404, 'Profile not found', 'PROFILE_NOT_FOUND');
+  async getLatestDataExport(userId: string): Promise<DataExportStatus | null> {
+    const job = await dataSubjectService.getLatestExportJob(userId);
+    return job ? this.mapExportJob(job) : null;
+  }
+
+  async requestDataDeletion(userId: string): Promise<DataDeletionStatus> {
+    const profile = await this.prisma.profile.findUnique({ where: { userId } });
+    if (!profile) {
+      throw new HttpError(404, 'Profile not found', 'PROFILE_NOT_FOUND');
+    }
+
+    if (profile.deleteRequested) {
+      throw new HttpError(409, 'Deletion already requested', 'PROFILE_DELETE_PENDING');
+    }
+
+    await this.prisma.profile.update({
+      where: { userId },
+      data: {
+        deleteRequested: true
       }
-
-      if (profile.deleteRequested) {
-        throw new HttpError(409, 'Deletion already requested', 'PROFILE_DELETE_PENDING');
-      }
-
-      const requestedAt = new Date();
-
-      await tx.profile.update({
-        where: { userId },
-        data: {
-          deleteRequested: true
-        }
-      });
-
-      await tx.adminAuditLog.create({
-        data: {
-          actorId: userId,
-          action: 'PROFILE_DATA_DELETE_REQUESTED',
-          targetType: 'DATA_DELETE_REQUEST',
-          targetId: userId,
-          metadata: cloneAsJsonValue({
-            requestedAt: requestedAt.toISOString()
-          }) as Prisma.InputJsonValue
-        }
-      });
-
-      return { requestedAt };
     });
+
+    const job = await dataSubjectService.requestDeletion(userId);
+    return this.mapDeletionJob(job);
+  }
+
+  async getDataDeletionStatus(userId: string, requestId: string): Promise<DataDeletionStatus> {
+    const job = await dataSubjectService.getDeletionJob(userId, requestId);
+    return this.mapDeletionJob(job);
+  }
+
+  async getLatestDataDeletion(userId: string): Promise<DataDeletionStatus | null> {
+    const job = await dataSubjectService.getLatestDeletionJob(userId);
+    return job ? this.mapDeletionJob(job) : null;
   }
 
   private mapProfile(profile: PrismaProfile): ProfileDto {
@@ -358,6 +334,42 @@ export class OnboardingService {
       ...rest,
       baselineSurvey: parseBaselineSurvey(baselineSurvey),
       consents: parseConsents(consents)
+    };
+  }
+
+  private mapExportJob(
+    job: Pick<
+      DataExportJob,
+      'id' | 'status' | 'requestedAt' | 'processedAt' | 'completedAt' | 'expiresAt' | 'result' | 'errorMessage'
+    >
+  ): DataExportStatus {
+    return {
+      id: job.id,
+      status: job.status,
+      requestedAt: job.requestedAt,
+      processedAt: job.processedAt ?? null,
+      completedAt: job.completedAt ?? null,
+      expiresAt: job.expiresAt ?? null,
+      downloadUrl: null,
+      payload: job.result ? (job.result as Record<string, unknown>) : null,
+      errorMessage: job.errorMessage ?? null
+    };
+  }
+
+  private mapDeletionJob(
+    job: Pick<
+      DataDeletionJob,
+      'id' | 'status' | 'requestedAt' | 'processedAt' | 'completedAt' | 'deletedSummary' | 'errorMessage'
+    >
+  ): DataDeletionStatus {
+    return {
+      id: job.id,
+      status: job.status,
+      requestedAt: job.requestedAt,
+      processedAt: job.processedAt ?? null,
+      completedAt: job.completedAt ?? null,
+      summary: job.deletedSummary ? (job.deletedSummary as Record<string, unknown>) : null,
+      errorMessage: job.errorMessage ?? null
     };
   }
 }
