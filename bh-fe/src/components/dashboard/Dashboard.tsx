@@ -1,7 +1,7 @@
 import ScoreHero from './ScoreHero';
 import BentoGrid from './BentoGrid';
 import LongevityPlanPanel from './LongevityPlanPanel';
-import type { DashboardSummary, LongevityPlan } from '../../lib/api/types';
+import type { DashboardActionItem, DashboardSummary, LongevityPlan } from '../../lib/api/types';
 
 interface DashboardProps {
   userName: string;
@@ -15,6 +15,10 @@ interface DashboardProps {
   onPlanRetry: () => void;
   onRequestPlan: () => void;
   planRequesting: boolean;
+  onViewActions: () => void;
+  onViewCalendar: () => void;
+  onViewInsight: () => void;
+  onActionSelect: (action: DashboardActionItem) => void;
 }
 
 export default function Dashboard({
@@ -28,7 +32,11 @@ export default function Dashboard({
   planError,
   onPlanRetry,
   onRequestPlan,
-  planRequesting
+  planRequesting,
+  onViewActions,
+  onViewCalendar,
+  onViewInsight,
+  onActionSelect
 }: DashboardProps) {
   const generatedLabel = summary ? new Date(summary.generatedAt).toLocaleString() : null;
 
@@ -74,7 +82,13 @@ export default function Dashboard({
 
         {/* Bento Grid Layout */}
         <div className="mt-16">
-          <BentoGrid summary={summary} loading={loading} />
+          <BentoGrid
+            summary={summary}
+            loading={loading}
+            onViewActions={onViewActions}
+            onActionSelect={onActionSelect}
+            onViewInsight={onViewInsight}
+          />
         </div>
 
         {/* Timeline */}
@@ -84,7 +98,11 @@ export default function Dashboard({
               <div className="tag text-steel mb-2">TODAY'S SCHEDULE</div>
               <h2>{new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</h2>
             </div>
-            <button className="text-sm font-bold text-electric hover:text-electric-bright transition-colors">
+            <button
+              type="button"
+              onClick={onViewCalendar}
+              className="text-sm font-bold text-electric hover:text-electric-bright transition-colors"
+            >
               View Full Calendar →
             </button>
           </div>

@@ -1,7 +1,7 @@
 import { ApiError } from './error';
 
 const resolveApiBaseUrl = (): string => {
-  const envBaseUrl = import.meta.env.VITE_API_BASE_URL;
+  const envBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
 
   if (envBaseUrl) {
     const isLocalEnv = /^https?:\/\/(localhost|127\.0\.0\.1)/i.test(envBaseUrl);
@@ -9,17 +9,22 @@ const resolveApiBaseUrl = (): string => {
       return envBaseUrl;
     }
 
-    if (typeof window !== 'undefined') {
-      const host = window.location.hostname;
-      if (host === 'localhost' || host === '127.0.0.1') {
-        return envBaseUrl;
-      }
+    if (typeof window === 'undefined') {
+      return envBaseUrl;
+    }
+
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return envBaseUrl;
     }
   }
 
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
     if (host === 'biohax.pro' || host.endsWith('.biohax.pro')) {
+      return 'https://api.biohax.pro';
+    }
+    if (host.endsWith('.run.app') || host.endsWith('.a.run.app')) {
       return 'https://api.biohax.pro';
     }
   }

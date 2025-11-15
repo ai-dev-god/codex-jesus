@@ -40,6 +40,35 @@ export interface DashboardActionItem {
   testId?: string;
 }
 
+export type BiomarkerSource = 'WHOOP' | 'MANUAL' | 'LAB_UPLOAD';
+
+export interface BiomarkerDefinition {
+  id: string;
+  slug: string;
+  name: string;
+  unit: string;
+  referenceLow: number | null;
+  referenceHigh: number | null;
+  source: BiomarkerSource;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BiomarkerLog {
+  id: string;
+  biomarkerId: string;
+  biomarker: BiomarkerDefinition;
+  value: number;
+  unit: string | null;
+  source: BiomarkerSource;
+  capturedAt: string;
+  accepted: boolean;
+  flagged: boolean;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface DashboardBiomarkerTrend {
   biomarkerId: string;
   biomarker: {

@@ -25,7 +25,7 @@ instructions as mandatory to prevent a repeat.
    ```bash
    gcloud builds submit bh-fe \
      --config bh-fe/cloudbuild.yaml \
-     --substitutions=_IMAGE_NAME=gcr.io/biohax-777/bh-fe-final:latest
+     --substitutions=_IMAGE_NAME=gcr.io/biohax-777/bh-fe-final:latest,_VITE_API_BASE_URL=https://api.biohax.pro
    ```
    (Overrides for other projects/registries can be passed through `_IMAGE_NAME`.)
 
@@ -58,7 +58,7 @@ instructions as mandatory to prevent a repeat.
    gcloud builds submit bh-fe \
      --project "${GCP_PROJECT:-biohax-777}" \
      --config bh-fe/cloudbuild.yaml \
-     --substitutions=_IMAGE_NAME=gcr.io/${GCP_PROJECT:-biohax-777}/bh-fe-final:latest,_CLOUD_RUN_SERVICE=${CLOUD_RUN_SERVICE:-bh-fe-final},_REGION=${GCP_REGION:-europe-west1}
+     --substitutions=_IMAGE_NAME=gcr.io/${GCP_PROJECT:-biohax-777}/bh-fe-final:latest,_CLOUD_RUN_SERVICE=${CLOUD_RUN_SERVICE:-bh-fe-final},_REGION=${GCP_REGION:-europe-west1},_VITE_API_BASE_URL=${VITE_API_BASE_URL:-https://api.biohax.pro}
    ```
    3. If the backend changed in the same release, run `./devops/deploy-backend.sh` first so API QA completes before shipping the UI.
    4. Wait for Cloud Build + Cloud Run to finish and note the revision URL.

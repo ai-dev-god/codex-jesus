@@ -1,15 +1,13 @@
 import { Activity, Droplet, Moon, Flame, Clock } from 'lucide-react';
-import type {
-  DashboardActionItem,
-  DashboardBiomarkerTrend,
-  DashboardSummary,
-  DualEngineInsightBody,
-  DualEngineInsightMetadata
-} from '../../lib/api/types';
+import type { DashboardActionItem, DashboardBiomarkerTrend, DashboardSummary, DualEngineInsightMetadata } from '../../lib/api/types';
+import { parseDualEngineBody } from '../../lib/dashboardInsight';
 
 interface BentoGridProps {
   summary: DashboardSummary | null;
   loading?: boolean;
+  onViewActions: () => void;
+  onActionSelect: (action: DashboardActionItem) => void;
+  onViewInsight: () => void;
 }
 
 const fallbackActions: DashboardActionItem[] = [
@@ -38,7 +36,7 @@ const fallbackBiomarkers: DashboardBiomarkerTrend[] = [
   }
 ];
 
-export default function BentoGrid({ summary, loading }: BentoGridProps) {
+export default function BentoGrid({ summary, loading, onViewActions, onActionSelect, onViewInsight }: BentoGridProps) {
   const actionItems = (summary?.actionItems ?? fallbackActions).slice(0, 3);
   const metricTiles = summary?.tiles ?? [];
   const biomarkerTrends = (summary?.biomarkerTrends ?? fallbackBiomarkers).slice(0, 4);
@@ -72,14 +70,22 @@ export default function BentoGrid({ summary, loading }: BentoGridProps) {
                 <div className="text-sm text-steel">{item.description}</div>
               </div>
 
-              <div className="tag text-electric bg-electric/10 px-3 py-1.5 rounded-lg">
-                {item.ctaType.replaceAll('_', ' ')}
-              </div>
+              <button
+                type="button"
+                onClick={() => onActionSelect(item)}
+                className="px-3 py-1.5 rounded-lg text-sm font-semibold border-2 border-electric/40 text-electric hover:bg-electric/10 transition"
+              >
+                {renderActionCtaLabel(item.ctaType)}
+              </button>
             </div>
           ))}
         </div>
 
-        <button className="mt-6 w-full py-4 rounded-xl gradient-electric text-void font-bold hover:scale-[1.02] transition-transform">
+        <button
+          type="button"
+          onClick={onViewActions}
+          className="mt-6 w-full py-4 rounded-xl gradient-electric text-void font-bold hover:scale-[1.02] transition-transform"
+        >
           View all actions
         </button>
       </div>
@@ -143,7 +149,11 @@ export default function BentoGrid({ summary, loading }: BentoGridProps) {
               <InsightList label="Suggested actions" items={dualEngineBody.recommendations} tone="action" />
             )}
             {dualEngineBody.metadata && <DualEngineMetadataCard metadata={dualEngineBody.metadata} />}
-            <button className="text-sm font-bold text-electric hover:text-electric-bright transition-colors">
+            <button
+              type="button"
+              onClick={onViewInsight}
+              className="text-sm font-bold text-electric hover:text-electric-bright transition-colors"
+            >
               View Full Analysis →
             </button>
           </div>
@@ -231,75 +241,17 @@ const resolveStatus = (direction: 'UP' | 'DOWN' | 'STABLE'): 'optimal' | 'good' 
   return direction === 'UP' ? 'optimal' : 'warning';
 };
 
-type ParsedDualEngineBody = {
-  insights: string[];
-  recommendations: string[];
-  metadata: DualEngineInsightMetadata | null;
-};
-
-const parseDualEngineBody = (body: DualEngineInsightBody | null): ParsedDualEngineBody => {
-  if (!body) {
-    return { insights: [], recommendations: [], metadata: null };
+const renderActionCtaLabel = (ctaType: DashboardActionItem['ctaType']): string => {
+  switch (ctaType) {
+    case 'LOG_BIOMARKER':
+      return 'Log biomarker';
+    case 'REVIEW_INSIGHT':
+      return 'Review insight';
+    case 'JOIN_FEED_DISCUSSION':
+      return 'Open community';
+    default:
+      return 'View action';
   }
-
-  const insights = toStringArray(body.insights);
-  const recommendations = toStringArray(body.recommendations);
-  const metadata = normalizeDualEngineMetadata(body.metadata);
-
-  return { insights, recommendations, metadata };
-};
-
-const toStringArray = (value: unknown): string[] => {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .map((entry) => (typeof entry === 'string' ? entry.trim() : String(entry ?? '')))
-    .filter((entry) => entry.length > 0);
-};
-
-const clamp01 = (value: unknown): number => {
-  if (typeof value !== 'number' || Number.isNaN(value)) {
-    return 0;
-  }
-
-  return Math.min(1, Math.max(0, value));
-};
-
-const normalizeDualEngineMetadata = (metadata: unknown): DualEngineInsightMetadata | null => {
-  if (!metadata || typeof metadata !== 'object') {
-    return null;
-  }
-
-  const record = metadata as DualEngineInsightMetadata & {
-    disagreements?: { insights?: unknown; recommendations?: unknown };
-  };
-
-  if (!Array.isArray(record.engines)) {
-    return null;
-  }
-
-  if (!record.disagreements || typeof record.disagreements !== 'object') {
-    return null;
-  }
-
-  return {
-    confidenceScore: clamp01((record as DualEngineInsightMetadata).confidenceScore),
-    agreementRatio: clamp01((record as DualEngineInsightMetadata).agreementRatio),
-    disagreements: {
-      insights: toStringArray(record.disagreements.insights),
-      recommendations: toStringArray(record.disagreements.recommendations)
-    },
-    engines: record.engines.map((engine) => ({
-      id: engine.id,
-      label: engine.label,
-      model: engine.model,
-      completionId: engine.completionId,
-      title: engine.title,
-      summary: engine.summary
-    }))
-  };
 };
 
 function InsightList({
