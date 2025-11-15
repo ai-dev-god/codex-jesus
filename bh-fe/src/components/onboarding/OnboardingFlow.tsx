@@ -8,7 +8,7 @@ import GeneticUpload from './GeneticUpload';
 import HealthQuestionnaire from './HealthQuestionnaire';
 
 interface OnboardingFlowProps {
-  onComplete: () => void;
+  onComplete: () => Promise<void>;
 }
 
 const steps = [
@@ -20,14 +20,28 @@ const steps = [
 
 export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const [currentStep, setCurrentStep] = useState(1);
+  const [isCompleting, setIsCompleting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const progress = (currentStep / steps.length) * 100;
+
+  const finishFlow = async () => {
+    setIsCompleting(true);
+    setErrorMessage(null);
+    try {
+      await onComplete();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to complete onboarding right now.');
+    } finally {
+      setIsCompleting(false);
+    }
+  };
 
   const handleNext = () => {
     if (currentStep < steps.length) {
       setCurrentStep(currentStep + 1);
     } else {
-      onComplete();
+      void finishFlow();
     }
   };
 
@@ -35,7 +49,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     if (currentStep < steps.length) {
       setCurrentStep(currentStep + 1);
     } else {
-      onComplete();
+      void finishFlow();
     }
   };
 
@@ -65,8 +79,9 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               <p className="text-steel">Let's set up your personalized performance profile</p>
             </div>
             <button 
-              onClick={onComplete}
+              onClick={() => void finishFlow()}
               className="w-11 h-11 rounded-xl bg-pearl hover:bg-cloud transition-colors flex items-center justify-center"
+              disabled={isCompleting}
             >
               <X className="w-5 h-5 text-steel" />
             </button>
@@ -126,19 +141,25 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           {renderStepContent()}
         </div>
 
+        {errorMessage && (
+          <div className="rounded-xl border border-pulse/30 bg-pulse/10 px-4 py-3 text-sm text-pulse mb-4">
+            {errorMessage}
+          </div>
+        )}
+
         {/* Footer Actions */}
         <div className="neo-card p-6 flex items-center justify-between">
-          <Button variant="ghost" onClick={handleSkip} className="text-steel">
+          <Button variant="ghost" onClick={handleSkip} className="text-steel" disabled={isCompleting}>
             Skip for now
           </Button>
           <div className="flex items-center gap-3">
             {currentStep > 1 && (
-              <Button variant="outline" onClick={() => setCurrentStep(currentStep - 1)}>
+              <Button variant="outline" onClick={() => setCurrentStep(currentStep - 1)} disabled={isCompleting}>
                 Back
               </Button>
             )}
-            <Button onClick={handleNext}>
-              {currentStep === steps.length ? 'Complete Setup' : 'Continue'}
+            <Button onClick={handleNext} disabled={isCompleting}>
+              {isCompleting ? 'Verifying…' : currentStep === steps.length ? 'Complete Setup' : 'Continue'}
             </Button>
           </div>
         </div>

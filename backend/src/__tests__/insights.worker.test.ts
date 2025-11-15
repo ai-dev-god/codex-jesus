@@ -1,6 +1,7 @@
 import type { CloudTaskMetadata, Insight, InsightGenerationJob, PrismaClient } from '@prisma/client';
 
-import { createInsightsGenerateWorker, type OpenRouterChatClient } from '../workers/insights-generate';
+import type { DualEngineInsightResult } from '../modules/ai/dual-engine.service';
+import { createInsightsGenerateWorker, type WorkerDeps } from '../workers/insights-generate';
 
 jest.mock('../modules/dashboard/dashboard.service', () => ({
   dashboardService: {
@@ -25,6 +26,8 @@ type MockPrisma = {
     create: jest.Mock<Promise<Insight>, [CreateArgs<Insight>]>;
   };
 };
+
+type OrchestratorMock = NonNullable<WorkerDeps['orchestrator']>;
 
 const baseTime = new Date('2025-01-01T00:00:00.000Z');
 
@@ -128,6 +131,45 @@ const createMockPrisma = (): MockPrisma => ({
   }
 });
 
+const createConsensusResult = (): DualEngineInsightResult => ({
+  title: 'Sleep Recovery Focus',
+  summary: 'Summary text',
+  body: {
+    insights: ['HRV trend improving'],
+    recommendations: ['Extend wind-down to 20 minutes'],
+    metadata: {
+      confidenceScore: 0.9,
+      agreementRatio: 0.85,
+      disagreements: {
+        insights: [],
+        recommendations: []
+      },
+      engines: [
+        {
+          id: 'OPENAI5',
+          label: 'OpenAI 5',
+          model: 'openrouter/openai/gpt-5',
+          completionId: 'openai5-seed',
+          title: 'Sleep Recovery Focus',
+          summary: 'OpenAI 5 emphasized longer recovery.',
+          insights: ['OpenAI 5: emphasize breathwork'],
+          recommendations: ['Magnesium + earlier shutdown']
+        },
+        {
+          id: 'GEMINI',
+          label: 'Gemini 2.5 Pro',
+          model: 'openrouter/google/gemini-2.5-pro',
+          completionId: 'gemini25-seed',
+          title: 'Sleep Recovery Focus',
+          summary: 'Gemini highlighted parasympathetic tone.',
+          insights: ['Gemini: HRV stable, focus on heat/cold alternation'],
+          recommendations: ['Add 5-min nasal breathing at 9pm']
+        }
+      ]
+    }
+  }
+});
+
 describe('insights-generate worker', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -159,30 +201,15 @@ describe('insights-generate worker', () => {
       };
     });
 
-    const openRouter: OpenRouterChatClient = {
-      createChatCompletion: jest
-        .fn()
-        .mockResolvedValueOnce({
-          id: 'resp-1',
-          model: 'openrouter/anthropic/claude-3-haiku',
-          content: 'invalid json'
-        })
-        .mockResolvedValueOnce({
-          id: 'resp-2',
-          model: 'openrouter/openai/gpt-4o-mini',
-          content: JSON.stringify({
-            title: 'Sleep Recovery Focus',
-            summary: 'Summary text',
-            body: {
-              recommendations: ['Wind down routine', 'Limit late caffeine']
-            }
-          })
-        })
+    const consensus = createConsensusResult();
+
+    const orchestrator: OrchestratorMock = {
+      generate: jest.fn().mockResolvedValue(consensus)
     };
 
     const worker = createInsightsGenerateWorker({
       prisma: prisma as unknown as PrismaClient,
-      openRouter,
+      orchestrator,
       now: () => baseTime,
       logger: {
         info: jest.fn(),
@@ -193,14 +220,14 @@ describe('insights-generate worker', () => {
 
     await worker('insights-generate-user-insights-123');
 
-    expect(openRouter.createChatCompletion).toHaveBeenCalledTimes(2);
     expect(prisma.insight.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           userId: 'user-1',
-          title: 'Sleep Recovery Focus',
-          summary: 'Summary text',
-          modelUsed: 'openrouter/openai/gpt-4o-mini'
+          title: consensus.title,
+          summary: consensus.summary,
+          modelUsed: 'dual-engine',
+          status: 'DELIVERED'
         })
       })
     );
@@ -236,7 +263,7 @@ describe('insights-generate worker', () => {
       expect.objectContaining({
         metrics: expect.objectContaining({
           retryCount: 0,
-          failoverUsed: true
+          failoverUsed: false
         })
       })
     );
@@ -256,15 +283,13 @@ describe('insights-generate worker', () => {
       };
     });
 
-    const openRouter: OpenRouterChatClient = {
-      createChatCompletion: jest
-        .fn()
-        .mockRejectedValue(new Error('upstream failure'))
+    const orchestrator: OrchestratorMock = {
+      generate: jest.fn().mockRejectedValue(new Error('dual engine offline'))
     };
 
     const worker = createInsightsGenerateWorker({
       prisma: prisma as unknown as PrismaClient,
-      openRouter,
+      orchestrator,
       now: () => baseTime,
       logger: {
         info: jest.fn(),
@@ -290,7 +315,7 @@ describe('insights-generate worker', () => {
         where: { id: metadata.id },
         data: expect.objectContaining({
           status: 'FAILED',
-          errorMessage: expect.stringContaining('All insight models failed')
+          errorMessage: expect.stringContaining('dual engine offline')
         })
       })
     );
@@ -304,7 +329,7 @@ describe('insights-generate worker', () => {
       expect.objectContaining({
         metrics: expect.objectContaining({
           retryCount: 1,
-          failoverUsed: true
+          failoverUsed: false
         })
       })
     );
@@ -314,11 +339,13 @@ describe('insights-generate worker', () => {
     const prisma = createMockPrisma();
     prisma.cloudTaskMetadata.findUnique.mockResolvedValue(null);
 
+    const orchestrator: OrchestratorMock = {
+      generate: jest.fn()
+    };
+
     const worker = createInsightsGenerateWorker({
       prisma: prisma as unknown as PrismaClient,
-      openRouter: {
-        createChatCompletion: jest.fn()
-      },
+      orchestrator,
       now: () => baseTime,
       logger: {
         info: jest.fn(),

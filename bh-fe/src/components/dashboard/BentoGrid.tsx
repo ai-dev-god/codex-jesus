@@ -1,5 +1,11 @@
 import { Activity, Droplet, Moon, Flame, Clock } from 'lucide-react';
-import type { DashboardActionItem, DashboardBiomarkerTrend, DashboardSummary } from '../../lib/api/types';
+import type {
+  DashboardActionItem,
+  DashboardBiomarkerTrend,
+  DashboardSummary,
+  DualEngineInsightBody,
+  DualEngineInsightMetadata
+} from '../../lib/api/types';
 
 interface BentoGridProps {
   summary: DashboardSummary | null;
@@ -37,6 +43,7 @@ export default function BentoGrid({ summary, loading }: BentoGridProps) {
   const metricTiles = summary?.tiles ?? [];
   const biomarkerTrends = (summary?.biomarkerTrends ?? fallbackBiomarkers).slice(0, 4);
   const todaysInsight = summary?.todaysInsight;
+  const dualEngineBody = parseDualEngineBody(todaysInsight?.body ?? null);
 
   return (
     <div className="grid grid-cols-12 gap-6">
@@ -129,6 +136,13 @@ export default function BentoGrid({ summary, loading }: BentoGridProps) {
               {todaysInsight?.summary ??
                 'Your HRV shows excellent recovery. Consider extending Zone 2 training to 25 minutes for enhanced mitochondrial adaptation.'}
             </p>
+            {dualEngineBody.insights.length > 0 && (
+              <InsightList label="Model highlights" items={dualEngineBody.insights} />
+            )}
+            {dualEngineBody.recommendations.length > 0 && (
+              <InsightList label="Suggested actions" items={dualEngineBody.recommendations} tone="action" />
+            )}
+            {dualEngineBody.metadata && <DualEngineMetadataCard metadata={dualEngineBody.metadata} />}
             <button className="text-sm font-bold text-electric hover:text-electric-bright transition-colors">
               View Full Analysis →
             </button>
@@ -216,3 +230,131 @@ const resolveStatus = (direction: 'UP' | 'DOWN' | 'STABLE'): 'optimal' | 'good' 
 
   return direction === 'UP' ? 'optimal' : 'warning';
 };
+
+type ParsedDualEngineBody = {
+  insights: string[];
+  recommendations: string[];
+  metadata: DualEngineInsightMetadata | null;
+};
+
+const parseDualEngineBody = (body: DualEngineInsightBody | null): ParsedDualEngineBody => {
+  if (!body) {
+    return { insights: [], recommendations: [], metadata: null };
+  }
+
+  const insights = toStringArray(body.insights);
+  const recommendations = toStringArray(body.recommendations);
+  const metadata = normalizeDualEngineMetadata(body.metadata);
+
+  return { insights, recommendations, metadata };
+};
+
+const toStringArray = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => (typeof entry === 'string' ? entry.trim() : String(entry ?? '')))
+    .filter((entry) => entry.length > 0);
+};
+
+const clamp01 = (value: unknown): number => {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return 0;
+  }
+
+  return Math.min(1, Math.max(0, value));
+};
+
+const normalizeDualEngineMetadata = (metadata: unknown): DualEngineInsightMetadata | null => {
+  if (!metadata || typeof metadata !== 'object') {
+    return null;
+  }
+
+  const record = metadata as DualEngineInsightMetadata & {
+    disagreements?: { insights?: unknown; recommendations?: unknown };
+  };
+
+  if (!Array.isArray(record.engines)) {
+    return null;
+  }
+
+  if (!record.disagreements || typeof record.disagreements !== 'object') {
+    return null;
+  }
+
+  return {
+    confidenceScore: clamp01((record as DualEngineInsightMetadata).confidenceScore),
+    agreementRatio: clamp01((record as DualEngineInsightMetadata).agreementRatio),
+    disagreements: {
+      insights: toStringArray(record.disagreements.insights),
+      recommendations: toStringArray(record.disagreements.recommendations)
+    },
+    engines: record.engines.map((engine) => ({
+      id: engine.id,
+      label: engine.label,
+      model: engine.model,
+      completionId: engine.completionId,
+      title: engine.title,
+      summary: engine.summary
+    }))
+  };
+};
+
+function InsightList({
+  label,
+  items,
+  tone = 'default'
+}: {
+  label: string;
+  items: string[];
+  tone?: 'default' | 'action';
+}) {
+  const accentClass = tone === 'action' ? 'border-electric/40 bg-electric/5' : 'border-cloud bg-pearl/60';
+  return (
+    <div className={`mb-4 rounded-xl border ${accentClass} p-4`}>
+      <div className="text-xs font-semibold text-steel mb-2">{label}</div>
+      <ul className="space-y-2 text-sm text-ink list-disc pl-4">
+        {items.map((item, idx) => (
+          <li key={`${label}-${idx}`}>{item}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function DualEngineMetadataCard({ metadata }: { metadata: DualEngineInsightMetadata }) {
+  const confidencePercent = Math.round(metadata.confidenceScore * 100);
+  const hasDisagreements =
+    metadata.disagreements.insights.length > 0 || metadata.disagreements.recommendations.length > 0;
+
+  return (
+    <div className="mb-4 rounded-xl border border-white/30 bg-white/30 backdrop-blur p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-sm font-semibold text-steel">Dual-engine confidence</div>
+        <div className="text-2xl font-bold text-electric">{confidencePercent}%</div>
+      </div>
+      <div className="flex flex-wrap gap-2 mb-3">
+        {metadata.engines.map((engine) => (
+          <span
+            key={`${engine.id}-${engine.model}`}
+            className="text-xs font-semibold text-void bg-white/80 border border-cloud px-3 py-1 rounded-full"
+          >
+            {engine.label ?? engine.id ?? 'Engine'}
+          </span>
+        ))}
+      </div>
+      {hasDisagreements && (
+        <div className="rounded-lg bg-white/60 p-3 border border-cloud/60 mb-3">
+          <div className="text-xs font-semibold text-steel mb-2">Points of divergence</div>
+          {[...metadata.disagreements.insights, ...metadata.disagreements.recommendations].map((entry, index) => (
+            <p key={`disagreement-${index}`} className="text-xs text-solar">
+              {entry}
+            </p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

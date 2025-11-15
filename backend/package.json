@@ -18,6 +18,7 @@
     "db:migrate": "tsx scripts/run-migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
     "db:reset": "prisma migrate reset --force --skip-generate --skip-seed --schema prisma/schema.prisma && tsx scripts/seed.ts",
+    "whoop:daemon": "node dist/scripts/whoop-sync-daemon.js",
     "perf:api": "tsx scripts/run-perf.ts",
     "workers:run": "node dist/src/workers/runner.js"
   },

@@ -4,23 +4,24 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.insightsService = exports.InsightGenerationService = void 0;
+const env_1 = __importDefault(require("../../config/env"));
 const prisma_1 = __importDefault(require("../../lib/prisma"));
 const http_error_1 = require("../observability-ops/http-error");
 const insights_queue_1 = require("./insights-queue");
 const DEFAULT_DAILY_LIMIT = 3;
 const DEFAULT_PIPELINE = [
     {
-        id: 'primary',
-        model: 'openrouter/anthropic/claude-3-haiku',
+        id: 'openai-5',
+        model: env_1.default.OPENROUTER_OPENAI5_MODEL,
         temperature: 0.2,
         maxTokens: 900,
         systemPrompt: 'You are BioHax Coach, a concise wellness analyst. Focus on progressive, actionable guidance grounded in biomarker trends. ' +
             'Respond strictly in JSON with keys: title (string), summary (string), body (object with fields insights (array of strings) and recommendations (array of strings)).'
     },
     {
-        id: 'fallback',
-        model: 'openrouter/openai/gpt-4o-mini',
-        temperature: 0.25,
+        id: 'gemini-2.5-pro',
+        model: env_1.default.OPENROUTER_GEMINI25_PRO_MODEL,
+        temperature: 0.2,
         maxTokens: 900,
         systemPrompt: 'You are BioHax Coach, crafting short wellness insights from trend summaries. Return strictly JSON with title, summary, and body { insights: string[], recommendations: string[] }.'
     }

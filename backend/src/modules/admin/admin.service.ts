@@ -164,6 +164,8 @@ type AdminServiceOptions = Partial<{
   now: () => Date;
 }>;
 
+const ASSIGNABLE_ROLES: Role[] = [Role.ADMIN, Role.MODERATOR, Role.PRACTITIONER];
+
 const FLAG_INCLUDE = {
   openedBy: {
     include: {
@@ -584,7 +586,7 @@ export class AdminService {
     const staff = await this.prisma.user.findMany({
       where: {
         role: {
-          in: [Role.MODERATOR, Role.ADMIN]
+          in: [Role.PRACTITIONER, Role.MODERATOR, Role.ADMIN]
         }
       },
       include: {
@@ -618,8 +620,8 @@ export class AdminService {
       throw new HttpError(403, 'Only admins may manage staff roles', 'FORBIDDEN');
     }
 
-    if (input.role !== Role.ADMIN && input.role !== Role.MODERATOR) {
-      throw new HttpError(422, 'role must be ADMIN or MODERATOR', 'INVALID_ROLE');
+    if (!ASSIGNABLE_ROLES.includes(input.role)) {
+      throw new HttpError(422, 'role must be ADMIN, MODERATOR, or PRACTITIONER', 'INVALID_ROLE');
     }
 
     const existing = await this.prisma.user.findUnique({

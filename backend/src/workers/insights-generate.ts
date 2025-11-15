@@ -2,15 +2,20 @@ import { Prisma } from '@prisma/client';
 import type { InsightGenerationJob, PrismaClient } from '@prisma/client';
 
 import prismaClient from '../lib/prisma';
-import { openRouterClient, type OpenRouterChatClient } from '../lib/openrouter';
 import { dashboardService } from '../modules/dashboard/dashboard.service';
 import { HttpError } from '../modules/observability-ops/http-error';
+import {
+  dualEngineInsightOrchestrator,
+  DualEngineInsightOrchestrator
+} from '../modules/ai/dual-engine.service';
 
 type InsightWorkerLogger = Pick<Console, 'info' | 'warn' | 'error'>;
 
+type DualEngineExecutor = Pick<DualEngineInsightOrchestrator, 'generate'>;
+
 type WorkerDeps = {
   prisma?: PrismaClient;
-  openRouter?: OpenRouterChatClient;
+  orchestrator?: DualEngineExecutor;
   logger?: InsightWorkerLogger;
   now?: () => Date;
 };
@@ -54,6 +59,10 @@ type JobPayload = {
 
 const toJsonValue = (value: unknown): Prisma.InputJsonValue =>
   JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+
+const DEFAULT_SYSTEM_PROMPT =
+  'You are BioHax Coach, a concise wellness analyst. Focus on progressive, actionable guidance grounded in biomarker trends. ' +
+  'Respond strictly in JSON with keys: title (string), summary (string), body (object with fields insights (array of strings) and recommendations (array of strings)).';
 
 const parseJobPayload = (job: InsightGenerationJob): JobPayload => {
   const raw = (job.payload ?? {}) as Record<string, unknown>;
@@ -123,37 +132,9 @@ const buildUserPrompt = (payload: JobPayload): string => {
   return lines.join('\n');
 };
 
-const parseInsightContent = (raw: string) => {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (error) {
-    throw new Error(`Model response was not valid JSON: ${(error as Error).message}`);
-  }
-
-  if (typeof parsed !== 'object' || parsed === null) {
-    throw new Error('Insight response must be an object.');
-  }
-
-  const record = parsed as Record<string, unknown>;
-  const title = typeof record.title === 'string' ? record.title.trim() : null;
-  const summary = typeof record.summary === 'string' ? record.summary.trim() : null;
-  const body = typeof record.body === 'object' && record.body !== null ? record.body : null;
-
-  if (!title || !summary) {
-    throw new Error('Insight response missing title or summary fields.');
-  }
-
-  return {
-    title,
-    summary,
-    body
-  };
-};
-
 export const createInsightsGenerateWorker = (deps: WorkerDeps = {}) => {
   const prisma = deps.prisma ?? prismaClient;
-  const openRouter = deps.openRouter ?? openRouterClient;
+  const orchestrator = deps.orchestrator ?? dualEngineInsightOrchestrator;
   const logger = deps.logger ?? console;
   const now = deps.now ?? (() => new Date());
 
@@ -204,42 +185,6 @@ export const createInsightsGenerateWorker = (deps: WorkerDeps = {}) => {
     }
 
     const payload = parseJobPayload(job);
-    const models = payload.models;
-    const priorRetries = metadata.attemptCount ?? 0;
-
-    if (!Array.isArray(models) || models.length === 0) {
-      logger.error?.('[insights-generate] Job payload missing model pipeline', { jobId });
-      await prisma.insightGenerationJob.update({
-        where: { id: job.id },
-        data: {
-          status: 'FAILED',
-          completedAt: now(),
-          errorCode: 'INSIGHT_PROVIDER_FAILURE',
-          errorMessage: 'Insight pipeline configuration missing models.',
-          payload: toJsonValue({
-            ...payload,
-            attempts: payload.attempts,
-            metrics: {
-              ...payload.metrics,
-              retryCount: metadata.attemptCount + 1,
-              failoverUsed: payload.metrics?.failoverUsed ?? false
-            }
-          })
-        }
-      });
-      await prisma.cloudTaskMetadata.update({
-        where: { id: metadata.id },
-        data: {
-          status: 'FAILED',
-          attemptCount: metadata.attemptCount + 1,
-          firstAttemptAt: metadata.firstAttemptAt ?? now(),
-          lastAttemptAt: now(),
-          errorMessage: 'Insight pipeline configuration missing models.'
-        }
-      });
-      return;
-    }
-
     const dispatchedAt = job.dispatchedAt ?? now();
     await prisma.insightGenerationJob.update({
       where: { id: job.id },
@@ -249,182 +194,150 @@ export const createInsightsGenerateWorker = (deps: WorkerDeps = {}) => {
       }
     });
 
-    const attempts = [...payload.attempts];
-    let success = false;
-    let insightId: string | null = null;
-    let lastError: string | null = null;
+    const systemPrompt = payload.models[0]?.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
+    const userPrompt = buildUserPrompt(payload);
 
-    for (let index = 0; index < models.length; index += 1) {
-      const modelConfig = models[index];
-      const startedAt = now();
+    try {
+      logger.info?.('[insights-generate] Running dual-engine orchestration', {
+        jobId,
+        userId
+      });
+
+      const consensus = await orchestrator.generate({
+        systemPrompt,
+        userPrompt,
+        temperature: 0.2,
+        maxTokens: 900
+      });
+
       const attemptRecord: JobAttempt = {
-        modelId: modelConfig.id,
-        model: modelConfig.model,
-        status: 'FAILED',
-        completedAt: startedAt.toISOString()
+        modelId: 'dual-engine',
+        model: 'dual-engine',
+        status: 'SUCCESS',
+        responseId: consensus.body.metadata.engines.map((engine) => engine.completionId).join(','),
+        completedAt: now().toISOString()
       };
 
-      try {
-        logger.info?.('[insights-generate] Invoking OpenRouter model', {
-          jobId,
-          model: modelConfig.model,
-          attempt: index + 1
-        });
-
-        const completion = await openRouter.createChatCompletion({
-          model: modelConfig.model,
-          messages: [
-            modelConfig.systemPrompt
-              ? { role: 'system' as const, content: modelConfig.systemPrompt }
-              : { role: 'system' as const, content: 'You are BioHax Coach producing concise insights.' },
-            { role: 'user' as const, content: buildUserPrompt(payload) }
-          ],
-          temperature: modelConfig.temperature ?? 0.2,
-          maxTokens: modelConfig.maxTokens ?? 900
-        });
-
-        const parsed = parseInsightContent(completion.content);
-
-        const created = await prisma.insight.create({
-          data: {
-            userId,
-            title: parsed.title,
-            summary: parsed.summary,
-            body: parsed.body ? toJsonValue(parsed.body) : Prisma.JsonNull,
-            status: 'DRAFT',
-            modelUsed: completion.model,
-            promptMetadata: toJsonValue({
-              request: payload.request,
-              model: modelConfig,
-              responseId: completion.id,
-              attempt: modelConfig.id
-            }),
-            generatedAt: now()
-          }
-        });
-
-        try {
-          await dashboardService.invalidateUser(userId);
-        } catch (error) {
-          logger.warn?.('[insights-generate] Failed to invalidate dashboard cache', {
-            userId,
-            error
-          });
+      const created = await prisma.insight.create({
+        data: {
+          userId,
+          title: consensus.title,
+          summary: consensus.summary,
+          body: toJsonValue(consensus.body),
+          status: 'DELIVERED',
+          modelUsed: 'dual-engine',
+          promptMetadata: toJsonValue({
+            request: payload.request,
+            engines: consensus.body.metadata.engines
+          }),
+          generatedAt: now()
         }
+      });
 
-        attemptRecord.status = 'SUCCESS';
-        attemptRecord.responseId = completion.id;
-        attempts.push(attemptRecord);
-        payload.attempts = attempts;
-        const successAttemptIndex = attempts.length - 1;
-        const failoverUsed = priorRetries > 0 || successAttemptIndex > 0;
-        payload.metrics = {
-          ...payload.metrics,
-          retryCount: priorRetries,
-          failoverUsed
-        };
-
-        await prisma.insightGenerationJob.update({
-          where: { id: job.id },
-          data: {
-            status: 'SUCCEEDED',
-            insightId: created.id,
-            completedAt: now(),
-            payload: toJsonValue(payload),
-            errorCode: null,
-            errorMessage: null
-          }
-        });
-
-        await prisma.cloudTaskMetadata.update({
-          where: { id: metadata.id },
-          data: {
-            status: 'SUCCEEDED',
-            attemptCount: metadata.attemptCount + 1,
-            firstAttemptAt: metadata.firstAttemptAt ?? dispatchedAt,
-            lastAttemptAt: now(),
-            errorMessage: null
-          }
-        });
-
-        insightId = created.id;
-        success = true;
-        break;
+      try {
+        await dashboardService.invalidateUser(userId);
       } catch (error) {
-        const message =
-          error instanceof HttpError
-            ? error.message
-            : error instanceof Error
-              ? error.message
-              : 'Unknown OpenRouter failure';
-        lastError = message;
-        attemptRecord.errorMessage = message;
-        attempts.push(attemptRecord);
-        payload.attempts = attempts;
-        const failoverUsed = priorRetries > 0 || attempts.length > 1;
-        payload.metrics = {
+        logger.warn?.('[insights-generate] Failed to invalidate dashboard cache', {
+          userId,
+          error
+        });
+      }
+
+      const updatedPayload = {
+        ...payload,
+        attempts: [...payload.attempts, attemptRecord],
+        metrics: {
           ...payload.metrics,
-          retryCount: priorRetries,
-          failoverUsed
-        };
+          retryCount: metadata.attemptCount ?? 0,
+          failoverUsed: false
+        },
+        consensusMetadata: consensus.body.metadata
+      };
 
-        logger.warn?.('[insights-generate] Model attempt failed', {
-          jobId,
-          model: modelConfig.model,
-          error: message
-        });
+      await prisma.insightGenerationJob.update({
+        where: { id: job.id },
+        data: {
+          status: 'SUCCEEDED',
+          insightId: created.id,
+          completedAt: now(),
+          payload: toJsonValue(updatedPayload),
+          errorCode: null,
+          errorMessage: null
+        }
+      });
 
-        await prisma.insightGenerationJob.update({
-          where: { id: job.id },
-          data: {
-            payload: toJsonValue(payload)
-          }
-        });
-      }
-    }
+      await prisma.cloudTaskMetadata.update({
+        where: { id: metadata.id },
+        data: {
+          status: 'SUCCEEDED',
+          attemptCount: metadata.attemptCount + 1,
+          firstAttemptAt: metadata.firstAttemptAt ?? dispatchedAt,
+          lastAttemptAt: now(),
+          errorMessage: null
+        }
+      });
 
-    if (success && insightId) {
-      logger.info?.('[insights-generate] Insight generation succeeded', { jobId, insightId });
+      logger.info?.('[insights-generate] Insight generation succeeded', {
+        jobId,
+        insightId: created.id,
+        confidenceScore: consensus.body.metadata.confidenceScore
+      });
       return;
-    }
+    } catch (error) {
+      const failureMessage =
+        error instanceof HttpError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : 'Dual-engine orchestration failed.';
 
-    payload.metrics = {
-      ...payload.metrics,
-      retryCount: priorRetries + 1,
-      failoverUsed: priorRetries > 0 || attempts.length > 1
-    };
-
-    const failureMessage = lastError ? `All insight models failed. Last error: ${lastError}` : 'All insight models failed.';
-
-    await prisma.insightGenerationJob.update({
-      where: { id: job.id },
-      data: {
+      const attemptRecord: JobAttempt = {
+        modelId: 'dual-engine',
+        model: 'dual-engine',
         status: 'FAILED',
-        completedAt: now(),
-        errorCode: 'INSIGHT_PROVIDER_FAILURE',
         errorMessage: failureMessage,
-        payload: toJsonValue(payload)
-      }
-    });
+        completedAt: now().toISOString()
+      };
 
-    await prisma.cloudTaskMetadata.update({
-      where: { id: metadata.id },
-      data: {
-        status: 'FAILED',
-        attemptCount: metadata.attemptCount + 1,
-        firstAttemptAt: metadata.firstAttemptAt ?? dispatchedAt,
-        lastAttemptAt: now(),
-        errorMessage: failureMessage
-      }
-    });
+      const updatedPayload = {
+        ...payload,
+        attempts: [...payload.attempts, attemptRecord],
+        metrics: {
+          ...payload.metrics,
+          retryCount: (metadata.attemptCount ?? 0) + 1,
+          failoverUsed: false
+        }
+      };
 
-    logger.error?.('[insights-generate] All insight models failed', {
-      jobId,
-      attempts,
-      error: lastError
-    });
+      await prisma.insightGenerationJob.update({
+        where: { id: job.id },
+        data: {
+          status: 'FAILED',
+          completedAt: now(),
+          errorCode: 'INSIGHT_PROVIDER_FAILURE',
+          errorMessage: failureMessage,
+          payload: toJsonValue(updatedPayload)
+        }
+      });
+
+      await prisma.cloudTaskMetadata.update({
+        where: { id: metadata.id },
+        data: {
+          status: 'FAILED',
+          attemptCount: metadata.attemptCount + 1,
+          firstAttemptAt: metadata.firstAttemptAt ?? dispatchedAt,
+          lastAttemptAt: now(),
+          errorMessage: failureMessage
+        }
+      });
+
+      logger.error?.('[insights-generate] Dual-engine orchestration failed', {
+        jobId,
+        error: failureMessage
+      });
+    }
   };
 };
 
 export const insightsGenerateWorker = createInsightsGenerateWorker();
-export type { OpenRouterChatClient };
+export type { WorkerDeps };

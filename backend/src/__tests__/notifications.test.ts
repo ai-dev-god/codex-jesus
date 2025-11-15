@@ -99,6 +99,33 @@ describe('Notifications Router', () => {
     });
   });
 
+  it('schedules insight notifications for practitioners', async () => {
+    const practitionerToken = issueToken(Role.PRACTITIONER);
+    mockedNotificationService.scheduleInsightAlert.mockResolvedValueOnce(
+      createTask({ taskName: 'notifications-dispatch-practitioner-77' })
+    );
+
+    const response = await request(app)
+      .post('/notifications/insight')
+      .set('Authorization', `Bearer ${practitionerToken}`)
+      .send({
+        recipientId: 'member-99',
+        insightId: 'insight-77',
+        insightTitle: 'HRV trending up'
+      });
+
+    expect(response.status).toBe(202);
+    expect(response.body).toMatchObject({
+      taskName: 'notifications-dispatch-practitioner-77'
+    });
+    expect(mockedNotificationService.scheduleInsightAlert).toHaveBeenCalledWith('staff-1', {
+      recipientId: 'member-99',
+      insightId: 'insight-77',
+      insightTitle: 'HRV trending up',
+      sendAt: undefined
+    });
+  });
+
   it('validates payload for streak nudges', async () => {
     const coachToken = issueToken(Role.COACH);
 

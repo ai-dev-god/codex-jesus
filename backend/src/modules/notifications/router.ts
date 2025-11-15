@@ -52,7 +52,7 @@ const validate = <S extends z.ZodTypeAny>(schema: S, payload: unknown): z.infer<
 const router = Router();
 router.use(requireAuth, requireActiveUser);
 
-const staffOnly = requireRoles(Role.COACH, Role.MODERATOR, Role.ADMIN);
+const staffOnly = requireRoles(Role.COACH, Role.PRACTITIONER, Role.MODERATOR, Role.ADMIN);
 const moderationOnly = requireRoles(Role.MODERATOR, Role.ADMIN);
 
 router.post('/insight', staffOnly, async (req, res, next) => {

@@ -21,6 +21,8 @@ const envSchema = z.object({
   OPENROUTER_NUMERIC_MODEL: z
     .string()
     .default('openrouter/deepseek/deepseek-r1-distill-qwen-32b'),
+  OPENROUTER_OPENAI5_MODEL: z.string().default('openrouter/openai/gpt-5'),
+  OPENROUTER_GEMINI25_PRO_MODEL: z.string().default('openrouter/google/gemini-2.5-pro'),
   WHOOP_CLIENT_ID: z.string().optional(),
   WHOOP_CLIENT_SECRET: z.string().optional(),
   WHOOP_REDIRECT_URI: z.string().url().default('http://localhost:5173/oauth/whoop/callback'),
@@ -39,7 +41,34 @@ const envSchema = z.object({
 });
 
 const parsed = envSchema.parse(process.env);
-const corsOrigins = parsed.CORS_ORIGIN.split(',').map((origin) => origin.trim()).filter(Boolean);
+const parseCorsOrigins = (value: string): string[] => {
+  if (!value) {
+    return [];
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return [];
+  }
+
+  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+    try {
+      const parsedValue = JSON.parse(trimmed);
+      if (Array.isArray(parsedValue)) {
+        return parsedValue.map((origin) => `${origin}`.trim()).filter(Boolean);
+      }
+    } catch {
+      // Fallback to delimiter-based parsing when JSON parsing fails.
+    }
+  }
+
+  return trimmed
+    .split(/[\s,]+/)
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+};
+
+const corsOrigins = parseCorsOrigins(parsed.CORS_ORIGIN);
 
 const env = {
   ...parsed,

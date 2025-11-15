@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Mail, Lock, Zap, ArrowRight, Info, Loader2 } from 'lucide-react';
-import { Button } from '../ui/button';
+import { Mail, Lock, ArrowRight, Info, Loader2 } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
 import { ApiError } from '../../lib/api/error';
-import { fetchGoogleClientConfig, loginWithEmail, loginWithGoogle, registerWithEmail } from '../../lib/api/auth';
+import { fetchGoogleClientConfig, loginWithEmail, loginWithGoogle, registerWithEmail, refreshTokens } from '../../lib/api/auth';
 import type { AuthResponse } from '../../lib/api/types';
+import { requestWhoopLink } from '../../lib/api/whoop';
+import { clearPersistedSession, loadSession, normalizeTokens, persistSession } from '../../lib/auth/session';
 
 const GOOGLE_LOGO_SRC = 'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg';
 
@@ -32,6 +33,7 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
   const [googleInitialized, setGoogleInitialized] = useState(false);
   const [googleButtonRendered, setGoogleButtonRendered] = useState(false);
   const [googlePrompting, setGooglePrompting] = useState(false);
+  const [whoopLinking, setWhoopLinking] = useState(false);
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
 
   const inferredDisplayName = useMemo(() => {
@@ -248,9 +250,65 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
     }
   };
 
-  const handleWhoopConnect = () => {
-    setError('Direct Whoop authentication is not configured in this preview build.');
-  };
+  const handleWhoopConnect = useCallback(async () => {
+    setError(null);
+    setWhoopLinking(true);
+
+    try {
+      const storedSession = loadSession();
+      if (!storedSession) {
+        setError('Please sign in first, then connect your Whoop device from the dashboard.');
+        return;
+      }
+
+      let session = storedSession;
+      if (session.tokens.accessTokenExpiresAt <= Date.now()) {
+        try {
+          const refreshed = await refreshTokens(session.tokens.refreshToken);
+          const normalizedTokens = normalizeTokens(refreshed);
+          session = {
+            ...session,
+            tokens: normalizedTokens
+          };
+          persistSession(session);
+        } catch (refreshError) {
+          console.warn('Failed to refresh session before Whoop linking', refreshError);
+          clearPersistedSession();
+          setError('Your session expired. Please sign in again to continue.');
+          return;
+        }
+      }
+
+      const status = await requestWhoopLink(session.tokens.accessToken);
+      if (status.linkUrl) {
+        window.location.href = status.linkUrl;
+        return;
+      }
+
+      if (status.linked) {
+        setError('Your Whoop account is already linked.');
+      } else {
+        setError('Whoop linking is not available right now.');
+      }
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError('Unable to start Whoop linking. Please try again.');
+      }
+    } finally {
+      setWhoopLinking(false);
+    }
+  }, [
+    setError,
+    setWhoopLinking,
+    clearPersistedSession,
+    loadSession,
+    normalizeTokens,
+    persistSession,
+    refreshTokens,
+    requestWhoopLink
+  ]);
 
   return (
     <div className="min-h-screen mesh-gradient flex items-center justify-center px-6 py-12">
@@ -291,12 +349,12 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
           {/* OAuth Buttons */}
           <div className="space-y-3 mb-8">
             <div className="w-full space-y-2">
-              <button
-                type="button"
+            <button
+              type="button"
                 onClick={handleGoogleButtonClick}
                 disabled={googleButtonDisabled}
                 className="w-full flex items-center justify-between gap-4 px-6 py-4 rounded-2xl border-2 border-cloud bg-white font-semibold text-ink shadow-sm transition-all hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
-              >
+            >
                 <span className="flex items-center gap-3">
                   <ImageWithFallback
                     src={GOOGLE_LOGO_SRC}
@@ -304,14 +362,14 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
                     className="w-5 h-5"
                     aria-hidden="true"
                   />
-                  Continue with Google
+              Continue with Google
                 </span>
                 {googlePrompting ? (
                   <Loader2 className="w-5 h-5 text-steel animate-spin" />
                 ) : (
                   <ArrowRight className="w-5 h-5 text-steel" />
                 )}
-              </button>
+            </button>
               {googleConfigLoading && (
                 <p className="text-sm text-steel text-center">Preparing Google Sign-In…</p>
               )}
@@ -332,13 +390,19 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
             </div>
 
             <button
-              onClick={handleWhoopConnect}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleWhoopConnect();
+              }}
               type="button"
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl gradient-pulse text-white transition-all font-semibold hover:scale-105 disabled:opacity-50"
+              disabled={loading || whoopLinking}
+              className="w-full flex items-center justify-between gap-3 px-6 py-4 rounded-xl gradient-pulse text-white transition-all font-semibold hover:scale-105 disabled:opacity-50"
             >
-              <Activity className="w-5 h-5" />
-              Connect with Whoop
+              <span className="flex items-center gap-3">
+                <Activity className="w-5 h-5" />
+                Connect with Whoop
+              </span>
+              {whoopLinking && <Loader2 className="w-5 h-5 animate-spin" />}
             </button>
           </div>
 

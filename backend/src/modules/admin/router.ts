@@ -61,15 +61,18 @@ const auditQuerySchema = z.object({
   limit: limitSchema
 });
 
+const ASSIGNABLE_ROLES: Role[] = [Role.ADMIN, Role.MODERATOR, Role.PRACTITIONER];
+
 const roleUpdateSchema = z
   .object({
     role: z.nativeEnum(Role)
   })
   .superRefine((data, ctx) => {
-    if (data.role !== Role.ADMIN && data.role !== Role.MODERATOR) {
+    const role = data.role as Role;
+    if (!ASSIGNABLE_ROLES.includes(role)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'role must be ADMIN or MODERATOR',
+        message: 'role must be ADMIN, MODERATOR, or PRACTITIONER',
         path: ['role']
       });
     }

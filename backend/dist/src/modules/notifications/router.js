@@ -47,7 +47,7 @@ const validate = (schema, payload) => {
 const router = (0, express_1.Router)();
 exports.notificationsRouter = router;
 router.use(guards_1.requireAuth, guards_1.requireActiveUser);
-const staffOnly = (0, guards_1.requireRoles)(client_1.Role.COACH, client_1.Role.MODERATOR, client_1.Role.ADMIN);
+const staffOnly = (0, guards_1.requireRoles)(client_1.Role.COACH, client_1.Role.PRACTITIONER, client_1.Role.MODERATOR, client_1.Role.ADMIN);
 const moderationOnly = (0, guards_1.requireRoles)(client_1.Role.MODERATOR, client_1.Role.ADMIN);
 router.post('/insight', staffOnly, async (req, res, next) => {
     try {

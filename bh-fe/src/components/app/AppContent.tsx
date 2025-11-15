@@ -104,31 +104,47 @@ export default function AppContent() {
     return nextSession;
   }, [session, updateSession]);
 
-  const syncUserProfile = useCallback(async () => {
-    if (!session) {
-      return;
-    }
+  const syncUserProfile = useCallback(
+    async (options: { requireActive?: boolean; throwOnError?: boolean } = {}) => {
+      if (!session) {
+        if (options.throwOnError) {
+          throw new Error('No active session');
+        }
+        return null;
+      }
 
-    try {
-      const freshSession = await ensureFreshSession();
-      const remoteUser = await fetchCurrentUser(freshSession.tokens.accessToken);
-      const mergedSession: StoredSession = {
-        user: remoteUser,
-        tokens: freshSession.tokens
-      };
-      updateSession(mergedSession);
-      if (remoteUser.status === 'ACTIVE') {
-        setShowOnboarding(false);
+      try {
+        const freshSession = await ensureFreshSession();
+        const remoteUser = await fetchCurrentUser(freshSession.tokens.accessToken);
+        const mergedSession: StoredSession = {
+          user: remoteUser,
+          tokens: freshSession.tokens
+        };
+        updateSession(mergedSession);
+        setShowOnboarding(remoteUser.status !== 'ACTIVE');
+
+        if (options.requireActive && remoteUser.status !== 'ACTIVE') {
+          throw new Error('Complete the onboarding steps to continue.');
+        }
+
+        return remoteUser;
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 401) {
+          updateSession(null);
+          setAppState('landing');
+        } else {
+          console.warn('Failed to sync user profile', error);
+        }
+
+        if (options.throwOnError) {
+          throw error instanceof Error ? error : new Error('Unable to refresh your profile.');
+        }
+
+        return null;
       }
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
-        updateSession(null);
-        setAppState('landing');
-      } else {
-        console.warn('Failed to sync user profile', error);
-      }
-    }
-  }, [session, ensureFreshSession, updateSession]);
+    },
+    [session, ensureFreshSession, updateSession, setAppState]
+  );
 
   useEffect(() => {
     if (!session) {
@@ -137,6 +153,11 @@ export default function AppContent() {
 
     syncUserProfile();
   }, [session, syncUserProfile]);
+
+  const handleOnboardingComplete = useCallback(async () => {
+    await syncUserProfile({ requireActive: true, throwOnError: true });
+    toast.success('Onboarding complete. Your dashboard is unlocked.');
+  }, [syncUserProfile]);
 
   const loadDashboard = useCallback(async () => {
     if (!session) {
@@ -245,28 +266,6 @@ export default function AppContent() {
     setShowOnboarding(false);
   }, [session, ensureFreshSession, updateSession]);
 
-  // Landing/Auth Flow
-  if (appState === 'landing') {
-    return (
-      <>
-        <LandingPage 
-          onGetStarted={() => setAppState('auth')}
-          onSignIn={() => setAppState('auth')}
-        />
-        <Toaster />
-      </>
-    );
-  }
-
-  if (appState === 'auth') {
-    return (
-      <>
-        <AuthScreen onAuth={handleAuthSuccess} onBack={() => setAppState('landing')} />
-        <Toaster />
-      </>
-    );
-  }
-
   const currentUser: SerializedUser | null = session?.user ?? null;
   const welcomeName = useMemo(() => {
     if (!currentUser) {
@@ -275,49 +274,6 @@ export default function AppContent() {
     const emailPrefix = currentUser.email?.split('@')[0] ?? 'Member';
     return emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
   }, [currentUser]);
-
-  const renderDashboard = () => (
-    <Dashboard
-      userName={welcomeName}
-      summary={dashboardSummary}
-      loading={dashboardLoading}
-      error={dashboardError}
-      onRetry={loadDashboard}
-      plans={longevityPlans}
-      planLoading={longevityPlansLoading}
-      planError={longevityPlanError}
-      onPlanRetry={loadLongevityPlans}
-      onRequestPlan={requestLongevityPlanGeneration}
-      planRequesting={planRequesting}
-    />
-  );
-
-  const renderView = () => {
-    if (showOnboarding) {
-      return <OnboardingFlow onComplete={() => setShowOnboarding(false)} />;
-    }
-
-    switch (currentView) {
-      case 'dashboard':
-        return renderDashboard();
-      case 'protocols':
-        return <ProtocolsView />;
-      case 'gym':
-        return <GymWorkoutCreator />;
-      case 'nutrition':
-        return <NutritionView />;
-      case 'practitioner':
-        return <PractitionerWorkspace />;
-      case 'community':
-        return <CommunityFeed />;
-      case 'settings':
-        return <SettingsPage />;
-      case 'integrations':
-        return <IntegrationsPage />;
-      default:
-        return renderDashboard();
-    }
-  };
 
   const authValue = useMemo(
     () => ({
@@ -367,6 +323,71 @@ export default function AppContent() {
 
     void completeLink();
   }, [session, ensureFreshSession, loadDashboard]);
+
+  // Landing/Auth Flow
+  if (appState === 'landing') {
+    return (
+      <>
+        <LandingPage
+          onGetStarted={() => setAppState('auth')}
+          onSignIn={() => setAppState('auth')}
+        />
+        <Toaster />
+      </>
+    );
+  }
+
+  if (appState === 'auth') {
+    return (
+      <>
+        <AuthScreen onAuth={handleAuthSuccess} onBack={() => setAppState('landing')} />
+        <Toaster />
+      </>
+    );
+  }
+
+  const renderDashboard = () => (
+    <Dashboard
+      userName={welcomeName}
+      summary={dashboardSummary}
+      loading={dashboardLoading}
+      error={dashboardError}
+      onRetry={loadDashboard}
+      plans={longevityPlans}
+      planLoading={longevityPlansLoading}
+      planError={longevityPlanError}
+      onPlanRetry={loadLongevityPlans}
+      onRequestPlan={requestLongevityPlanGeneration}
+      planRequesting={planRequesting}
+    />
+  );
+
+  const renderView = () => {
+    if (showOnboarding) {
+      return <OnboardingFlow onComplete={handleOnboardingComplete} />;
+    }
+
+    switch (currentView) {
+      case 'dashboard':
+        return renderDashboard();
+      case 'protocols':
+        return <ProtocolsView />;
+      case 'gym':
+        return <GymWorkoutCreator />;
+      case 'nutrition':
+        return <NutritionView />;
+      case 'practitioner':
+        return <PractitionerWorkspace />;
+      case 'community':
+        return <CommunityFeed />;
+      case 'settings':
+        return <SettingsPage />;
+      case 'integrations':
+        return <IntegrationsPage />;
+      default:
+        return renderDashboard();
+    }
+  };
 
   return (
     <AuthProvider value={authValue}>

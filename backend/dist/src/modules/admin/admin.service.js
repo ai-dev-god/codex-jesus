@@ -7,6 +7,7 @@ exports.adminService = exports.AdminService = void 0;
 const client_1 = require("@prisma/client");
 const prisma_1 = __importDefault(require("../../lib/prisma"));
 const http_error_1 = require("../observability-ops/http-error");
+const ASSIGNABLE_ROLES = [client_1.Role.ADMIN, client_1.Role.MODERATOR, client_1.Role.PRACTITIONER];
 const FLAG_INCLUDE = {
     openedBy: {
         include: {
@@ -357,7 +358,7 @@ class AdminService {
         const staff = await this.prisma.user.findMany({
             where: {
                 role: {
-                    in: [client_1.Role.MODERATOR, client_1.Role.ADMIN]
+                    in: [client_1.Role.PRACTITIONER, client_1.Role.MODERATOR, client_1.Role.ADMIN]
                 }
             },
             include: {
@@ -382,8 +383,8 @@ class AdminService {
         if (actor.role !== client_1.Role.ADMIN) {
             throw new http_error_1.HttpError(403, 'Only admins may manage staff roles', 'FORBIDDEN');
         }
-        if (input.role !== client_1.Role.ADMIN && input.role !== client_1.Role.MODERATOR) {
-            throw new http_error_1.HttpError(422, 'role must be ADMIN or MODERATOR', 'INVALID_ROLE');
+        if (!ASSIGNABLE_ROLES.includes(input.role)) {
+            throw new http_error_1.HttpError(422, 'role must be ADMIN, MODERATOR, or PRACTITIONER', 'INVALID_ROLE');
         }
         const existing = await this.prisma.user.findUnique({
             where: { id: userId },

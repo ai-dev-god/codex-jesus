@@ -433,6 +433,7 @@ model AiResponseAudit {
 enum Role {
   MEMBER
   COACH
+  PRACTITIONER
   MODERATOR
   ADMIN
 }

@@ -63,11 +63,36 @@ export interface InsightSummary {
   userId: string;
   title: string;
   summary: string;
-  body: Record<string, unknown> | null;
+  body: DualEngineInsightBody | null;
   status: string;
   modelUsed: string | null;
   generatedAt: string;
   promptMetadata: Record<string, unknown> | null;
+}
+
+export interface DualEngineInsightEngineTrace {
+  id?: string;
+  label?: string;
+  model?: string;
+  completionId?: string;
+  title?: string;
+  summary?: string;
+}
+
+export interface DualEngineInsightMetadata {
+  confidenceScore: number;
+  agreementRatio: number;
+  disagreements: {
+    insights: string[];
+    recommendations: string[];
+  };
+  engines: DualEngineInsightEngineTrace[];
+}
+
+export interface DualEngineInsightBody extends Record<string, unknown> {
+  insights?: string[];
+  recommendations?: string[];
+  metadata?: DualEngineInsightMetadata | null;
 }
 
 export interface DashboardSummary {

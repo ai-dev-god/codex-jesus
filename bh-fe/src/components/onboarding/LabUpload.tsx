@@ -1,45 +1,102 @@
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { Upload, FileText, CheckCircle2, X } from 'lucide-react';
-import { useState } from 'react';
+import { Upload, FileText, CheckCircle2, X, AlertTriangle } from 'lucide-react';
+import { useRef, useState, type ChangeEvent } from 'react';
+import { toast } from 'sonner';
+
+import { useAuth } from '../../lib/auth/AuthContext';
+import { recordPanelUpload } from '../../lib/api/ai';
+import { ApiError } from '../../lib/api/error';
 
 interface UploadedFile {
   id: string;
   name: string;
-  size: string;
+  sizeLabel: string;
   type: string;
-  status: 'uploading' | 'processing' | 'complete';
+  status: 'uploading' | 'complete' | 'error';
+  error?: string;
 }
+
+const formatFileSize = (size: number): string => {
+  if (size === 0) {
+    return '0 B';
+  }
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const index = Math.min(Math.floor(Math.log(size) / Math.log(1024)), units.length - 1);
+  const value = size / 1024 ** index;
+  return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[index]}`;
+};
 
 export default function LabUpload() {
   const [files, setFiles] = useState<UploadedFile[]>([]);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { ensureAccessToken } = useAuth();
 
-  const handleFileUpload = () => {
-    const newFile: UploadedFile = {
-      id: Date.now().toString(),
-      name: 'blood_panel_nov_2025.pdf',
-      size: '2.3 MB',
-      type: 'PDF',
-      status: 'uploading',
+  const handleFileSelection = async (event: ChangeEvent<HTMLInputElement>) => {
+    const selected = event.target.files;
+    if (!selected || selected.length === 0) {
+      return;
+    }
+
+    const uploads = Array.from(selected);
+    event.target.value = '';
+
+    for (const file of uploads) {
+      // eslint-disable-next-line no-await-in-loop
+      await uploadFile(file);
+    }
+  };
+
+  const uploadFile = async (file: File) => {
+    const id = `${Date.now()}-${file.name}`;
+    const entry: UploadedFile = {
+      id,
+      name: file.name,
+      sizeLabel: formatFileSize(file.size),
+      type: file.type || 'File',
+      status: 'uploading'
     };
-    
-    setFiles([...files, newFile]);
+    setFiles((prev) => [entry, ...prev]);
 
-    setTimeout(() => {
-      setFiles(prev => prev.map(f => 
-        f.id === newFile.id ? { ...f, status: 'processing' } : f
-      ));
-    }, 1000);
+    try {
+      const token = await ensureAccessToken();
+      await recordPanelUpload(token, {
+        storageKey: `labs/${Date.now()}-${file.name}`,
+        contentType: file.type || 'application/octet-stream',
+        rawMetadata: {
+          fileName: file.name,
+          size: file.size,
+          lastModified: file.lastModified
+        }
+      });
 
-    setTimeout(() => {
-      setFiles(prev => prev.map(f => 
-        f.id === newFile.id ? { ...f, status: 'complete' } : f
-      ));
-    }, 2500);
+      setFiles((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, status: 'complete' } : item))
+      );
+      toast.success(`${file.name} uploaded successfully.`);
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : 'Unable to upload this file.';
+      setFiles((prev) =>
+        prev.map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                status: 'error',
+                error: message
+              }
+            : item
+        )
+      );
+      toast.error(message);
+    }
+  };
+
+  const handleFilePickerClick = () => {
+    fileInputRef.current?.click();
   };
 
   const removeFile = (id: string) => {
-    setFiles(files.filter(f => f.id !== id));
+    setFiles((prev) => prev.filter((f) => f.id !== id));
   };
 
   return (
@@ -63,7 +120,15 @@ export default function LabUpload() {
               Supports PDF, CSV, JPG, PNG (max 10MB)
             </p>
           </div>
-          <Button onClick={handleFileUpload} size="lg">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.csv,.jpg,.jpeg,.png"
+            multiple
+            className="hidden"
+            onChange={handleFileSelection}
+          />
+          <Button onClick={handleFilePickerClick} size="lg">
             Choose Files
           </Button>
         </div>
@@ -91,25 +156,31 @@ export default function LabUpload() {
                   <div className="flex items-center gap-2 text-xs text-steel mb-2">
                     <span>{file.type}</span>
                     <span>•</span>
-                    <span>{file.size}</span>
+                    <span>{file.sizeLabel}</span>
                     <span>•</span>
                     {file.status === 'uploading' && (
-                      <span className="text-electric font-semibold">Uploading...</span>
-                    )}
-                    {file.status === 'processing' && (
-                      <span className="text-neural font-semibold">Processing with AI...</span>
+                      <span className="text-electric font-semibold">Uploading…</span>
                     )}
                     {file.status === 'complete' && (
                       <span className="text-bio font-semibold flex items-center gap-1">
                         <CheckCircle2 className="w-3 h-3" />
-                        Complete
+                        Uploaded
+                      </span>
+                    )}
+                    {file.status === 'error' && (
+                      <span className="text-pulse font-semibold flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" />
+                        Failed
                       </span>
                     )}
                   </div>
                   {file.status === 'complete' && (
                     <Badge variant="success" className="text-xs">
-                      Extracted 47 biomarkers
+                      Synced to BioHax AI
                     </Badge>
+                  )}
+                  {file.status === 'error' && file.error && (
+                    <p className="text-xs text-pulse">{file.error}</p>
                   )}
                 </div>
               </div>

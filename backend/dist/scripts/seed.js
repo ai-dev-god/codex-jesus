@@ -51,6 +51,55 @@ async function seed() {
             }
         })
     ]);
+    const dualEngineInsightBody = {
+        insights: [
+            'OpenAI 5: HRV trend is up 6% over the last 3 days — recovery window is expanding.',
+            'Gemini 2.5 Pro: Subjective readiness aligns with improved HRV variance, indicating lower autonomic stress.'
+        ],
+        recommendations: [
+            'Gemini 2.5 Pro: Extend Zone 2 cardio to 30 minutes and keep HRV logging daily.',
+            'OpenAI 5: Add a magnesium glycinate dose 60 minutes before bed to reinforce parasympathetic tone.'
+        ],
+        metadata: {
+            confidenceScore: 0.84,
+            agreementRatio: 0.78,
+            disagreements: {
+                insights: [
+                    'OpenAI 5: Emphasized magnesium intake as primary driver.',
+                    'Gemini 2.5 Pro: Prioritized additional breathwork sessions.'
+                ],
+                recommendations: [
+                    'Gemini 2.5 Pro: Suggested one extra mobility block; OpenAI 5 skipped it.'
+                ]
+            },
+            engines: [
+                {
+                    id: 'OPENAI5',
+                    label: 'OpenAI 5',
+                    model: 'openrouter/openai/gpt-5',
+                    completionId: 'seed-openai5-completion',
+                    title: 'HRV trending up',
+                    summary: 'OpenAI 5 highlighted stronger recovery capacity tied to HRV gains.'
+                },
+                {
+                    id: 'GEMINI',
+                    label: 'Gemini 2.5 Pro',
+                    model: 'openrouter/google/gemini-2.5-pro',
+                    completionId: 'seed-gemini25-completion',
+                    title: 'Parasympathetic rebound detected',
+                    summary: 'Gemini underscored breathwork plus magnesium to lock in readiness.'
+                }
+            ]
+        }
+    };
+    const dualEnginePromptMetadata = {
+        request: {
+            focus: 'recovery',
+            biomarkerWindowDays: 7,
+            includeManualLogs: true
+        },
+        engines: ['OPENAI5', 'GEMINI']
+    };
     const user = await prisma.user.upsert({
         where: { email: memberEmail },
         update: {
@@ -117,12 +166,9 @@ async function seed() {
                         id: 'seed-insight',
                         title: 'Recovery trending up',
                         summary: 'HRV improvements suggest readiness for increased workload.',
-                        body: {
-                            keyTakeaway: 'Recent HRV trend suggests improved recovery capacity.',
-                            suggestedAction: 'Increase training intensity by 5% tomorrow.'
-                        },
-                        modelUsed: 'gpt-4.1-mini',
-                        promptMetadata: { windowDays: 7, includeManualLogs: true },
+                        body: dualEngineInsightBody,
+                        modelUsed: 'dual-engine',
+                        promptMetadata: dualEnginePromptMetadata,
                         status: client_1.InsightStatus.DELIVERED,
                         generatedAt: new Date(Date.now() - 12 * 60 * 60 * 1000)
                     }

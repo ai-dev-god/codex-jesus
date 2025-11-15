@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 
+import env from '../../config/env';
 import prismaClient from '../../lib/prisma';
 import { HttpError } from '../observability-ops/http-error';
 import {
@@ -40,8 +41,8 @@ const DEFAULT_DAILY_LIMIT = 3;
 
 const DEFAULT_PIPELINE: ModelConfig[] = [
   {
-    id: 'primary',
-    model: 'openrouter/anthropic/claude-3-haiku',
+    id: 'openai-5',
+    model: env.OPENROUTER_OPENAI5_MODEL,
     temperature: 0.2,
     maxTokens: 900,
     systemPrompt:
@@ -49,9 +50,9 @@ const DEFAULT_PIPELINE: ModelConfig[] = [
       'Respond strictly in JSON with keys: title (string), summary (string), body (object with fields insights (array of strings) and recommendations (array of strings)).'
   },
   {
-    id: 'fallback',
-    model: 'openrouter/openai/gpt-4o-mini',
-    temperature: 0.25,
+    id: 'gemini-2.5-pro',
+    model: env.OPENROUTER_GEMINI25_PRO_MODEL,
+    temperature: 0.2,
     maxTokens: 900,
     systemPrompt:
       'You are BioHax Coach, crafting short wellness insights from trend summaries. Return strictly JSON with title, summary, and body { insights: string[], recommendations: string[] }.'
