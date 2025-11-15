@@ -186,6 +186,15 @@ const createMissingBackupTableError = () =>
     }
   });
 
+const createMissingApiKeyTableError = () =>
+  new Prisma.PrismaClientKnownRequestError('ServiceApiKey table is missing', {
+    code: 'P2021',
+    clientVersion: Prisma.prismaVersion.client,
+    meta: {
+      table: 'ServiceApiKey'
+    }
+  });
+
 const createFlagRecord = (overrides: Partial<Record<string, unknown>> = {}) => {
   const openedBy = createUser({ id: 'opened-1', email: 'opened@example.com', displayName: 'Opened User' });
   const resolvedBy = createUser({ id: 'mod-1', email: 'mod@example.com', displayName: 'Mod User', role: Role.MODERATOR });
@@ -782,6 +791,32 @@ describe('AdminService', () => {
     });
     expect(typeof result.plaintextKey).toBe('string');
     expect(result.plaintextKey.length).toBeGreaterThan(20);
+  });
+
+  it('returns an empty API key list when the table has not been provisioned', async () => {
+    const prisma = createMockPrisma();
+    const service = new AdminService(prisma as unknown as PrismaClient);
+
+    prisma.serviceApiKey.findMany.mockRejectedValue(createMissingApiKeyTableError());
+
+    const keys = await service.listApiKeys();
+
+    expect(keys).toEqual({ data: [] });
+  });
+
+  it('surfaces a descriptive error when creating API keys before migrations run', async () => {
+    const prisma = createMockPrisma();
+    const service = new AdminService(prisma as unknown as PrismaClient, {
+      now: () => baseTimestamp
+    });
+    const admin = createUser({ id: 'admin-1', role: Role.ADMIN, displayName: 'Admin User' });
+
+    prisma.serviceApiKey.create.mockRejectedValue(createMissingApiKeyTableError());
+
+    await expect(service.createApiKey(admin, { name: 'Production', scope: ServiceApiKeyScope.READ })).rejects.toMatchObject({
+      status: 503,
+      code: 'API_KEYS_NOT_READY'
+    });
   });
 
   it('returns an empty backup list when the table has not been provisioned', async () => {

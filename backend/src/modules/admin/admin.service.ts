@@ -722,13 +722,28 @@ const buildBackupStorageUri = (jobId: string, timestamp: Date, type: AdminBackup
 const BACKUP_SUBSYSTEM_ERROR_CODE = 'BACKUPS_NOT_READY';
 const BACKUP_SUBSYSTEM_ERROR_MESSAGE =
   'Database backups are not available yet. Apply the latest database migrations and try again.';
+const API_KEY_SUBSYSTEM_ERROR_CODE = 'API_KEYS_NOT_READY';
+const API_KEY_SUBSYSTEM_ERROR_MESSAGE =
+  'Service API keys are not available yet. Apply the latest database migrations and try again.';
 
-const isBackupSubsystemUnavailableError = (
-  error: unknown
-): error is Prisma.PrismaClientKnownRequestError => error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2021';
+const isTableMissingError = (
+  error: unknown,
+  tableName?: string
+): error is Prisma.PrismaClientKnownRequestError =>
+  error instanceof Prisma.PrismaClientKnownRequestError &&
+  error.code === 'P2021' &&
+  (!tableName ||
+    (typeof error.meta?.table === 'string' ? error.meta.table === tableName : true));
+
+const isBackupSubsystemUnavailableError = (error: unknown): error is Prisma.PrismaClientKnownRequestError =>
+  isTableMissingError(error, 'AdminBackupJob');
+const isApiKeySubsystemUnavailableError = (error: unknown): error is Prisma.PrismaClientKnownRequestError =>
+  isTableMissingError(error, 'ServiceApiKey');
 
 const backupSubsystemUnavailableError = (): HttpError =>
   new HttpError(503, BACKUP_SUBSYSTEM_ERROR_MESSAGE, BACKUP_SUBSYSTEM_ERROR_CODE);
+const apiKeySubsystemUnavailableError = (): HttpError =>
+  new HttpError(503, API_KEY_SUBSYSTEM_ERROR_MESSAGE, API_KEY_SUBSYSTEM_ERROR_CODE);
 
 const parseAuditMetadata = <T>(metadata: Prisma.JsonValue | null | undefined): T | null => {
   if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
@@ -1729,156 +1744,184 @@ export class AdminService {
   }
 
   async listApiKeys(): Promise<{ data: ApiKeyDto[] }> {
-    const keys = await this.prisma.serviceApiKey.findMany({
-      include: API_KEY_INCLUDE,
-      orderBy: { createdAt: 'desc' }
-    });
+    try {
+      const keys = await this.prisma.serviceApiKey.findMany({
+        include: API_KEY_INCLUDE,
+        orderBy: { createdAt: 'desc' }
+      });
 
-    return {
-      data: keys.map((key) => this.mapApiKey(key))
-    };
+      return {
+        data: keys.map((key) => this.mapApiKey(key))
+      };
+    } catch (error) {
+      if (isApiKeySubsystemUnavailableError(error)) {
+        return { data: [] };
+      }
+      throw error;
+    }
   }
 
   async createApiKey(actor: AuthenticatedUser, input: CreateApiKeyInput): Promise<CreateApiKeyResult> {
     ensureAdminActor(actor);
 
-    const name = input.name.trim();
-    if (!name) {
-      throw new HttpError(422, 'Key name is required', 'VALIDATION_ERROR');
-    }
-
-    const scope = input.scope ?? ServiceApiKeyScope.READ;
-
-    for (let attempt = 0; attempt < 5; attempt += 1) {
-      const secret = generateApiKeySecret();
-      try {
-        const key = await this.prisma.serviceApiKey.create({
-          data: {
-            name,
-            prefix: secret.prefix,
-            suffix: secret.suffix,
-            hashedSecret: secret.hashed,
-            scope,
-            createdById: actor.id
-          },
-          include: API_KEY_INCLUDE
-        });
-
-        await this.prisma.adminAuditLog.create({
-          data: {
-            actorId: actor.id,
-            action: 'SERVICE_API_KEY_CREATED',
-            targetType: 'SERVICE_API_KEY',
-            targetId: key.id,
-            metadata: toInputJson({
-              scope
-            })
-          }
-        });
-
-        return {
-          apiKey: this.mapApiKey(key),
-          plaintextKey: secret.raw
-        };
-      } catch (error) {
-        if (isUniqueConstraintError(error, 'ServiceApiKey_prefix_key')) {
-          continue;
-        }
-        throw error;
+    try {
+      const name = input.name.trim();
+      if (!name) {
+        throw new HttpError(422, 'Key name is required', 'VALIDATION_ERROR');
       }
-    }
 
-    throw new HttpError(500, 'Unable to generate a unique API key', 'INTERNAL_ERROR');
+      const scope = input.scope ?? ServiceApiKeyScope.READ;
+
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const secret = generateApiKeySecret();
+        try {
+          const key = await this.prisma.serviceApiKey.create({
+            data: {
+              name,
+              prefix: secret.prefix,
+              suffix: secret.suffix,
+              hashedSecret: secret.hashed,
+              scope,
+              createdById: actor.id
+            },
+            include: API_KEY_INCLUDE
+          });
+
+          await this.prisma.adminAuditLog.create({
+            data: {
+              actorId: actor.id,
+              action: 'SERVICE_API_KEY_CREATED',
+              targetType: 'SERVICE_API_KEY',
+              targetId: key.id,
+              metadata: toInputJson({
+                scope
+              })
+            }
+          });
+
+          return {
+            apiKey: this.mapApiKey(key),
+            plaintextKey: secret.raw
+          };
+        } catch (error) {
+          if (isUniqueConstraintError(error, 'ServiceApiKey_prefix_key')) {
+            continue;
+          }
+          throw error;
+        }
+      }
+
+      throw new HttpError(500, 'Unable to generate a unique API key', 'INTERNAL_ERROR');
+    } catch (error) {
+      if (isApiKeySubsystemUnavailableError(error)) {
+        throw apiKeySubsystemUnavailableError();
+      }
+      throw error;
+    }
   }
 
   async rotateApiKey(actor: AuthenticatedUser, apiKeyId: string): Promise<RotateApiKeyResult> {
     ensureAdminActor(actor);
 
-    const existing = await this.prisma.serviceApiKey.findUnique({
-      where: { id: apiKeyId }
-    });
+    try {
+      const existing = await this.prisma.serviceApiKey.findUnique({
+        where: { id: apiKeyId }
+      });
 
-    if (!existing) {
-      throw new HttpError(404, 'API key not found', 'API_KEY_NOT_FOUND');
-    }
-
-    if (existing.status === ServiceApiKeyStatus.REVOKED) {
-      throw new HttpError(400, 'Cannot rotate a revoked API key', 'API_KEY_REVOKED');
-    }
-
-    for (let attempt = 0; attempt < 5; attempt += 1) {
-      const secret = generateApiKeySecret(existing.prefix);
-      try {
-        const updated = await this.prisma.serviceApiKey.update({
-          where: { id: apiKeyId },
-          data: {
-            suffix: secret.suffix,
-            hashedSecret: secret.hashed,
-            lastRotatedAt: this.now(),
-            status: ServiceApiKeyStatus.ACTIVE
-          },
-          include: API_KEY_INCLUDE
-        });
-
-        await this.prisma.adminAuditLog.create({
-          data: {
-            actorId: actor.id,
-            action: 'SERVICE_API_KEY_ROTATED',
-            targetType: 'SERVICE_API_KEY',
-            targetId: apiKeyId
-          }
-        });
-
-        return {
-          apiKey: this.mapApiKey(updated),
-          plaintextKey: secret.raw
-        };
-      } catch (error) {
-        if (isUniqueConstraintError(error, 'ServiceApiKey_prefix_key')) {
-          continue;
-        }
-        throw error;
+      if (!existing) {
+        throw new HttpError(404, 'API key not found', 'API_KEY_NOT_FOUND');
       }
-    }
 
-    throw new HttpError(500, 'Unable to rotate API key', 'INTERNAL_ERROR');
+      if (existing.status === ServiceApiKeyStatus.REVOKED) {
+        throw new HttpError(400, 'Cannot rotate a revoked API key', 'API_KEY_REVOKED');
+      }
+
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const secret = generateApiKeySecret(existing.prefix);
+        try {
+          const updated = await this.prisma.serviceApiKey.update({
+            where: { id: apiKeyId },
+            data: {
+              suffix: secret.suffix,
+              hashedSecret: secret.hashed,
+              lastRotatedAt: this.now(),
+              status: ServiceApiKeyStatus.ACTIVE
+            },
+            include: API_KEY_INCLUDE
+          });
+
+          await this.prisma.adminAuditLog.create({
+            data: {
+              actorId: actor.id,
+              action: 'SERVICE_API_KEY_ROTATED',
+              targetType: 'SERVICE_API_KEY',
+              targetId: apiKeyId
+            }
+          });
+
+          return {
+            apiKey: this.mapApiKey(updated),
+            plaintextKey: secret.raw
+          };
+        } catch (error) {
+          if (isUniqueConstraintError(error, 'ServiceApiKey_prefix_key')) {
+            continue;
+          }
+          throw error;
+        }
+      }
+
+      throw new HttpError(500, 'Unable to rotate API key', 'INTERNAL_ERROR');
+    } catch (error) {
+      if (isApiKeySubsystemUnavailableError(error)) {
+        throw apiKeySubsystemUnavailableError();
+      }
+      throw error;
+    }
   }
 
   async revokeApiKey(actor: AuthenticatedUser, apiKeyId: string): Promise<ApiKeyDto> {
     ensureAdminActor(actor);
 
-    const existing = await this.prisma.serviceApiKey.findUnique({
-      where: { id: apiKeyId }
-    });
+    try {
+      const existing = await this.prisma.serviceApiKey.findUnique({
+        where: { id: apiKeyId }
+      });
 
-    if (!existing) {
-      throw new HttpError(404, 'API key not found', 'API_KEY_NOT_FOUND');
-    }
-
-    if (existing.status === ServiceApiKeyStatus.REVOKED) {
-      throw new HttpError(400, 'API key is already revoked', 'API_KEY_REVOKED');
-    }
-
-    const updated = await this.prisma.serviceApiKey.update({
-      where: { id: apiKeyId },
-      data: {
-        status: ServiceApiKeyStatus.REVOKED,
-        revokedById: actor.id,
-        revokedAt: this.now()
-      },
-      include: API_KEY_INCLUDE
-    });
-
-    await this.prisma.adminAuditLog.create({
-      data: {
-        actorId: actor.id,
-        action: 'SERVICE_API_KEY_REVOKED',
-        targetType: 'SERVICE_API_KEY',
-        targetId: apiKeyId
+      if (!existing) {
+        throw new HttpError(404, 'API key not found', 'API_KEY_NOT_FOUND');
       }
-    });
 
-    return this.mapApiKey(updated);
+      if (existing.status === ServiceApiKeyStatus.REVOKED) {
+        throw new HttpError(400, 'API key is already revoked', 'API_KEY_REVOKED');
+      }
+
+      const updated = await this.prisma.serviceApiKey.update({
+        where: { id: apiKeyId },
+        data: {
+          status: ServiceApiKeyStatus.REVOKED,
+          revokedById: actor.id,
+          revokedAt: this.now()
+        },
+        include: API_KEY_INCLUDE
+      });
+
+      await this.prisma.adminAuditLog.create({
+        data: {
+          actorId: actor.id,
+          action: 'SERVICE_API_KEY_REVOKED',
+          targetType: 'SERVICE_API_KEY',
+          targetId: apiKeyId
+        }
+      });
+
+      return this.mapApiKey(updated);
+    } catch (error) {
+      if (isApiKeySubsystemUnavailableError(error)) {
+        throw apiKeySubsystemUnavailableError();
+      }
+      throw error;
+    }
   }
 
   private mapFlag(flag: FlagRecord): AdminFlagDto {

@@ -45,7 +45,12 @@ const envSchema = z.object({
   AI_LONGEVITY_PLAN_ENABLED: z.coerce.boolean().default(false)
 });
 
-const parsed = envSchema.parse(process.env);
+const rawEnv = { ...process.env };
+if (!rawEnv.AUTH_JWT_SECRET && rawEnv.JWT_SECRET) {
+  rawEnv.AUTH_JWT_SECRET = rawEnv.JWT_SECRET;
+}
+
+const parsed = envSchema.parse(rawEnv);
 
 if (parsed.NODE_ENV === 'production') {
   type SecretKey = 'AUTH_JWT_SECRET' | 'AUTH_REFRESH_ENCRYPTION_KEY' | 'WHOOP_TOKEN_ENCRYPTION_KEY';

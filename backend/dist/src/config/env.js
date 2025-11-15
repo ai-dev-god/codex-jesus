@@ -47,7 +47,11 @@ const envSchema = zod_1.z.object({
         .default('https://storage.biohax.pro'),
     AI_LONGEVITY_PLAN_ENABLED: zod_1.z.coerce.boolean().default(false)
 });
-const parsed = envSchema.parse(process.env);
+const rawEnv = { ...process.env };
+if (!rawEnv.AUTH_JWT_SECRET && rawEnv.JWT_SECRET) {
+    rawEnv.AUTH_JWT_SECRET = rawEnv.JWT_SECRET;
+}
+const parsed = envSchema.parse(rawEnv);
 if (parsed.NODE_ENV === 'production') {
     const forbiddenDefaults = [
         ['AUTH_JWT_SECRET', 'dev-jwt-secret'],
