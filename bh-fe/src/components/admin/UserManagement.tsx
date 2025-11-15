@@ -1,254 +1,294 @@
-import { useState } from 'react';
-import { 
-  Search, 
-  Filter, 
-  Download, 
-  Plus, 
-  MoreVertical, 
-  Mail, 
-  Ban, 
-  CheckCircle, 
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Search,
+  Download,
+  Plus,
+  MoreVertical,
+  Mail,
+  Ban,
   Edit,
   Trash2,
   Shield,
-  Crown,
   User as UserIcon,
   Save,
   X
 } from 'lucide-react';
+import { toast } from 'sonner';
+
+import { useAuth } from '../../lib/auth/AuthContext';
+import { ApiError } from '../../lib/api/error';
+import type { Role, UserStatus } from '../../lib/api/types';
+import {
+  createAdminUser,
+  deleteAdminUser,
+  listAdminUsers,
+  setAdminUserStatus,
+  updateAdminUser,
+  type AdminUser,
+  type AdminUserPlanTier,
+  type CreateAdminUserPayload,
+  type UpdateAdminUserPayload
+} from '../../lib/api/admin';
+
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from '../ui/table';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '../ui/dropdown-menu';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
+  DialogTitle
 } from '../ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Switch } from '../ui/switch';
-import { Textarea } from '../ui/textarea';
-import { toast } from 'sonner';
 
-interface User {
-  id: string;
-  email: string;
-  name: string;
-  role: 'user' | 'practitioner' | 'admin' | 'super_admin';
-  plan: 'explorer' | 'biohacker' | 'longevity_pro';
-  status: 'active' | 'inactive' | 'suspended';
-  lastLogin: string;
-  biomarkersCount: number;
-  protocolsActive: number;
-  joinedDate: string;
-  phoneNumber?: string;
-  location?: string;
-}
+const PLAN_BADGES: Record<AdminUserPlanTier, string> = {
+  explorer: 'bg-steel/20 text-steel',
+  biohacker: 'bg-bio/20 text-bio',
+  longevity_pro: 'bg-neural/20 text-neural'
+};
+
+const STATUS_BADGES: Record<UserStatus, string> = {
+  ACTIVE: 'bg-bio/20 text-bio',
+  SUSPENDED: 'bg-pulse/20 text-pulse',
+  PENDING_ONBOARDING: 'bg-steel/20 text-steel'
+};
+
+const STATUS_LABELS: Record<UserStatus, string> = {
+  ACTIVE: 'Active',
+  SUSPENDED: 'Suspended',
+  PENDING_ONBOARDING: 'Pending'
+};
+
+const DEFAULT_CREATE_FORM: CreateAdminUserPayload = {
+  email: '',
+  fullName: '',
+  role: 'MEMBER',
+  timezone: 'UTC'
+};
+
+const ROLE_LABELS: Record<Role, string> = {
+  ADMIN: 'Admin',
+  MEMBER: 'Member',
+  COACH: 'Coach',
+  PRACTITIONER: 'Practitioner',
+  MODERATOR: 'Moderator'
+};
 
 export default function UserManagement() {
+  const { ensureAccessToken } = useAuth();
+
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterRole, setFilterRole] = useState<string>('all');
-  const [filterPlan, setFilterPlan] = useState<string>('all');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [filterRole, setFilterRole] = useState<'all' | Role>('all');
+  const [filterPlan, setFilterPlan] = useState<'all' | AdminUserPlanTier>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | UserStatus>('all');
+
+  const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
+  const [editForm, setEditForm] = useState<UpdateAdminUserPayload>({});
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+
+  const [createForm, setCreateForm] = useState<CreateAdminUserPayload>(DEFAULT_CREATE_FORM);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
-  const [users, setUsers] = useState<User[]>([
-    {
-      id: '1',
-      email: 'john.doe@example.com',
-      name: 'John Doe',
-      role: 'user',
-      plan: 'longevity_pro',
-      status: 'active',
-      lastLogin: '2 hours ago',
-      biomarkersCount: 47,
-      protocolsActive: 3,
-      joinedDate: '2025-08-15',
-      phoneNumber: '+1 (555) 123-4567',
-      location: 'San Francisco, CA',
-    },
-    {
-      id: '2',
-      email: 'dr.smith@clinic.com',
-      name: 'Dr. Sarah Smith',
-      role: 'practitioner',
-      plan: 'longevity_pro',
-      status: 'active',
-      lastLogin: '1 day ago',
-      biomarkersCount: 12,
-      protocolsActive: 8,
-      joinedDate: '2025-06-20',
-      phoneNumber: '+1 (555) 234-5678',
-      location: 'New York, NY',
-    },
-    {
-      id: '3',
-      email: 'mike.wilson@email.com',
-      name: 'Mike Wilson',
-      role: 'user',
-      plan: 'biohacker',
-      status: 'active',
-      lastLogin: '5 min ago',
-      biomarkersCount: 28,
-      protocolsActive: 2,
-      joinedDate: '2025-09-10',
-      phoneNumber: '+1 (555) 345-6789',
-      location: 'Austin, TX',
-    },
-    {
-      id: '4',
-      email: 'admin@biohax.com',
-      name: 'Admin User',
-      role: 'admin',
-      plan: 'longevity_pro',
-      status: 'active',
-      lastLogin: '30 min ago',
-      biomarkersCount: 5,
-      protocolsActive: 1,
-      joinedDate: '2025-01-01',
-      phoneNumber: '+1 (555) 456-7890',
-      location: 'Remote',
-    },
-    {
-      id: '5',
-      email: 'jane.explorer@email.com',
-      name: 'Jane Explorer',
-      role: 'user',
-      plan: 'explorer',
-      status: 'active',
-      lastLogin: '3 days ago',
-      biomarkersCount: 8,
-      protocolsActive: 1,
-      joinedDate: '2025-10-25',
-      location: 'Seattle, WA',
-    },
-    {
-      id: '6',
-      email: 'suspended.user@email.com',
-      name: 'Suspended User',
-      role: 'user',
-      plan: 'biohacker',
-      status: 'suspended',
-      lastLogin: '15 days ago',
-      biomarkersCount: 15,
-      protocolsActive: 0,
-      joinedDate: '2025-07-12',
-      location: 'Chicago, IL',
-    },
-  ]);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [pendingUserId, setPendingUserId] = useState<string | null>(null);
 
-  const handleEditUser = (user: User) => {
-    setEditingUser({ ...user });
+  const loadUsers = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = await ensureAccessToken();
+      const response = await listAdminUsers(token, {
+        search: searchQuery.trim() || undefined,
+        role: filterRole === 'all' ? undefined : filterRole,
+        status: filterStatus === 'all' ? undefined : filterStatus,
+        limit: 50
+      });
+      setUsers(response.data);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError('Unable to load users. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [ensureAccessToken, searchQuery, filterRole, filterStatus]);
+
+  useEffect(() => {
+    void loadUsers();
+  }, [loadUsers]);
+
+  const filteredUsers = useMemo(() => {
+    return users.filter((user) => filterPlan === 'all' || user.planTier === filterPlan);
+  }, [users, filterPlan]);
+
+  const stats = useMemo(() => {
+    const total = users.length;
+    const active = users.filter((user) => user.status === 'ACTIVE').length;
+    const suspended = users.filter((user) => user.status === 'SUSPENDED').length;
+    const explorer = users.filter((user) => user.planTier === 'explorer').length;
+    const biohacker = users.filter((user) => user.planTier === 'biohacker').length;
+    const longevityPro = users.filter((user) => user.planTier === 'longevity_pro').length;
+
+    return { total, active, suspended, explorer, biohacker, longevityPro };
+  }, [users]);
+
+  const handleEditUser = (user: AdminUser) => {
+    setEditingUser(user);
+    setEditForm({
+      fullName: user.displayName,
+      role: user.role,
+      status: user.status
+    });
     setIsEditDialogOpen(true);
   };
 
-  const handleSaveUser = () => {
-    if (!editingUser) return;
-    
-    setUsers(users.map(u => u.id === editingUser.id ? editingUser : u));
-    setIsEditDialogOpen(false);
-    toast.success(`User "${editingUser.name}" updated successfully`);
-    setEditingUser(null);
+  const refreshUsers = useCallback(async () => {
+    await loadUsers();
+    setPendingUserId(null);
+  }, [loadUsers]);
+
+  const handleSaveUser = async () => {
+    if (!editingUser) {
+      return;
+    }
+    if (!editForm.fullName && !editForm.role && !editForm.status) {
+      toast.info('Nothing to update.');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const token = await ensureAccessToken();
+      await updateAdminUser(token, editingUser.id, editForm);
+      await refreshUsers();
+      toast.success(`Updated ${editingUser.displayName}`);
+      setIsEditDialogOpen(false);
+      setEditingUser(null);
+      setEditForm({});
+    } catch (err) {
+      if (err instanceof ApiError) {
+        toast.error(err.message);
+      } else {
+        toast.error('Failed to update user.');
+      }
+    } finally {
+      setActionLoading(false);
+    }
   };
 
-  const handleDeleteUser = (user: User) => {
-    setUsers(users.filter(u => u.id !== user.id));
-    toast.success(`User "${user.name}" deleted successfully`);
+  const handleSuspendToggle = async (user: AdminUser) => {
+    setPendingUserId(user.id);
+    try {
+      const token = await ensureAccessToken();
+      const nextStatus: UserStatus = user.status === 'SUSPENDED' ? 'ACTIVE' : 'SUSPENDED';
+      await setAdminUserStatus(token, user.id, nextStatus);
+      await refreshUsers();
+      toast.success(`${user.displayName} is now ${STATUS_LABELS[nextStatus]}`);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        toast.error(err.message);
+      } else {
+        toast.error('Failed to update user status.');
+      }
+      setPendingUserId(null);
+    }
   };
 
-  const handleSuspendUser = (user: User) => {
-    setUsers(users.map(u => 
-      u.id === user.id 
-        ? { ...u, status: u.status === 'suspended' ? 'active' : 'suspended' as 'active' | 'suspended' }
-        : u
-    ));
-    toast.success(`User "${user.name}" ${user.status === 'suspended' ? 'reactivated' : 'suspended'}`);
+  const handleDeleteUser = async (user: AdminUser) => {
+    setPendingUserId(user.id);
+    try {
+      const token = await ensureAccessToken();
+      await deleteAdminUser(token, user.id);
+      await refreshUsers();
+      toast.success(`${user.displayName} was archived`);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        toast.error(err.message);
+      } else {
+        toast.error('Failed to archive user.');
+      }
+      setPendingUserId(null);
+    }
   };
 
-  const handleCreateUser = () => {
-    setIsCreateDialogOpen(false);
-    toast.success('New user created successfully');
+  const handleCreateUser = async () => {
+    if (!createForm.email || !createForm.fullName) {
+      toast.error('Full name and email are required.');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const token = await ensureAccessToken();
+      const result = await createAdminUser(token, createForm);
+      await refreshUsers();
+      setIsCreateDialogOpen(false);
+      setCreateForm(DEFAULT_CREATE_FORM);
+      try {
+        await navigator.clipboard.writeText(result.temporaryPassword);
+        toast.success('User created. Temporary password copied to clipboard.');
+      } catch {
+        toast.success(`User created. Temporary password: ${result.temporaryPassword}`);
+      }
+    } catch (err) {
+      if (err instanceof ApiError) {
+        toast.error(err.message);
+      } else {
+        toast.error('Failed to create user.');
+      }
+    } finally {
+      setActionLoading(false);
+    }
   };
 
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = 
-      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesRole = filterRole === 'all' || user.role === filterRole;
-    const matchesPlan = filterPlan === 'all' || user.plan === filterPlan;
-    const matchesStatus = filterStatus === 'all' || user.status === filterStatus;
-
-    return matchesSearch && matchesRole && matchesPlan && matchesStatus;
-  });
-
-  const getRoleBadge = (role: string) => {
+  const getRoleBadge = (role: Role) => {
     switch (role) {
-      case 'super_admin':
-        return <Badge className="bg-pulse/20 text-pulse"><Crown className="w-3 h-3 mr-1" />Super Admin</Badge>;
-      case 'admin':
+      case 'ADMIN':
         return <Badge className="bg-neural/20 text-neural"><Shield className="w-3 h-3 mr-1" />Admin</Badge>;
-      case 'practitioner':
+      case 'PRACTITIONER':
         return <Badge className="bg-electric/20 text-electric"><Shield className="w-3 h-3 mr-1" />Practitioner</Badge>;
+      case 'MODERATOR':
+        return <Badge className="bg-electric/20 text-electric"><Shield className="w-3 h-3 mr-1" />Moderator</Badge>;
+      case 'COACH':
+        return <Badge className="bg-bio/20 text-bio"><UserIcon className="w-3 h-3 mr-1" />Coach</Badge>;
       default:
-        return <Badge className="bg-bio/20 text-bio"><UserIcon className="w-3 h-3 mr-1" />User</Badge>;
+        return <Badge className="bg-bio/20 text-bio"><UserIcon className="w-3 h-3 mr-1" />Member</Badge>;
     }
   };
 
-  const getPlanBadge = (plan: string) => {
-    switch (plan) {
-      case 'longevity_pro':
-        return <Badge className="bg-neural/20 text-neural">Longevity Pro</Badge>;
-      case 'biohacker':
-        return <Badge className="bg-bio/20 text-bio">Biohacker</Badge>;
-      default:
-        return <Badge className="bg-steel/20 text-steel">Explorer</Badge>;
+  const getPlanBadge = (plan: AdminUserPlanTier) => {
+    const className = PLAN_BADGES[plan];
+    if (plan === 'longevity_pro') {
+      return <Badge className={className}>Longevity Pro</Badge>;
     }
+    if (plan === 'biohacker') {
+      return <Badge className={className}>Biohacker</Badge>;
+    }
+    return <Badge className={className}>Explorer</Badge>;
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'active':
-        return <Badge className="bg-bio/20 text-bio">Active</Badge>;
-      case 'suspended':
-        return <Badge className="bg-pulse/20 text-pulse">Suspended</Badge>;
-      case 'inactive':
-        return <Badge className="bg-steel/20 text-steel">Inactive</Badge>;
-    }
-  };
+  const getStatusBadge = (status: UserStatus) => (
+    <Badge className={STATUS_BADGES[status]}>{STATUS_LABELS[status]}</Badge>
+  );
 
-  const stats = {
-    total: users.length,
-    active: users.filter(u => u.status === 'active').length,
-    suspended: users.filter(u => u.status === 'suspended').length,
-    practitioners: users.filter(u => u.role === 'practitioner').length,
-    explorer: users.filter(u => u.plan === 'explorer').length,
-    biohacker: users.filter(u => u.plan === 'biohacker').length,
-    longevityPro: users.filter(u => u.plan === 'longevity_pro').length,
+  const formatLastLogin = (lastLoginAt: string | null) => {
+    if (!lastLoginAt) {
+      return 'No logins';
+    }
+    return new Date(lastLoginAt).toLocaleString();
   };
 
   return (
     <div className="space-y-6">
-      {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <div className="neo-card bg-white p-4">
           <p className="tag text-steel mb-1">Total Users</p>
@@ -276,76 +316,72 @@ export default function UserManagement() {
         </div>
       </div>
 
-      {/* Controls */}
-      <div className="neo-card bg-white p-6">
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
-            <div className="flex-1 w-full lg:max-w-md">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-steel" />
-                <Input
-                  placeholder="Search by name or email..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-            
-            <div className="flex gap-2 flex-wrap">
-              <Button onClick={() => setIsCreateDialogOpen(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add User
-              </Button>
-              <Button variant="outline">
-                <Download className="w-4 h-4 mr-2" />
-                Export
-              </Button>
+      <div className="neo-card bg-white p-6 space-y-4">
+        <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+          <div className="flex-1 w-full lg:max-w-md">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-steel" />
+              <Input
+                placeholder="Search by name or email..."
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                className="pl-10"
+              />
             </div>
           </div>
-
           <div className="flex gap-2 flex-wrap">
-            <Select value={filterRole} onValueChange={setFilterRole}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Role" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Roles</SelectItem>
-                <SelectItem value="user">User</SelectItem>
-                <SelectItem value="practitioner">Practitioner</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
-                <SelectItem value="super_admin">Super Admin</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={filterPlan} onValueChange={setFilterPlan}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Plan" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Plans</SelectItem>
-                <SelectItem value="explorer">Explorer</SelectItem>
-                <SelectItem value="biohacker">Biohacker</SelectItem>
-                <SelectItem value="longevity_pro">Longevity Pro</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
-                <SelectItem value="suspended">Suspended</SelectItem>
-              </SelectContent>
-            </Select>
+            <Button onClick={() => setIsCreateDialogOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add User
+            </Button>
+            <Button variant="outline" onClick={() => toast.info('Export coming soon')}>
+              <Download className="w-4 h-4 mr-2" />
+              Export
+            </Button>
           </div>
         </div>
+        <div className="flex gap-2 flex-wrap">
+          <Select value={filterRole} onValueChange={(value: Role | 'all') => setFilterRole(value)}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Role" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Roles</SelectItem>
+              {Object.entries(ROLE_LABELS).map(([key, label]) => (
+                <SelectItem key={key} value={key}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={filterPlan} onValueChange={(value: AdminUserPlanTier | 'all') => setFilterPlan(value)}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Plan" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Plans</SelectItem>
+              <SelectItem value="explorer">Explorer</SelectItem>
+              <SelectItem value="biohacker">Biohacker</SelectItem>
+              <SelectItem value="longevity_pro">Longevity Pro</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={filterStatus} onValueChange={(value: UserStatus | 'all') => setFilterStatus(value)}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="ACTIVE">Active</SelectItem>
+              <SelectItem value="PENDING_ONBOARDING">Pending</SelectItem>
+              <SelectItem value="SUSPENDED">Suspended</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {error && <div className="rounded-xl border border-pulse/30 bg-pulse/5 px-4 py-3 text-sm text-pulse">{error}</div>}
       </div>
 
-      {/* Users Table */}
       <div className="neo-card bg-white overflow-hidden">
         <div className="overflow-x-auto">
           <Table>
@@ -361,360 +397,218 @@ export default function UserManagement() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUsers.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium text-ink">{user.name}</p>
-                      <p className="text-sm text-steel">{user.email}</p>
-                    </div>
-                  </TableCell>
-                  <TableCell>{getRoleBadge(user.role)}</TableCell>
-                  <TableCell>{getPlanBadge(user.plan)}</TableCell>
-                  <TableCell>{getStatusBadge(user.status)}</TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      <p className="text-sm text-ink">{user.biomarkersCount} biomarkers</p>
-                      <p className="text-xs text-steel">{user.protocolsActive} protocols</p>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-steel">{user.lastLogin}</TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm">
-                          <MoreVertical className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleEditUser(user)}>
-                          <Edit className="w-4 h-4 mr-2" />
-                          Edit User
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <Mail className="w-4 h-4 mr-2" />
-                          Send Email
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          onClick={() => handleSuspendUser(user)}
-                          className={user.status === 'suspended' ? 'text-bio' : 'text-pulse'}
-                        >
-                          <Ban className="w-4 h-4 mr-2" />
-                          {user.status === 'suspended' ? 'Reactivate' : 'Suspend'}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          onClick={() => handleDeleteUser(user)}
-                          className="text-pulse"
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+              {loading && (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center text-steel">
+                    Loading users…
                   </TableCell>
                 </TableRow>
-              ))}
+              )}
+              {!loading && filteredUsers.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center text-steel">
+                    No users match your filters.
+                  </TableCell>
+                </TableRow>
+              )}
+              {!loading &&
+                filteredUsers.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium text-ink">{user.displayName}</p>
+                        <p className="text-sm text-steel">{user.email}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell>{getRoleBadge(user.role)}</TableCell>
+                    <TableCell>{getPlanBadge(user.planTier)}</TableCell>
+                    <TableCell>{getStatusBadge(user.status)}</TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        <p className="text-sm text-ink">{user.biomarkersLogged} biomarkers</p>
+                        <p className="text-xs text-steel">{user.protocolsActive} protocols</p>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-steel">{formatLastLogin(user.lastLoginAt)}</TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <MoreVertical className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleEditUser(user)}>
+                            <Edit className="w-4 h-4 mr-2" />
+                            Edit User
+                          </DropdownMenuItem>
+                          <DropdownMenuItem>
+                            <Mail className="w-4 h-4 mr-2" />
+                            Send Email
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => void handleSuspendToggle(user)}
+                            className={user.status === 'SUSPENDED' ? 'text-bio' : 'text-pulse'}
+                            disabled={pendingUserId === user.id}
+                          >
+                            <Ban className="w-4 h-4 mr-2" />
+                            {user.status === 'SUSPENDED' ? 'Reactivate' : 'Suspend'}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => void handleDeleteUser(user)}
+                            className="text-pulse"
+                            disabled={pendingUserId === user.id}
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Archive
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
             </TableBody>
           </Table>
         </div>
       </div>
 
-      {/* Edit User Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="neo-card bg-white max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="neo-card bg-white max-w-xl">
           <DialogHeader>
             <DialogTitle>Edit User</DialogTitle>
-            <DialogDescription>
-              Update user information, role, plan, and permissions
-            </DialogDescription>
+            <DialogDescription>Update profile details, role, and status.</DialogDescription>
           </DialogHeader>
-
           {editingUser && (
-            <div className="space-y-6 py-4">
-              {/* Basic Information */}
-              <div className="space-y-4">
-                <h4 className="font-medium text-ink">Basic Information</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Full Name</Label>
-                    <Input
-                      value={editingUser.name}
-                      onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
-                      className="mt-2"
-                    />
-                  </div>
-                  <div>
-                    <Label>Email Address</Label>
-                    <Input
-                      type="email"
-                      value={editingUser.email}
-                      onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
-                      className="mt-2"
-                    />
-                  </div>
-                  <div>
-                    <Label>Phone Number</Label>
-                    <Input
-                      value={editingUser.phoneNumber || ''}
-                      onChange={(e) => setEditingUser({ ...editingUser, phoneNumber: e.target.value })}
-                      className="mt-2"
-                      placeholder="+1 (555) 123-4567"
-                    />
-                  </div>
-                  <div>
-                    <Label>Location</Label>
-                    <Input
-                      value={editingUser.location || ''}
-                      onChange={(e) => setEditingUser({ ...editingUser, location: e.target.value })}
-                      className="mt-2"
-                      placeholder="City, State"
-                    />
-                  </div>
-                </div>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Full Name</Label>
+                <Input
+                  value={editForm.fullName ?? editingUser.displayName}
+                  onChange={(event) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      fullName: event.target.value
+                    }))
+                  }
+                />
               </div>
-
-              {/* Role & Permissions */}
-              <div className="space-y-4">
-                <h4 className="font-medium text-ink">Role & Permissions</h4>
-                <div className="grid grid-cols-1 gap-4">
-                  <div>
-                    <Label>User Role</Label>
-                    <Select 
-                      value={editingUser.role} 
-                      onValueChange={(value) => setEditingUser({ ...editingUser, role: value as User['role'] })}
-                    >
-                      <SelectTrigger className="mt-2">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="user">
-                          <div className="flex items-center gap-2">
-                            <UserIcon className="w-4 h-4" />
-                            <span>User - Standard access</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="practitioner">
-                          <div className="flex items-center gap-2">
-                            <Shield className="w-4 h-4" />
-                            <span>Practitioner - Manage clients</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="admin">
-                          <div className="flex items-center gap-2">
-                            <Shield className="w-4 h-4" />
-                            <span>Admin - Platform administration</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="super_admin">
-                          <div className="flex items-center gap-2">
-                            <Crown className="w-4 h-4" />
-                            <span>Super Admin - Full control</span>
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="neo-card bg-pearl p-4">
-                    <p className="text-sm text-steel">
-                      <strong>Role Permissions:</strong>{' '}
-                      {editingUser.role === 'super_admin' && 'Full platform access, user management, system configuration'}
-                      {editingUser.role === 'admin' && 'User management, content moderation, basic system settings'}
-                      {editingUser.role === 'practitioner' && 'Client management, protocol creation, workspace access'}
-                      {editingUser.role === 'user' && 'Personal dashboard, protocols, biomarker tracking'}
-                    </p>
-                  </div>
-                </div>
+              <div className="space-y-2">
+                <Label>Role</Label>
+                <Select
+                  value={editForm.role ?? editingUser.role}
+                  onValueChange={(value: Role) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      role: value
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(ROLE_LABELS).map(([key, label]) => (
+                      <SelectItem key={key} value={key}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-
-              {/* Subscription Plan */}
-              <div className="space-y-4">
-                <h4 className="font-medium text-ink">Subscription Plan</h4>
-                <div>
-                  <Label>Plan Tier</Label>
-                  <Select 
-                    value={editingUser.plan} 
-                    onValueChange={(value) => setEditingUser({ ...editingUser, plan: value as User['plan'] })}
-                  >
-                    <SelectTrigger className="mt-2">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="explorer">
-                        <div>
-                          <p className="font-medium">Explorer - Free</p>
-                          <p className="text-xs text-steel">Basic features, limited biomarkers</p>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="biohacker">
-                        <div>
-                          <p className="font-medium">Biohacker - $20/month</p>
-                          <p className="text-xs text-steel">Advanced tracking, AI protocols</p>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="longevity_pro">
-                        <div>
-                          <p className="font-medium">Longevity Pro - $50/month</p>
-                          <p className="text-xs text-steel">Premium tests, practitioner access</p>
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="neo-card bg-pearl p-3 text-center">
-                    <p className="text-xs text-steel mb-1">Biomarkers</p>
-                    <p className="font-bold text-ink">
-                      {editingUser.plan === 'explorer' ? '10' : editingUser.plan === 'biohacker' ? '50' : 'Unlimited'}
-                    </p>
-                  </div>
-                  <div className="neo-card bg-pearl p-3 text-center">
-                    <p className="text-xs text-steel mb-1">AI Protocols</p>
-                    <p className="font-bold text-ink">
-                      {editingUser.plan === 'explorer' ? '1' : editingUser.plan === 'biohacker' ? '5' : 'Unlimited'}
-                    </p>
-                  </div>
-                  <div className="neo-card bg-pearl p-3 text-center">
-                    <p className="text-xs text-steel mb-1">Premium Tests</p>
-                    <p className="font-bold text-ink">
-                      {editingUser.plan === 'longevity_pro' ? '✓' : '✗'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Account Status */}
-              <div className="space-y-4">
-                <h4 className="font-medium text-ink">Account Status</h4>
-                <div>
-                  <Label>Status</Label>
-                  <Select 
-                    value={editingUser.status} 
-                    onValueChange={(value) => setEditingUser({ ...editingUser, status: value as User['status'] })}
-                  >
-                    <SelectTrigger className="mt-2">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4 text-bio" />
-                          <span>Active - Full access</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="inactive">
-                        <div className="flex items-center gap-2">
-                          <Ban className="w-4 h-4 text-steel" />
-                          <span>Inactive - No recent activity</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="suspended">
-                        <div className="flex items-center gap-2">
-                          <Ban className="w-4 h-4 text-pulse" />
-                          <span>Suspended - Access blocked</span>
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="neo-card bg-pearl p-3">
-                    <p className="text-xs text-steel mb-1">Joined Date</p>
-                    <p className="text-sm font-medium text-ink">{editingUser.joinedDate}</p>
-                  </div>
-                  <div className="neo-card bg-pearl p-3">
-                    <p className="text-xs text-steel mb-1">Last Login</p>
-                    <p className="text-sm font-medium text-ink">{editingUser.lastLogin}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* User Statistics */}
-              <div className="neo-card bg-pearl p-4">
-                <h4 className="font-medium text-ink mb-3">Current Activity</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs text-steel">Biomarkers Tracked</p>
-                    <p className="text-xl font-bold text-ink">{editingUser.biomarkersCount}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-steel">Active Protocols</p>
-                    <p className="text-xl font-bold text-ink">{editingUser.protocolsActive}</p>
-                  </div>
-                </div>
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select
+                  value={editForm.status ?? editingUser.status}
+                  onValueChange={(value: UserStatus) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      status: value
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ACTIVE">Active</SelectItem>
+                    <SelectItem value="PENDING_ONBOARDING">Pending</SelectItem>
+                    <SelectItem value="SUSPENDED">Suspended</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           )}
-
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={actionLoading}>
               <X className="w-4 h-4 mr-2" />
               Cancel
             </Button>
-            <Button onClick={handleSaveUser}>
+            <Button onClick={() => void handleSaveUser()} disabled={actionLoading}>
               <Save className="w-4 h-4 mr-2" />
-              Save Changes
+              {actionLoading ? 'Saving…' : 'Save Changes'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Create User Dialog */}
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
         <DialogContent className="neo-card bg-white max-w-lg">
           <DialogHeader>
             <DialogTitle>Create New User</DialogTitle>
-            <DialogDescription>
-              Add a new user to the platform
-            </DialogDescription>
+            <DialogDescription>Send an invite to a staff member or client.</DialogDescription>
           </DialogHeader>
-
           <div className="space-y-4 py-4">
-            <div>
+            <div className="space-y-2">
               <Label>Full Name</Label>
-              <Input placeholder="John Doe" className="mt-2" />
+              <Input
+                placeholder="John Doe"
+                value={createForm.fullName}
+                onChange={(event) => setCreateForm((prev) => ({ ...prev, fullName: event.target.value }))}
+              />
             </div>
-            <div>
+            <div className="space-y-2">
               <Label>Email Address</Label>
-              <Input type="email" placeholder="john@example.com" className="mt-2" />
+              <Input
+                type="email"
+                placeholder="john@example.com"
+                value={createForm.email}
+                onChange={(event) => setCreateForm((prev) => ({ ...prev, email: event.target.value }))}
+              />
             </div>
-            <div>
+            <div className="space-y-2">
               <Label>User Role</Label>
-              <Select defaultValue="user">
-                <SelectTrigger className="mt-2">
+              <Select
+                value={createForm.role}
+                onValueChange={(value: Role) => setCreateForm((prev) => ({ ...prev, role: value }))}
+              >
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="user">User</SelectItem>
-                  <SelectItem value="practitioner">Practitioner</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
+                  {Object.entries(ROLE_LABELS).map(([key, label]) => (
+                    <SelectItem key={key} value={key}>
+                      {label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label>Subscription Plan</Label>
-              <Select defaultValue="explorer">
-                <SelectTrigger className="mt-2">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="explorer">Explorer (Free)</SelectItem>
-                  <SelectItem value="biohacker">Biohacker ($20/mo)</SelectItem>
-                  <SelectItem value="longevity_pro">Longevity Pro ($50/mo)</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="space-y-2">
+              <Label>Timezone</Label>
+              <Input
+                placeholder="UTC"
+                value={createForm.timezone}
+                onChange={(event) => setCreateForm((prev) => ({ ...prev, timezone: event.target.value }))}
+              />
             </div>
           </div>
-
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)} disabled={actionLoading}>
               Cancel
             </Button>
-            <Button onClick={handleCreateUser}>
+            <Button onClick={() => void handleCreateUser()} disabled={actionLoading}>
               <Plus className="w-4 h-4 mr-2" />
-              Create User
+              {actionLoading ? 'Creating…' : 'Create User'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -722,3 +616,4 @@ export default function UserManagement() {
     </div>
   );
 }
+

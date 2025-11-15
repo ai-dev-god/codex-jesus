@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { FlagStatus, Role } from '@prisma/client';
+import { AdminBackupType, FlagStatus, Role, ServiceApiKeyScope, UserStatus } from '@prisma/client';
 import { z } from 'zod';
 
 import { requireAuth, requireRoles } from '../identity/guards';
@@ -83,7 +83,55 @@ const historyQuerySchema = z.object({
   cursor: cursorSchema.optional()
 });
 
-const validate = <T>(schema: z.ZodType<T>, payload: unknown): T => {
+const managedUsersQuerySchema = z.object({
+  search: z
+    .string()
+    .trim()
+    .min(1)
+    .optional(),
+  role: z.nativeEnum(Role).optional(),
+  status: z.nativeEnum(UserStatus).optional(),
+  cursor: cursorSchema.optional(),
+  limit: limitSchema
+});
+
+const createManagedUserSchema = z.object({
+  email: z.string().email(),
+  fullName: z.string().trim().min(1),
+  role: z.nativeEnum(Role),
+  status: z.nativeEnum(UserStatus).optional(),
+  timezone: z.string().trim().min(1).optional()
+});
+
+const updateManagedUserSchema = z
+  .object({
+    fullName: z.string().trim().min(1).optional(),
+    role: z.nativeEnum(Role).optional(),
+    status: z.nativeEnum(UserStatus).optional()
+  })
+  .refine((payload) => Boolean(payload.fullName || payload.role || payload.status), {
+    message: 'At least one field must be provided'
+  });
+
+const updateUserStatusSchema = z.object({
+  status: z.nativeEnum(UserStatus)
+});
+
+const backupTriggerSchema = z.object({
+  type: z.nativeEnum(AdminBackupType).optional()
+});
+
+const backupSettingsSchema = z.object({
+  autoBackupEnabled: z.boolean(),
+  frequency: z.enum(['hourly', 'six_hours', 'daily', 'weekly'])
+});
+
+const createApiKeySchema = z.object({
+  name: z.string().trim().min(3).max(100),
+  scope: z.nativeEnum(ServiceApiKeyScope).default(ServiceApiKeyScope.READ)
+});
+
+const validate = <Schema extends z.ZodTypeAny>(schema: Schema, payload: unknown): z.infer<Schema> => {
   const result = schema.safeParse(payload);
   if (!result.success) {
     throw new HttpError(422, 'Validation failed', 'VALIDATION_ERROR', result.error.flatten());
@@ -196,6 +244,73 @@ router.get('/roles/:userId/history', async (req, res, next) => {
   }
 });
 
+router.get('/users', async (req, res, next) => {
+  try {
+    const query = validate(managedUsersQuerySchema, req.query);
+    const data = await adminService.listManagedUsers(query);
+    res.status(200).json(data);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/users', async (req, res, next) => {
+  try {
+    const payload = validate(createManagedUserSchema, req.body);
+    const result = await adminService.createManagedUser(req.user!, payload);
+    res.status(201).json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put('/users/:userId', async (req, res, next) => {
+  try {
+    const payload = validate(updateManagedUserSchema, req.body);
+    const user = await adminService.updateManagedUser(req.user!, req.params.userId, payload);
+    res.status(200).json(user);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/users/:userId', async (req, res, next) => {
+  try {
+    await adminService.deleteManagedUser(req.user!, req.params.userId);
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/users/:userId/status', async (req, res, next) => {
+  try {
+    const payload = validate(updateUserStatusSchema, req.body);
+    const user = await adminService.setManagedUserStatus(req.user!, req.params.userId, payload.status);
+    res.status(200).json(user);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/users/:userId/suspend', async (req, res, next) => {
+  try {
+    const user = await adminService.setManagedUserStatus(req.user!, req.params.userId, UserStatus.SUSPENDED);
+    res.status(200).json(user);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/users/:userId/activate', async (req, res, next) => {
+  try {
+    const user = await adminService.setManagedUserStatus(req.user!, req.params.userId, UserStatus.ACTIVE);
+    res.status(200).json(user);
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/system-health', async (req, res, next) => {
   try {
     if (!req.user || req.user.role !== Role.ADMIN) {
@@ -204,6 +319,117 @@ router.get('/system-health', async (req, res, next) => {
 
     const summary = await adminService.getSystemHealthSummary();
     res.status(200).json(summary);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/database/status', async (_req, res, next) => {
+  try {
+    const status = await adminService.getDatabaseStatus();
+    res.status(200).json(status);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/backups', async (_req, res, next) => {
+  try {
+    const data = await adminService.listBackupJobs();
+    res.status(200).json(data);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/backups', async (req, res, next) => {
+  try {
+    const payload = validate(backupTriggerSchema, req.body);
+    const job = await adminService.triggerBackupJob(req.user!, payload.type ?? AdminBackupType.FULL);
+    res.status(201).json(job);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/backups/:backupId', async (req, res, next) => {
+  try {
+    await adminService.deleteBackupJob(req.user!, req.params.backupId);
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/backups/:backupId/restore', async (req, res, next) => {
+  try {
+    const job = await adminService.requestBackupRestore(req.user!, req.params.backupId);
+    res.status(200).json(job);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/backups/:backupId/download', async (req, res, next) => {
+  try {
+    const link = await adminService.getBackupDownloadLink(req.params.backupId);
+    res.status(200).json(link);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/backups/settings', async (_req, res, next) => {
+  try {
+    const settings = await adminService.getBackupSettings();
+    res.status(200).json(settings);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/backups/settings', async (req, res, next) => {
+  try {
+    const payload = validate(backupSettingsSchema, req.body);
+    const settings = await adminService.updateBackupSettings(req.user!, payload);
+    res.status(200).json(settings);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/api-keys', async (_req, res, next) => {
+  try {
+    const data = await adminService.listApiKeys();
+    res.status(200).json(data);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/api-keys', async (req, res, next) => {
+  try {
+    const payload = validate(createApiKeySchema, req.body);
+    const result = await adminService.createApiKey(req.user!, payload);
+    res.status(201).json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/api-keys/:keyId/rotate', async (req, res, next) => {
+  try {
+    const result = await adminService.rotateApiKey(req.user!, req.params.keyId);
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/api-keys/:keyId/revoke', async (req, res, next) => {
+  try {
+    const key = await adminService.revokeApiKey(req.user!, req.params.keyId);
+    res.status(200).json(key);
   } catch (error) {
     next(error);
   }

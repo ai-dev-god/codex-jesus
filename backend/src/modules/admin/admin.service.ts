@@ -634,11 +634,11 @@ const generateApiKeySecret = (forcedPrefix?: string) => {
   return { raw, prefix, suffix, hashed };
 };
 
-const ensureAdminActor = (actor: AuthenticatedUser | undefined | null): asserts actor is AuthenticatedUser => {
+function ensureAdminActor(actor: AuthenticatedUser | undefined | null): asserts actor is AuthenticatedUser {
   if (!actor || actor.role !== Role.ADMIN) {
     throw new HttpError(403, 'Only administrators may perform this action', 'FORBIDDEN');
   }
-};
+}
 
 const bigintToNumber = (value: unknown): number | null => {
   if (typeof value === 'number') {
@@ -1880,6 +1880,9 @@ export class AdminService {
     ]);
 
     for (const entry of biomarkerCounts) {
+      if (!entry.userId) {
+        continue;
+      }
       const existing = metrics.get(entry.userId);
       if (existing) {
         existing.biomarkersLogged = entry._count._all ?? 0;
@@ -1887,6 +1890,9 @@ export class AdminService {
     }
 
     for (const entry of planCounts) {
+      if (!entry.userId) {
+        continue;
+      }
       const existing = metrics.get(entry.userId);
       if (existing) {
         existing.protocolsActive = entry._count._all ?? 0;
@@ -1894,6 +1900,9 @@ export class AdminService {
     }
 
     for (const entry of lastLogins) {
+      if (!entry.userId) {
+        continue;
+      }
       const existing = metrics.get(entry.userId);
       if (existing) {
         existing.lastLoginAt = entry._max.createdAt ? entry._max.createdAt.toISOString() : null;
