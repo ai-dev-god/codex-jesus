@@ -11,6 +11,16 @@ const envSchema = z.object({
   REDIS_URL: z.string().url().optional(),
   GCP_PROJECT_ID: z.string().optional(),
   OPENROUTER_API_KEY: z.string().optional(),
+  OPENROUTER_BASE_URL: z.string().url().default('https://openrouter.ai/api/v1'),
+  OPENROUTER_PLANNER_MODEL: z
+    .string()
+    .default('openrouter/openai/gpt-4.1-mini'),
+  OPENROUTER_SAFETY_MODEL: z
+    .string()
+    .default('openrouter/google/gemini-2.0-flash'),
+  OPENROUTER_NUMERIC_MODEL: z
+    .string()
+    .default('openrouter/deepseek/deepseek-r1-distill-qwen-32b'),
   WHOOP_CLIENT_ID: z.string().optional(),
   WHOOP_CLIENT_SECRET: z.string().optional(),
   WHOOP_REDIRECT_URI: z.string().url().default('http://localhost:5173/oauth/whoop/callback'),

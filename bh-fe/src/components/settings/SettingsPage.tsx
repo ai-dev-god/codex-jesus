@@ -1,12 +1,15 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { Shield, Lock, Download, Trash2, Bell, User, CreditCard, CheckCircle2, Zap } from 'lucide-react';
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Switch } from '../ui/switch';
 import { Badge } from '../ui/badge';
-import { Shield, Lock, Download, Trash2, Bell, User, CreditCard, CheckCircle2, Zap } from 'lucide-react';
 import { Separator } from '../ui/separator';
+import { useAuth } from '../../lib/auth/AuthContext';
+import { useProfile } from '../../hooks/useProfile';
 
 const pricingPlans = [
   {
@@ -63,6 +66,20 @@ const pricingPlans = [
 export default function SettingsPage() {
   const [isAnnual, setIsAnnual] = useState(false);
   const currentPlan = 'biohacker';
+  const { user } = useAuth();
+  const { profile, loading: profileLoading, error: profileError } = useProfile();
+
+  const displayName = profile?.displayName ?? user?.email ?? 'BioHacker';
+  const [firstName, lastName] = useMemo(() => {
+    if (!displayName) {
+      return ['Bio', 'Hacker'];
+    }
+    const parts = displayName.split(' ');
+    if (parts.length === 1) {
+      return [parts[0], ''];
+    }
+    return [parts[0], parts.slice(1).join(' ')];
+  }, [displayName]);
 
   return (
     <div className="min-h-screen mesh-gradient pt-28 pb-20 px-6">
@@ -89,6 +106,12 @@ export default function SettingsPage() {
             <div className="neo-card p-8">
               <h3 className="mb-8">Profile Information</h3>
               
+              {profileError && (
+                <div className="mb-4 rounded-xl border border-pulse/30 bg-pulse/5 px-4 py-3 text-sm text-pulse">
+                  {profileError}
+                </div>
+              )}
+
               <div className="flex items-center gap-6 mb-8">
                 <div className="w-20 h-20 rounded-full gradient-spectrum flex items-center justify-center">
                   <User className="w-10 h-10 text-void" />
@@ -104,17 +127,17 @@ export default function SettingsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div className="space-y-2">
                   <Label>First Name</Label>
-                  <Input defaultValue="Alex" className="h-12" />
+                  <Input defaultValue={firstName} disabled={profileLoading} className="h-12" />
                 </div>
                 <div className="space-y-2">
                   <Label>Last Name</Label>
-                  <Input defaultValue="Rivera" className="h-12" />
+                  <Input defaultValue={lastName} disabled={profileLoading} className="h-12" />
                 </div>
               </div>
 
               <div className="space-y-2 mb-6">
                 <Label>Email</Label>
-                <Input type="email" defaultValue="alex.rivera@email.com" className="h-12" />
+                <Input type="email" defaultValue={user?.email ?? 'member@biohax.ai'} disabled className="h-12" />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -130,7 +153,7 @@ export default function SettingsPage() {
 
               <div className="space-y-2 mb-8">
                 <Label>Timezone</Label>
-                <Input defaultValue="Pacific Time (PT)" className="h-12" />
+                <Input defaultValue={profile?.timezone ?? 'UTC'} disabled={profileLoading} className="h-12" />
               </div>
 
               <Button size="lg">

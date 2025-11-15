@@ -1,0 +1,24 @@
+{
+  "name": "maintain-main",
+  "description": "Daily fast-forward pull + CI + push for origin/main.",
+  "schedule": "0 3 * * *",
+  "working_directory": "/Users/aurel/codex-jesus",
+  "command": [
+    "/bin/zsh",
+    "-lc",
+    "CI_COMMAND='(cd backend && npm ci && npm run lint && npm test)' /Users/aurel/codex-jesus/devops/maintain-main.sh"
+  ],
+  "env": {
+    "REPO_DIR": "/Users/aurel/codex-jesus",
+    "MAIN_BRANCH": "main",
+    "REMOTE_NAME": "origin"
+  },
+  "retry_policy": {
+    "max_attempts": 1,
+    "backoff_seconds": 0
+  },
+  "notifications": {
+    "on_failure": "log-only"
+  }
+}
+

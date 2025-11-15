@@ -1,12 +1,15 @@
-import { useState } from 'react';
-import { Mail, Lock, Zap, ArrowRight } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Mail, Lock, Zap, ArrowRight, Info } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
+import { ApiError } from '../../lib/api/error';
+import { loginWithEmail, loginWithGoogle, registerWithEmail } from '../../lib/api/auth';
+import type { AuthResponse } from '../../lib/api/types';
 
 interface AuthScreenProps {
-  onAuth: () => void;
+  onAuth: (response: AuthResponse) => void;
   onBack: () => void;
 }
 
@@ -14,24 +17,160 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [googleReady, setGoogleReady] = useState(false);
+  const [googleInitialized, setGoogleInitialized] = useState(false);
+
+  const inferredDisplayName = useMemo(() => {
+    if (displayName.trim().length > 0) {
+      return displayName;
+    }
+
+    const prefix = email.includes('@') ? email.split('@')[0] : '';
+    return prefix ? prefix.replace(/[^a-zA-Z0-9\s]/g, '') || 'BioHax Member' : 'BioHax Member';
+  }, [displayName, email]);
+
+  const timezone = useMemo(() => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC';
+    } catch {
+      return 'UTC';
+    }
+  }, []);
+
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
+  useEffect(() => {
+    if (!googleClientId) {
+      return;
+    }
+
+    if (window.google?.accounts?.id) {
+      setGoogleReady(true);
+      return;
+    }
+
+    const scriptId = 'google-identity-services';
+    const existing = document.getElementById(scriptId) as HTMLScriptElement | null;
+
+    const handleLoad = () => setGoogleReady(true);
+
+    if (existing) {
+      existing.addEventListener('load', handleLoad, { once: true });
+      return () => existing.removeEventListener('load', handleLoad);
+    }
+
+    const script = document.createElement('script');
+    script.id = scriptId;
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = handleLoad;
+    document.head.appendChild(script);
+
+    return () => {
+      script.onload = null;
+    };
+  }, [googleClientId]);
+
+  const handleGoogleCredential = useCallback(
+    async (response: { credential?: string }) => {
+      if (!response.credential) {
+        setLoading(false);
+        setError('Google authentication failed. Please try again.');
+        return;
+      }
+
+      try {
+        const result = await loginWithGoogle({
+          idToken: response.credential,
+          timezone
+        });
+        onAuth(result);
+      } catch (err) {
+        if (err instanceof ApiError) {
+          setError(err.message);
+        } else {
+          setError('Unable to authenticate with Google right now.');
+        }
+      } finally {
+        setLoading(false);
+      }
+    },
+    [onAuth, timezone]
+  );
+
+  useEffect(() => {
+    if (!googleReady || googleInitialized || !googleClientId || !window.google?.accounts?.id) {
+      return;
+    }
+
+    window.google.accounts.id.initialize({
+      client_id: googleClientId,
+      callback: handleGoogleCredential,
+      ux_mode: 'popup'
+    });
+    setGoogleInitialized(true);
+  }, [googleReady, googleInitialized, googleClientId, handleGoogleCredential]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      if (mode === 'signin') {
+        const response = await loginWithEmail({ email, password });
+        onAuth(response);
+        return;
+      }
+
+      const response = await registerWithEmail({
+        email,
+        password,
+        displayName: inferredDisplayName,
+        timezone,
+        acceptedTerms,
+        marketingOptIn
+      });
+      onAuth(response);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError('Something went wrong. Please try again.');
+      }
+    } finally {
       setLoading(false);
-      onAuth();
-    }, 1500);
+    }
   };
 
-  const handleOAuthConnect = (provider: 'google' | 'whoop') => {
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      onAuth();
-    }, 1500);
+  const handleOAuthConnect = async (provider: 'google' | 'whoop') => {
+    if (provider === 'google') {
+      if (!googleClientId) {
+        setError('Google Sign-In is not configured for this environment.');
+        return;
+      }
+      if (!window.google?.accounts?.id || !googleInitialized) {
+        setError('Google Sign-In is still loading. Please try again in a moment.');
+        return;
+      }
+      setError(null);
+      setLoading(true);
+      window.google.accounts.id.prompt((notification: Record<string, unknown>) => {
+        const reason = typeof notification === 'object' ? (notification as { reason?: string }).reason : undefined;
+        if (reason && reason !== '') {
+          setLoading(false);
+          setError('Google Sign-In was canceled. Please try again.');
+        }
+      });
+      return;
+    }
+
+    setError('Direct Whoop authentication is not configured in this preview build.');
   };
 
   return (
@@ -63,10 +202,18 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
 
         {/* Auth Card */}
         <div className="neo-card p-8 mb-6">
+          {error && (
+            <div className="mb-6 rounded-xl border border-pulse/30 bg-pulse/5 px-4 py-3 text-sm text-pulse flex items-center gap-3">
+              <Info className="w-4 h-4" />
+              <span>{error}</span>
+            </div>
+          )}
+
           {/* OAuth Buttons */}
           <div className="space-y-3 mb-8">
             <button
               onClick={() => handleOAuthConnect('google')}
+              type="button"
               disabled={loading}
               className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl bg-white hover:bg-pearl border-2 border-cloud transition-all font-semibold text-ink disabled:opacity-50"
             >
@@ -81,6 +228,7 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
 
             <button
               onClick={() => handleOAuthConnect('whoop')}
+              type="button"
               disabled={loading}
               className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl gradient-pulse text-white transition-all font-semibold hover:scale-105 disabled:opacity-50"
             >
@@ -137,6 +285,50 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
               </div>
             </div>
 
+            {mode === 'signup' && (
+              <>
+                <div>
+                  <Label htmlFor="displayName" className="text-sm font-semibold text-ink mb-2 block">
+                    Display name
+                  </Label>
+                  <Input
+                    id="displayName"
+                    type="text"
+                    placeholder="Alex Byrne"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                  />
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <input
+                    id="acceptedTerms"
+                    type="checkbox"
+                    checked={acceptedTerms}
+                    onChange={(e) => setAcceptedTerms(e.target.checked)}
+                    className="w-5 h-5 accent-electric"
+                    required
+                  />
+                  <Label htmlFor="acceptedTerms" className="text-sm text-steel">
+                    I agree to the Terms of Service and Privacy Policy.
+                  </Label>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <input
+                    id="marketingOptIn"
+                    type="checkbox"
+                    checked={marketingOptIn}
+                    onChange={(e) => setMarketingOptIn(e.target.checked)}
+                    className="w-5 h-5 accent-electric"
+                  />
+                  <Label htmlFor="marketingOptIn" className="text-sm text-steel">
+                    I’d like to receive product updates and optimization tips.
+                  </Label>
+                </div>
+              </>
+            )}
+
             {mode === 'signin' && (
               <div className="text-right">
                 <button type="button" className="text-sm font-semibold text-electric hover:text-electric-bright transition-colors">
@@ -145,7 +337,12 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
               </div>
             )}
 
-            <Button type="submit" className="w-full" size="lg" disabled={loading}>
+            <Button
+              type="submit"
+              className="w-full"
+              size="lg"
+              disabled={loading || (mode === 'signup' && !acceptedTerms)}
+            >
               {loading ? (
                 'Loading...'
               ) : (

@@ -11,7 +11,7 @@ COPY prisma ./prisma
 COPY scripts ./scripts
 COPY src ./src
 
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm npm ci
 
 ENV NODE_ENV=production
 
@@ -26,8 +26,7 @@ RUN npm install "prisma@${PRISMA_CLI_VERSION}" --no-save
 FROM node:${NODE_VERSION}-slim AS runtime
 WORKDIR /app
 
-ENV NODE_ENV=production \
-    PORT=4000
+ENV NODE_ENV=production
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
@@ -37,6 +36,9 @@ COPY --from=build /app/package.json /app/package-lock.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
+
+RUN chown -R node:node /app
+USER node
 
 EXPOSE 4000
 

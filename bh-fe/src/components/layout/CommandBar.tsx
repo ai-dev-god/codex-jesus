@@ -1,5 +1,4 @@
-import { Search, Zap, User, Bell } from 'lucide-react';
-import { LucideIcon } from 'lucide-react';
+import { Search, Zap, Bell } from 'lucide-react';
 
 interface CommandBarProps {
   onStartOnboarding: () => void;

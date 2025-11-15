@@ -1,26 +1,87 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
+
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Textarea } from '../ui/textarea';
+import { Button } from '../ui/button';
+import { useProfile } from '../../hooks/useProfile';
+import { useAuth } from '../../lib/auth/AuthContext';
+import { updateProfile } from '../../lib/api/profile';
+import { ApiError } from '../../lib/api/error';
+
+type FormState = {
+  age: string;
+  sex: string;
+  height: string;
+  weight: string;
+  activityLevel: string;
+  sleepHours: string;
+  currentConditions: string;
+  medications: string;
+};
+
+const emptyForm: FormState = {
+  age: '',
+  sex: '',
+  height: '',
+  weight: '',
+  activityLevel: '',
+  sleepHours: '',
+  currentConditions: '',
+  medications: ''
+};
 
 export default function HealthQuestionnaire() {
-  const [formData, setFormData] = useState({
-    age: '',
-    sex: '',
-    height: '',
-    weight: '',
-    activityLevel: '',
-    sleepHours: '',
-    currentConditions: '',
-    medications: '',
-  });
+  const { profile, loading, refresh } = useProfile();
+  const { ensureAccessToken } = useAuth();
+  const [formData, setFormData] = useState<FormState>(emptyForm);
+  const [saving, setSaving] = useState(false);
+  const baselineSurvey = profile?.baselineSurvey as Partial<FormState> | null;
+  const baselineSnapshot = useMemo(() => ({ ...emptyForm, ...(baselineSurvey ?? {}) }), [baselineSurvey]);
+
+  useEffect(() => {
+    if (!baselineSurvey) {
+      return;
+    }
+    setFormData((prev) => {
+      const updates: Partial<FormState> = {};
+      for (const [key, value] of Object.entries(baselineSurvey)) {
+        if (key in prev && typeof value === 'string') {
+          updates[key as keyof FormState] = value;
+        }
+      }
+      return { ...prev, ...updates };
+    });
+  }, [baselineSurvey]);
+
+  const isDirty = useMemo(() => JSON.stringify(formData) !== JSON.stringify(baselineSnapshot), [formData, baselineSnapshot]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const token = await ensureAccessToken();
+      await updateProfile(token, {
+        baselineSurvey: formData
+      });
+      toast.success('Health profile saved');
+      await refresh();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Unable to save your profile.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
-    <div className="space-y-8">
+      <div className="space-y-8">
       <div>
         <h3 className="mb-2">Tell us about yourself</h3>
-        <p className="text-steel">This helps us personalize your experience and recommendations</p>
+          <p className="text-steel">
+            This helps us personalize your experience and recommendations
+          </p>
+          {loading && <p className="text-xs text-steel mt-2">Loading your saved responses…</p>}
       </div>
 
       <div className="grid grid-cols-2 gap-6">
@@ -131,12 +192,16 @@ export default function HealthQuestionnaire() {
         </div>
       </div>
 
-      {/* Privacy Notice */}
-      <div className="p-4 rounded-xl bg-electric/5 border-2 border-electric/20">
-        <p className="text-sm text-steel leading-relaxed">
-          <span className="font-bold text-electric">Privacy Protected:</span> All health data is encrypted at rest and in transit. 
-          We never sell your data and comply with HIPAA/GDPR regulations.
-        </p>
+      <div className="flex items-center justify-between">
+        <div className="p-4 rounded-xl bg-electric/5 border-2 border-electric/20 flex-1 mr-4">
+          <p className="text-sm text-steel leading-relaxed">
+            <span className="font-bold text-electric">Privacy Protected:</span> All health data is encrypted at rest and in transit. 
+            We never sell your data and comply with HIPAA/GDPR regulations.
+          </p>
+        </div>
+        <Button onClick={handleSave} disabled={saving || !isDirty} className="whitespace-nowrap">
+          {saving ? 'Saving…' : 'Save profile'}
+        </Button>
       </div>
     </div>
   );

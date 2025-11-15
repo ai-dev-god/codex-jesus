@@ -28,32 +28,36 @@ type MockPrisma = {
 
 const baseTime = new Date('2025-01-01T00:00:00.000Z');
 
-const createMetadata = (overrides: Partial<CloudTaskMetadata> = {}): CloudTaskMetadata => ({
-  id: 'meta-1',
-  taskName: 'insights-generate-user-insights-123',
-  queue: 'insights-generate',
-  status: 'PENDING',
-  jobId: 'job-1',
-  payload: {
+const createMetadata = (overrides: Partial<CloudTaskMetadata> = {}): CloudTaskMetadata => {
+  const { planJobId, ...rest } = overrides;
+  return {
+    id: 'meta-1',
+    taskName: 'insights-generate-user-insights-123',
+    queue: 'insights-generate',
+    status: 'PENDING',
+    jobId: 'job-1',
+    planJobId: planJobId ?? null,
     payload: {
-      jobId: 'job-1',
-      userId: 'user-1'
+      payload: {
+        jobId: 'job-1',
+        userId: 'user-1'
+      },
+      retry: {
+        maxAttempts: 3,
+        minBackoffSeconds: 60,
+        maxBackoffSeconds: 600
+      }
     },
-    retry: {
-      maxAttempts: 3,
-      minBackoffSeconds: 60,
-      maxBackoffSeconds: 600
-    }
-  },
-  scheduleTime: null,
-  firstAttemptAt: null,
-  lastAttemptAt: null,
-  attemptCount: 0,
-  errorMessage: null,
-  createdAt: baseTime,
-  updatedAt: baseTime,
-  ...overrides
-});
+    scheduleTime: null,
+    firstAttemptAt: null,
+    lastAttemptAt: null,
+    attemptCount: 0,
+    errorMessage: null,
+    createdAt: baseTime,
+    updatedAt: baseTime,
+    ...rest
+  };
+};
 
 const createJob = (overrides: Partial<InsightGenerationJob> = {}): InsightGenerationJob => ({
   id: 'job-1',

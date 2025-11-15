@@ -21,11 +21,11 @@ describe('Rooms API integration', () => {
 
   beforeAll(async () => {
     await ensureDatabaseReady();
-    resetDatabase();
+    await resetDatabase();
   });
 
   beforeEach(async () => {
-    resetDatabase();
+    await resetDatabase();
 
     const member = await prisma.user.findUnique({
       where: { email: memberCredentials.email },
@@ -44,7 +44,7 @@ describe('Rooms API integration', () => {
 
   afterAll(async () => {
     await prisma.$disconnect();
-    shutdownDatabase();
+    await shutdownDatabase();
   });
 
   it('joins seeded open room invites and returns active membership details', async () => {

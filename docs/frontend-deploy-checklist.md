@@ -17,6 +17,17 @@ instructions as mandatory to prevent a repeat.
    Cloud Platform.
 3. Run `npm install` and ensure there are no unresolved packages or audit
    warnings that block production.
+4. Populate `bh-fe/.env` with:
+   - `VITE_API_BASE_URL` (usually `http://localhost:4000` for dev)
+   - `VITE_GOOGLE_CLIENT_ID` retrieved via `gcloud secrets versions access latest --secret=google-client-id`
+   This keeps OAuth + fetch flows aligned with the backend.
+5. Build the production container via Cloud Build to catch regressions before deploying:
+   ```bash
+   gcloud builds submit bh-fe \
+     --config bh-fe/cloudbuild.yaml \
+     --substitutions=_IMAGE_NAME=gcr.io/biohax-777/bh-fe-final:latest
+   ```
+   (Overrides for other projects/registries can be passed through `_IMAGE_NAME`.)
 
 ## 3. Pixel-Perfect QA
 1. Start the dev server locally: `npm run dev`.
@@ -42,19 +53,15 @@ instructions as mandatory to prevent a repeat.
 ## 5. Deployment
 1. Authenticate with GCP (`./devops-biohax/gcp-auth.sh` or ensure the
    correct service account is active).
-2. Deploy via the DevOps script, pointing to the frontend context only:
+2. Deploy via Cloud Build (the backend uses `./devops/deploy-backend.sh`; the frontend ships with the command below):
    ```bash
-   SKIP_BACKEND_CHECKS=1 \
-   CLOUD_RUN_BUILD_CONTEXT=bh-fe \
-   CLOUD_RUN_SERVICE=bh-fe-final \
-   CLOUD_RUN_IMAGE_NAME=bh-fe-final \
-   CLOUD_RUN_IMAGE_TAG=latest \
-   GCP_PROJECT=biohax-777 \
-   GCP_REGION=europe-west1 \
-   SKIP_GCLOUD_LOGIN=1 \
-   ./devops-biohax/deploy-cloud-run.sh
+   gcloud builds submit bh-fe \
+     --project "${GCP_PROJECT:-biohax-777}" \
+     --config bh-fe/cloudbuild.yaml \
+     --substitutions=_IMAGE_NAME=gcr.io/${GCP_PROJECT:-biohax-777}/bh-fe-final:latest,_CLOUD_RUN_SERVICE=${CLOUD_RUN_SERVICE:-bh-fe-final},_REGION=${GCP_REGION:-europe-west1}
    ```
-3. Wait for Cloud Build + Cloud Run to finish and note the revision URL.
+   3. If the backend changed in the same release, run `./devops/deploy-backend.sh` first so API QA completes before shipping the UI.
+   4. Wait for Cloud Build + Cloud Run to finish and note the revision URL.
 
 ## 6. Post-Deploy Validation
 1. Hit the Cloud Run URL (and the production domain once DNS is updated)

@@ -18,10 +18,12 @@
     "db:migrate": "tsx scripts/run-migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
     "db:reset": "prisma migrate reset --force --skip-generate --skip-seed --schema prisma/schema.prisma && tsx scripts/seed.ts",
-    "perf:api": "tsx scripts/run-perf.ts"
+    "perf:api": "tsx scripts/run-perf.ts",
+    "workers:run": "node dist/src/workers/runner.js"
   },
   "dependencies": {
     "@prisma/client": "^5.21.1",
+    "@prisma/engines": "^6.19.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",

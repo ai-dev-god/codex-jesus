@@ -24,41 +24,45 @@ type MockPrisma = {
 
 const baseDate = new Date('2025-03-01T12:30:00.000Z');
 
-const createMetadata = (overrides: Partial<CloudTaskMetadata> = {}): CloudTaskMetadata => ({
-  id: 'meta-1',
-  taskName: 'notifications-dispatch-member-1-123',
-  queue: 'notifications-dispatch',
-  status: 'PENDING',
-  jobId: null,
-  payload: {
+const createMetadata = (overrides: Partial<CloudTaskMetadata> = {}): CloudTaskMetadata => {
+  const { planJobId, ...rest } = overrides;
+  return {
+    id: 'meta-1',
+    taskName: 'notifications-dispatch-member-1-123',
+    queue: 'notifications-dispatch',
+    status: 'PENDING',
+    jobId: null,
+    planJobId: planJobId ?? null,
     payload: {
-      type: 'INSIGHT_ALERT',
-      recipient: {
-        id: 'member-1',
-        email: 'member@example.com',
-        displayName: 'Jordan Peak'
-      },
-      data: {
-        insightId: 'insight-22',
-        insightTitle: 'Recovery trending up',
-        triggeredBy: {
-          id: 'coach-1'
+      payload: {
+        type: 'INSIGHT_ALERT',
+        recipient: {
+          id: 'member-1',
+          email: 'member@example.com',
+          displayName: 'Jordan Peak'
         },
-        triggeredAt: '2025-03-01T12:30:00.000Z'
+        data: {
+          insightId: 'insight-22',
+          insightTitle: 'Recovery trending up',
+          triggeredBy: {
+            id: 'coach-1'
+          },
+          triggeredAt: '2025-03-01T12:30:00.000Z'
+        },
+        channel: 'email'
       },
-      channel: 'email'
+      retry: NOTIFICATIONS_RETRY_CONFIG
     },
-    retry: NOTIFICATIONS_RETRY_CONFIG
-  },
-  scheduleTime: null,
-  firstAttemptAt: null,
-  lastAttemptAt: null,
-  attemptCount: 0,
-  errorMessage: null,
-  createdAt: baseDate,
-  updatedAt: baseDate,
-  ...overrides
-});
+    scheduleTime: null,
+    firstAttemptAt: null,
+    lastAttemptAt: null,
+    attemptCount: 0,
+    errorMessage: null,
+    createdAt: baseDate,
+    updatedAt: baseDate,
+    ...rest
+  };
+};
 
 const createMockPrisma = (): MockPrisma => ({
   cloudTaskMetadata: {

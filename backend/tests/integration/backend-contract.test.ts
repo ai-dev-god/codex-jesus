@@ -25,18 +25,18 @@ describe('Backend integration contract suite', () => {
 
   beforeAll(async () => {
     await ensureDatabaseReady();
-    resetDatabase();
+    await resetDatabase();
   });
 
   beforeEach(async () => {
-    resetDatabase();
+    await resetDatabase();
     const response = await request(app).post('/auth/login').send(memberCredentials).expect(200);
     accessToken = response.body.tokens.accessToken;
   });
 
   afterAll(async () => {
     await prisma.$disconnect();
-    shutdownDatabase();
+    await shutdownDatabase();
   });
 
   it('POST /auth/login matches AuthResponse contract', async () => {

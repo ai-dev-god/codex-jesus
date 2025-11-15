@@ -1,5 +1,5 @@
 import { HttpError } from '../modules/observability-ops/http-error';
-import { createOpenRouterClient } from '../modules/insights/openrouter-client';
+import { createOpenRouterClient } from '../lib/openrouter';
 
 describe('OpenRouterClient', () => {
   const baseMessages = [

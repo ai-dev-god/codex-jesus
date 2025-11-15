@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client';
 import type { InsightGenerationJob, PrismaClient } from '@prisma/client';
 
 import prismaClient from '../lib/prisma';
-import { openRouterClient, type OpenRouterChatClient } from '../modules/insights/openrouter-client';
+import { openRouterClient, type OpenRouterChatClient } from '../lib/openrouter';
 import { dashboardService } from '../modules/dashboard/dashboard.service';
 import { HttpError } from '../modules/observability-ops/http-error';
 

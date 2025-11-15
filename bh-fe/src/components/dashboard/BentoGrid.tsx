@@ -1,78 +1,98 @@
-import { Activity, Droplet, Moon, Flame, TrendingUp, CheckCircle2, Clock } from 'lucide-react';
+import { Activity, Droplet, Moon, Flame, Clock } from 'lucide-react';
+import type { DashboardActionItem, DashboardBiomarkerTrend, DashboardSummary } from '../../lib/api/types';
 
-export default function BentoGrid() {
+interface BentoGridProps {
+  summary: DashboardSummary | null;
+  loading?: boolean;
+}
+
+const fallbackActions: DashboardActionItem[] = [
+  { id: 'a', title: 'NAD+ Precursor', description: '500mg • 7:00 AM', ctaType: 'LOG_BIOMARKER' },
+  { id: 'b', title: 'Omega-3 Complex', description: '2000mg • 7:15 AM', ctaType: 'LOG_BIOMARKER' },
+  { id: 'c', title: 'Zone 2 Cardio', description: '20 min • 7:30 AM', ctaType: 'REVIEW_INSIGHT' }
+];
+
+const fallbackBiomarkers: DashboardBiomarkerTrend[] = [
+  {
+    biomarkerId: 'glucose',
+    biomarker: {
+      id: 'glucose',
+      slug: 'glucose',
+      name: 'Glucose',
+      unit: 'mg/dL',
+      referenceLow: 70,
+      referenceHigh: 99,
+      source: 'MANUAL',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    },
+    direction: 'STABLE',
+    delta: 0,
+    windowDays: 7
+  }
+];
+
+export default function BentoGrid({ summary, loading }: BentoGridProps) {
+  const actionItems = (summary?.actionItems ?? fallbackActions).slice(0, 3);
+  const metricTiles = summary?.tiles ?? [];
+  const biomarkerTrends = (summary?.biomarkerTrends ?? fallbackBiomarkers).slice(0, 4);
+  const todaysInsight = summary?.todaysInsight;
+
   return (
     <div className="grid grid-cols-12 gap-6">
-      {/* Large Protocol Card */}
-      <div className="col-span-12 lg:col-span-8 neo-card p-8">
+      {/* Action Items */}
+      <div className={`col-span-12 lg:col-span-8 neo-card p-8 ${loading ? 'animate-pulse' : ''}`}>
         <div className="flex items-center justify-between mb-6">
           <div>
-            <div className="tag text-steel mb-2">TODAY'S PROTOCOL</div>
-            <h3>Morning Performance Stack</h3>
+            <div className="tag text-steel mb-2">ACTION ITEMS</div>
+            <h3>Your daily protocol</h3>
           </div>
           <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-bio/10">
             <div className="status-optimal" />
-            <span className="text-sm font-bold text-bio">2/3 Complete</span>
+            <span className="text-sm font-bold text-bio">{actionItems.length} steps</span>
           </div>
         </div>
 
         <div className="space-y-3">
-          {[
-            { name: 'NAD+ Precursor', dose: '500mg', time: '7:00 AM', completed: true },
-            { name: 'Omega-3 Complex', dose: '2000mg', time: '7:15 AM', completed: true },
-            { name: 'Zone 2 Cardio', dose: '20 min', time: '7:30 AM', completed: false },
-          ].map((item, i) => (
-            <div
-              key={i}
-              className={`flex items-center gap-4 p-4 rounded-xl transition-all ${
-                item.completed
-                  ? 'bg-bio/5 border-2 border-bio/20'
-                  : 'bg-pearl border-2 border-cloud'
-              }`}
-            >
-              <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
-                item.completed ? 'gradient-bio' : 'bg-cloud'
-              }`}>
-                {item.completed ? (
-                  <CheckCircle2 className="w-5 h-5 text-white" />
-                ) : (
-                  <Clock className="w-5 h-5 text-steel" />
-                )}
+          {actionItems.map((item) => (
+            <div key={item.id} className="flex items-start gap-4 p-4 rounded-xl bg-pearl border-2 border-cloud">
+              <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-cloud flex items-center justify-center">
+                <Clock className="w-5 h-5 text-steel" />
               </div>
 
               <div className="flex-1">
-                <div className="font-semibold text-ink mb-0.5">{item.name}</div>
-                <div className="text-sm text-steel">{item.dose} • {item.time}</div>
+                <div className="font-semibold text-ink mb-0.5">{item.title}</div>
+                <div className="text-sm text-steel">{item.description}</div>
               </div>
 
-              {item.completed && (
-                <div className="tag text-bio">DONE</div>
-              )}
+              <div className="tag text-electric bg-electric/10 px-3 py-1.5 rounded-lg">
+                {item.ctaType.replaceAll('_', ' ')}
+              </div>
             </div>
           ))}
         </div>
 
         <button className="mt-6 w-full py-4 rounded-xl gradient-electric text-void font-bold hover:scale-[1.02] transition-transform">
-          Complete Remaining Task
+          View all actions
         </button>
       </div>
 
-      {/* Stacked Metric Cards */}
+      {/* Metrics */}
       <div className="col-span-12 lg:col-span-4 space-y-6">
         <CompactMetric
           icon={Moon}
-          label="Sleep Quality"
-          value="7.8"
-          unit="hrs"
-          trend="+0.3"
+          label="Readiness"
+          value={metricTiles.find((tile) => tile.id === 'readinessScore')?.value ?? null}
+          unit=""
+          trend={metricTiles.find((tile) => tile.id === 'readinessScore')?.delta ?? null}
           color="neural"
         />
         <CompactMetric
           icon={Flame}
-          label="HRV"
-          value="68"
-          unit="ms"
-          trend="+12%"
+          label="Strain"
+          value={metricTiles.find((tile) => tile.id === 'strainScore')?.value ?? null}
+          unit=""
+          trend={metricTiles.find((tile) => tile.id === 'strainScore')?.delta ?? null}
           color="pulse"
         />
       </div>
@@ -82,35 +102,17 @@ export default function BentoGrid() {
         <div className="tag text-steel mb-4">KEY BIOMARKERS</div>
         <h3 className="mb-6">Health Indicators</h3>
 
-        <div className="grid grid-cols-2 gap-4">
-          <BiomarkerCard
-            icon={Droplet}
-            name="Glucose"
-            value="92"
-            unit="mg/dL"
-            status="optimal"
-          />
-          <BiomarkerCard
-            icon={Activity}
-            name="VO2 Max"
-            value="48"
-            unit="ml/kg/min"
-            status="optimal"
-          />
-          <BiomarkerCard
-            icon={TrendingUp}
-            name="Testosterone"
-            value="650"
-            unit="ng/dL"
-            status="optimal"
-          />
-          <BiomarkerCard
-            icon={Flame}
-            name="Cortisol"
-            value="12"
-            unit="μg/dL"
-            status="good"
-          />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {biomarkerTrends.map((trend) => (
+            <BiomarkerCard
+              key={trend.biomarkerId}
+              icon={Droplet}
+              name={trend.biomarker.name}
+              value={typeof trend.delta === 'number' ? trend.delta.toFixed(1) : '—'}
+              unit={trend.biomarker.unit}
+              status={resolveStatus(trend.direction)}
+            />
+          ))}
         </div>
       </div>
 
@@ -122,9 +124,10 @@ export default function BentoGrid() {
           </div>
           <div>
             <div className="tag text-electric-dim mb-2">AI INSIGHT</div>
-            <h4 className="mb-3">Cardiovascular Optimization</h4>
+            <h4 className="mb-3">{todaysInsight?.title ?? 'Cardiovascular Optimization'}</h4>
             <p className="text-steel leading-relaxed mb-4">
-              Your HRV shows excellent recovery. Consider extending Zone 2 training to 25 minutes for enhanced mitochondrial adaptation.
+              {todaysInsight?.summary ??
+                'Your HRV shows excellent recovery. Consider extending Zone 2 training to 25 minutes for enhanced mitochondrial adaptation.'}
             </p>
             <button className="text-sm font-bold text-electric hover:text-electric-bright transition-colors">
               View Full Analysis →
@@ -139,9 +142,9 @@ export default function BentoGrid() {
 interface CompactMetricProps {
   icon: React.ElementType;
   label: string;
-  value: string;
+  value: number | null;
   unit: string;
-  trend: string;
+  trend: number | null;
   color: 'electric' | 'pulse' | 'bio' | 'neural';
 }
 
@@ -155,14 +158,19 @@ function CompactMetric({ icon: Icon, label, value, unit, trend, color }: Compact
         <div className={`w-12 h-12 rounded-xl ${gradientClass} flex items-center justify-center`}>
           <Icon className="w-6 h-6 text-white" />
         </div>
-        <div className="px-3 py-1 rounded-full bg-bio/10">
-          <span className="text-sm font-bold text-bio">{trend}</span>
-        </div>
+        {typeof trend === 'number' && (
+          <div className="px-3 py-1 rounded-full bg-bio/10">
+            <span className="text-sm font-bold text-bio">
+              {trend >= 0 ? '+' : ''}
+              {trend.toFixed(1)}
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="tag text-steel mb-2">{label}</div>
       <div className="flex items-baseline gap-1">
-        <span className="text-4xl font-bold text-ink">{value}</span>
+        <span className="text-4xl font-bold text-ink">{typeof value === 'number' ? value.toFixed(1) : '—'}</span>
         <span className="text-sm text-steel">{unit}</span>
       </div>
     </div>
@@ -200,3 +208,11 @@ function BiomarkerCard({ icon: Icon, name, value, unit, status }: BiomarkerCardP
     </div>
   );
 }
+
+const resolveStatus = (direction: 'UP' | 'DOWN' | 'STABLE'): 'optimal' | 'good' | 'warning' => {
+  if (direction === 'STABLE') {
+    return 'good';
+  }
+
+  return direction === 'UP' ? 'optimal' : 'warning';
+};

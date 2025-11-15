@@ -28,8 +28,24 @@ type DereferencedOpenApi = {
   >;
 };
 
-const repoRoot = path.resolve(__dirname, '../../../..');
-const openapiPath = path.join(repoRoot, 'platform/ARTIFACTS/openapi.yaml');
+const backendDir = path.resolve(__dirname, '../../..');
+const repoRoot = path.resolve(backendDir, '..');
+
+const openapiCandidatePaths = [
+  path.join(repoRoot, 'platform/ARTIFACTS/openapi.yaml'),
+  path.join(repoRoot, 'backend/contract/openapi.yaml'),
+  path.join(backendDir, 'contract/openapi.yaml')
+];
+
+const openapiPath = openapiCandidatePaths.find((candidate) => fs.existsSync(candidate));
+
+if (!openapiPath) {
+  throw new Error(
+    `OpenAPI specification is missing. Provide one of: ${openapiCandidatePaths
+      .map((candidate) => path.relative(process.cwd(), candidate))
+      .join(', ')}`
+  );
+}
 
 let cachedOpenApiPromise: Promise<DereferencedOpenApi> | null = null;
 let ajvInstance: Ajv | null = null;

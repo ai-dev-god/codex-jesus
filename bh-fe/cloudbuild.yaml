@@ -1,0 +1,47 @@
+substitutions:
+  _IMAGE_NAME: gcr.io/$PROJECT_ID/bh-fe-final:latest
+  _CLOUD_RUN_SERVICE: bh-fe-final
+  _REGION: europe-west1
+  _DOCKERFILE: Dockerfile
+  _BUILD_CONTEXT: .
+
+steps:
+  - id: Build frontend image
+    name: gcr.io/cloud-builders/docker
+    env:
+      - DOCKER_BUILDKIT=1
+    args:
+      - build
+      - -t
+      - $_IMAGE_NAME
+      - -f
+      - $_DOCKERFILE
+      - $_BUILD_CONTEXT
+
+  - id: Push image to registry
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - $_IMAGE_NAME
+
+  - id: Deploy to Cloud Run
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - $_CLOUD_RUN_SERVICE
+      - --image
+      - $_IMAGE_NAME
+      - --region
+      - $_REGION
+      - --platform
+      - managed
+      - --allow-unauthenticated
+      - --project
+      - $PROJECT_ID
+      - --quiet
+
+images:
+  - $_IMAGE_NAME
+

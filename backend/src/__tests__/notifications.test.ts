@@ -23,21 +23,25 @@ const issueToken = (role: Role, status: UserStatus = UserStatus.ACTIVE) =>
     status
   }).token;
 
-const createTask = (overrides: Partial<CloudTaskMetadata> = {}): CloudTaskMetadata => ({
-  id: overrides.id ?? 'task-1',
-  taskName: overrides.taskName ?? 'notifications-dispatch-member-1-123',
-  queue: overrides.queue ?? 'notifications-dispatch',
-  status: overrides.status ?? 'PENDING',
-  jobId: overrides.jobId ?? null,
-  payload: overrides.payload ?? null,
-  scheduleTime: overrides.scheduleTime ?? null,
-  firstAttemptAt: overrides.firstAttemptAt ?? null,
-  lastAttemptAt: overrides.lastAttemptAt ?? null,
-  attemptCount: overrides.attemptCount ?? 0,
-  errorMessage: overrides.errorMessage ?? null,
-  createdAt: overrides.createdAt ?? new Date('2025-03-01T12:00:00.000Z'),
-  updatedAt: overrides.updatedAt ?? new Date('2025-03-01T12:00:00.000Z')
-});
+const createTask = (overrides: Partial<CloudTaskMetadata> = {}): CloudTaskMetadata => {
+  const { planJobId, ...rest } = overrides;
+  return {
+    id: rest.id ?? 'task-1',
+    taskName: rest.taskName ?? 'notifications-dispatch-member-1-123',
+    queue: rest.queue ?? 'notifications-dispatch',
+    status: rest.status ?? 'PENDING',
+    jobId: rest.jobId ?? null,
+    planJobId: planJobId ?? null,
+    payload: rest.payload ?? null,
+    scheduleTime: rest.scheduleTime ?? null,
+    firstAttemptAt: rest.firstAttemptAt ?? null,
+    lastAttemptAt: rest.lastAttemptAt ?? null,
+    attemptCount: rest.attemptCount ?? 0,
+    errorMessage: rest.errorMessage ?? null,
+    createdAt: rest.createdAt ?? new Date('2025-03-01T12:00:00.000Z'),
+    updatedAt: rest.updatedAt ?? new Date('2025-03-01T12:00:00.000Z')
+  };
+};
 
 describe('Notifications Router', () => {
   beforeEach(() => {

@@ -56,6 +56,34 @@ services:
       retries: 5
       start_period: 10s
 
+  workers:
+    image: ${BACKEND_IMAGE:-biohax-backend:latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:-postgresql://biohax:biohax@postgres:5432/biohax?schema=public}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
+      OPENROUTER_PLANNER_MODEL: ${OPENROUTER_PLANNER_MODEL:-openrouter/openai/gpt-4.1-mini}
+      OPENROUTER_SAFETY_MODEL: ${OPENROUTER_SAFETY_MODEL:-openrouter/google/gemini-2.0-flash}
+      OPENROUTER_NUMERIC_MODEL: ${OPENROUTER_NUMERIC_MODEL:-openrouter/deepseek/deepseek-r1-distill-qwen-32b}
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:?AUTH_JWT_SECRET is required}
+      AUTH_REFRESH_ENCRYPTION_KEY: ${AUTH_REFRESH_ENCRYPTION_KEY:?AUTH_REFRESH_ENCRYPTION_KEY is required}
+      WHOOP_CLIENT_ID: ${WHOOP_CLIENT_ID:-}
+      WHOOP_CLIENT_SECRET: ${WHOOP_CLIENT_SECRET:-}
+      WHOOP_TOKEN_ENCRYPTION_KEY: ${WHOOP_TOKEN_ENCRYPTION_KEY:?WHOOP_TOKEN_ENCRYPTION_KEY is required}
+      WHOOP_TOKEN_KEY_ID: ${WHOOP_TOKEN_KEY_ID:-whoop-token-key-v1}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      WORKER_QUEUES: ${WORKER_QUEUES:-}
+      WORKER_POLL_INTERVAL_MS: ${WORKER_POLL_INTERVAL_MS:-5000}
+      WORKER_ERROR_BACKOFF_MS: ${WORKER_ERROR_BACKOFF_MS:-2000}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["node", "dist/src/workers/runner.js"]
+
   frontend:
     image: ${FRONTEND_IMAGE:-biohax-frontend:latest}
     restart: unless-stopped

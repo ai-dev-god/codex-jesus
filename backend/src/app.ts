@@ -19,6 +19,7 @@ import { communityRouter } from './modules/community/router';
 import { roomsRouter } from './modules/rooms/router';
 import { adminRouter } from './modules/admin/router';
 import { notificationsRouter } from './modules/notifications/router';
+import { aiRouter } from './modules/ai/router';
 
 const app = express();
 const allowedOrigins = env.corsOrigins.length > 0 ? env.corsOrigins : ['http://localhost:5173'];
@@ -47,6 +48,7 @@ app.use('/insights', insightsRouter);
 app.use('/community', communityRouter);
 app.use('/rooms', roomsRouter);
 app.use('/notifications', notificationsRouter);
+app.use('/ai', aiRouter);
 app.use(notFoundHandler);
 app.use(errorHandler);
 

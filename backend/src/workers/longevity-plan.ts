@@ -298,9 +298,11 @@ const parseRiskScorecard = (raw: string): RiskScoreEntry[] => {
   const data = parsed as Record<string, unknown>;
   const entries = Array.isArray(data.scorecard) ? data.scorecard : [];
 
-  const mapped: Array<RiskScoreEntry | null> = entries.map((entry) => {
+  const mapped: RiskScoreEntry[] = [];
+
+  for (const entry of entries) {
     if (typeof entry !== 'object' || entry === null) {
-      return null;
+      continue;
     }
 
     const record = entry as Record<string, unknown>;
@@ -320,27 +322,19 @@ const parseRiskScorecard = (raw: string): RiskScoreEntry[] => {
         : 'moderate';
 
     if (!name || score === null || Number.isNaN(score)) {
-      return null;
+      continue;
     }
 
-    const candidate: RiskScoreEntry = {
+    mapped.push({
       name,
       score,
-      risk
-    };
+      risk,
+      driver: typeof record.driver === 'string' ? record.driver : undefined,
+      recommendation: typeof record.recommendation === 'string' ? record.recommendation : undefined
+    });
+  }
 
-    if (typeof record.driver === 'string') {
-      candidate.driver = record.driver;
-    }
-
-    if (typeof record.recommendation === 'string') {
-      candidate.recommendation = record.recommendation;
-    }
-
-    return candidate;
-  });
-
-  return mapped.filter((entry): entry is RiskScoreEntry => entry !== null);
+  return mapped;
 };
 
 const toPlannerContext = (
@@ -587,7 +581,7 @@ export const createLongevityPlanWorker = (deps: WorkerDeps = {}) => {
             role: 'safety',
             prompt: toJsonValue({
               system: SAFETY_SYSTEM_PROMPT,
-              planId: plan.id
+              context: safetyPrompt
             }),
             response: toJsonValue(safetyReview)
           }
@@ -634,4 +628,3 @@ export const createLongevityPlanWorker = (deps: WorkerDeps = {}) => {
 };
 
 export const longevityPlanWorker = createLongevityPlanWorker();
-

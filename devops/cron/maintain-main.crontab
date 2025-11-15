@@ -1,0 +1,6 @@
+# Cron entry for maintaining origin/main daily at 03:00 local time.
+SHELL=/bin/zsh
+PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin
+
+0 3 * * * cd /Users/aurel/codex-jesus && CI_COMMAND="(cd backend && npm ci && npm run lint && npm test)" ./devops/maintain-main.sh >> /Users/aurel/codex-jesus/devops/maintain-main.log 2>&1
+

@@ -53,7 +53,7 @@ All automation lives under `devops-biohax/`. The expected flow is:
 | `logs.sh <service>` | Tails logs for a Compose service. | Debugging locally. |
 | `gcp-auth.sh` | Authenticates and configures `gcloud`. | Before any remote GCP interaction. |
 | `setup-storage-bucket.sh` | Creates/updates `gs://galeata-hax` (or `$GCS_STORAGE_BUCKET`) and grants storage roles. | One-time per environment or after bucket changes. |
-| `deploy-cloud-run.sh` | Lints/tests the backend, builds via Cloud Build, and deploys to Cloud Run. | Production or staging releases. |
+| `deploy-backend.sh` | Runs backend QA (lint, tests, build) and ships the Cloud Run revision via Cloud Build. | Production or staging releases. |
 
 Make each script executable (`chmod +x devops-biohax/*.sh`) if git does not preserve the bit.
 
@@ -69,17 +69,15 @@ Make each script executable (`chmod +x devops-biohax/*.sh`) if git does not pres
 4. Run backend tests locally or let the deploy script handle them.  
 5. Deploy:
    ```bash
-   ./devops-biohax/deploy-cloud-run.sh \
+   ./devops/deploy-backend.sh \
      [optional overrides: GCP_PROJECT=... GCP_REGION=... CLOUD_RUN_SERVICE=...]
    ```
    The script:
-   - Activates the service account (unless `SKIP_GCLOUD_LOGIN=1` is set).
-   - Verifies the active identity for `biohax-777`.
-   - Targets the Cloud Run service `bh-backend-final` by default (override with `CLOUD_RUN_SERVICE` if deploying elsewhere).
-   - Checks required secrets and bucket access, including `roles/storage.objectAdmin` for the service account.
-   - Runs `npm run lint` and `npm run test` in `backend/`.
-   - Submits the container build via Cloud Build.
-   - Deploys Cloud Run with environment variables and Secret Manager bindings (OpenRouter, Whoop, JWT, DB, etc.).
+   - Installs backend dependencies, lints, runs the full Jest suite (with embedded Postgres), and builds `dist/`.
+   - Submits the repository to Cloud Build with the appropriate Dockerfile/build context.
+   - Publishes the image to Artifact Registry (`europe-west1-docker.pkg.dev/<project>/biohax/bh-backend-final:latest` by default).
+   - Deploys the new revision to Cloud Run (`bh-backend-final` by default).
+   - Honors overrides such as `CLOUD_RUN_IMAGE`, `CLOUD_RUN_BUILD_CONTEXT`, `SKIP_QA=1`, etc.
 
 6. Verify deployment status:
    ```bash
@@ -96,6 +94,17 @@ Make each script executable (`chmod +x devops-biohax/*.sh`) if git does not pres
   - `roles/artifactregistry.writer`,
   - `roles/storage.objectAdmin` on the artifact bucket and `gs://galeata-hax`,
   - `roles/secretmanager.secretAccessor` for each required secret.
+
+## 7. Background Worker Runner
+Longevity plan generation (queue `longevity-plan-generate`) now ships beside the existing queues (`insights-generate`, `whoop-sync`, `notifications-dispatch`). Keep a worker process online anywhere the backend stack runs:
+
+- **Local / Docker Compose:** `docker compose -f docker-compose.release.yml up -d workers` brings up a container that executes `node dist/src/workers/runner.js` with the backend image. Set `WORKER_QUEUES` (comma-separated) if you need to scope queues; otherwise it listens to all registered queues by default. Optional tuning vars:
+  - `WORKER_POLL_INTERVAL_MS` (default `5000`)
+  - `WORKER_ERROR_BACKOFF_MS` (default `2000`)
+- **Direct Node:** `cd backend && npm run build && npm run workers:run` reuses the same runner without Docker. Export the same env vars (`DATABASE_URL`, `OPENROUTER_*`, etc.) that the API expects.
+- **Cloud Run / remote hosts:** deploy a second Cloud Run revision or GCE VM using the backend image and the `workers:run` entrypoint so queues drain even if the API autoscaler drops to zero. Mirror the secrets/env values from `bh-backend-final`.
+
+Ensure the worker has network access to Cloud SQL, Memorystore (if used), and OpenRouter. Monitor Cloud Tasks via `gcloud tasks queues describe` or the Admin dashboard to confirm `longevity-plan-generate` stays near-zero backlog.
 
 ## 7. Recommended Next Checks
 - Confirm IAM bindings for Saffloders and DevOps using the command in §2; capture evidence (timestamped command output) for audit. A full IAM export gathered on 2025-11-07T14:36:34+02:00 is stored at `docs/biohax-777-iam-policy.json`.  

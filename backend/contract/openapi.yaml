@@ -1,0 +1,756 @@
+openapi: 3.0.3
+info:
+  title: BioHax Backend API
+  version: 1.0.0
+  description: Contract definitions exercised by the backend integration suite.
+servers:
+  - url: https://api.biohax.local
+paths:
+  /auth/login:
+    post:
+      summary: Login with email and password
+      responses:
+        '200':
+          description: Authenticated session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+  /auth/me:
+    get:
+      summary: Fetch the authenticated user
+      responses:
+        '200':
+          description: Authenticated user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SerializedUser'
+  /profiles/me:
+    get:
+      summary: Retrieve the active member profile
+      responses:
+        '200':
+          description: Member profile record
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+  /dashboard/summary:
+    get:
+      summary: Fetch personalised dashboard data
+      responses:
+        '200':
+          description: Dashboard summary payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardSummary'
+  /biomarkers:
+    get:
+      summary: List supported biomarker definitions
+      responses:
+        '200':
+          description: Biomarker catalogue
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Biomarker'
+  /biomarker-logs:
+    get:
+      summary: Fetch paginated biomarker logs for the member
+      responses:
+        '200':
+          description: Paginated biomarker logs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedBiomarkerLogs'
+    post:
+      summary: Create a manual biomarker log entry
+      responses:
+        '201':
+          description: Newly created log entry
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BiomarkerLog'
+  /ai/uploads:
+    post:
+      summary: Record a panel upload with optional normalized measurements
+      responses:
+        '201':
+          description: Stored panel upload with extracted measurements
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PanelUpload'
+  /ai/plans:
+    get:
+      summary: List recently generated longevity plans
+      responses:
+        '200':
+          description: Longevity plans ordered by recency
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LongevityPlan'
+    post:
+      summary: Request a personalized longevity plan
+      responses:
+        '202':
+          description: Accepted plan generation job
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - plan
+                  - job
+                properties:
+                  plan:
+                    $ref: '#/components/schemas/LongevityPlan'
+                  job:
+                    $ref: '#/components/schemas/LongevityPlanJob'
+  /ai/plans/{planId}:
+    get:
+      summary: Retrieve a specific longevity plan
+      parameters:
+        - in: path
+          name: planId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Longevity plan payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LongevityPlan'
+  /health/ping:
+    get:
+      summary: Service liveness probe
+      responses:
+        '200':
+          description: Health snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+components:
+  schemas:
+    SerializedUser:
+      type: object
+      required:
+        - id
+        - email
+        - role
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    AuthTokens:
+      type: object
+      required:
+        - accessToken
+        - refreshToken
+        - expiresIn
+        - refreshExpiresIn
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        expiresIn:
+          type: integer
+          description: Access token TTL in seconds
+        refreshExpiresIn:
+          type: integer
+          description: Refresh token TTL in seconds
+    AuthResponse:
+      type: object
+      required:
+        - user
+        - tokens
+      properties:
+        user:
+          $ref: '#/components/schemas/SerializedUser'
+        tokens:
+          $ref: '#/components/schemas/AuthTokens'
+    ProfileConsent:
+      type: object
+      required:
+        - type
+        - granted
+      properties:
+        type:
+          type: string
+        granted:
+          type: boolean
+        grantedAt:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+    CompletionTokens:
+      type: object
+      properties:
+        access:
+          type: object
+          required:
+            - token
+            - expiresIn
+          properties:
+            token:
+              type: string
+            expiresIn:
+              type: integer
+    Profile:
+      type: object
+      required:
+        - id
+        - userId
+        - displayName
+        - timezone
+        - baselineSurvey
+        - consents
+        - deleteRequested
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        displayName:
+          type: string
+        timezone:
+          type: string
+        baselineSurvey:
+          type: object
+          additionalProperties: true
+          nullable: true
+        consents:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProfileConsent'
+        onboardingCompletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        deleteRequested:
+          type: boolean
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        tokens:
+          $ref: '#/components/schemas/CompletionTokens'
+          nullable: true
+    DashboardSummary:
+      type: object
+      required:
+        - cacheState
+        - readinessScore
+        - strainScore
+        - sleepScore
+        - latestWhoopSyncAt
+        - todaysInsight
+        - biomarkerTrends
+        - actionItems
+        - tiles
+        - emptyStates
+        - generatedAt
+      properties:
+        cacheState:
+          type: string
+          enum: [HIT, MISS]
+        readinessScore:
+          type: number
+          nullable: true
+        strainScore:
+          type: number
+          nullable: true
+        sleepScore:
+          type: number
+          nullable: true
+        latestWhoopSyncAt:
+          type: string
+          format: date-time
+          nullable: true
+        todaysInsight:
+          $ref: '#/components/schemas/InsightSummary'
+          nullable: true
+        biomarkerTrends:
+          type: array
+          items:
+            $ref: '#/components/schemas/DashboardBiomarkerTrend'
+        actionItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/DashboardActionItem'
+        tiles:
+          type: array
+          items:
+            $ref: '#/components/schemas/DashboardTile'
+        emptyStates:
+          $ref: '#/components/schemas/DashboardEmptyStates'
+        generatedAt:
+          type: string
+          format: date-time
+    InsightSummary:
+      type: object
+      required:
+        - id
+        - userId
+        - title
+        - summary
+        - status
+        - generatedAt
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        title:
+          type: string
+        summary:
+          type: string
+        body:
+          type: object
+          additionalProperties: true
+          nullable: true
+        status:
+          type: string
+        modelUsed:
+          type: string
+          nullable: true
+        generatedAt:
+          type: string
+          format: date-time
+        promptMetadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+    DashboardBiomarkerTrend:
+      type: object
+      required:
+        - biomarkerId
+        - biomarker
+        - direction
+        - delta
+        - windowDays
+      properties:
+        biomarkerId:
+          type: string
+        biomarker:
+          $ref: '#/components/schemas/Biomarker'
+        direction:
+          type: string
+          enum: [UP, DOWN, STABLE]
+        delta:
+          type: number
+          nullable: true
+        windowDays:
+          type: integer
+    DashboardActionItem:
+      type: object
+      required:
+        - id
+        - title
+        - description
+        - ctaType
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        ctaType:
+          type: string
+          enum: [LOG_BIOMARKER, REVIEW_INSIGHT, JOIN_FEED_DISCUSSION]
+        testId:
+          type: string
+          nullable: true
+    DashboardTile:
+      type: object
+      required:
+        - id
+        - heading
+        - direction
+        - description
+        - testId
+      properties:
+        id:
+          type: string
+        heading:
+          type: string
+        value:
+          type: number
+          nullable: true
+        delta:
+          type: number
+          nullable: true
+        direction:
+          type: string
+          enum: [UP, DOWN, STABLE]
+        description:
+          type: string
+        testId:
+          type: string
+    DashboardEmptyStates:
+      type: object
+      required:
+        - needsBiomarkerLogs
+        - needsInsight
+        - needsWhoopLink
+      properties:
+        needsBiomarkerLogs:
+          type: boolean
+        needsInsight:
+          type: boolean
+        needsWhoopLink:
+          type: boolean
+    Biomarker:
+      type: object
+      required:
+        - id
+        - slug
+        - name
+        - unit
+        - source
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        slug:
+          type: string
+        name:
+          type: string
+        unit:
+          type: string
+        referenceLow:
+          type: number
+          nullable: true
+        referenceHigh:
+          type: number
+          nullable: true
+        source:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    BiomarkerLog:
+      type: object
+      required:
+        - id
+        - biomarkerId
+        - biomarker
+        - value
+        - source
+        - capturedAt
+        - accepted
+        - flagged
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        biomarkerId:
+          type: string
+        biomarker:
+          $ref: '#/components/schemas/Biomarker'
+        value:
+          type: number
+        unit:
+          type: string
+          nullable: true
+        source:
+          type: string
+        capturedAt:
+          type: string
+          format: date-time
+        accepted:
+          type: boolean
+        flagged:
+          type: boolean
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PanelUpload:
+      type: object
+      required:
+        - id
+        - userId
+        - storageKey
+        - status
+        - source
+        - measurementCount
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        storageKey:
+          type: string
+        status:
+          type: string
+          enum:
+            - PENDING
+            - NORMALIZED
+            - FAILED
+        source:
+          type: string
+        contentType:
+          type: string
+          nullable: true
+        pageCount:
+          type: integer
+          nullable: true
+        measurementCount:
+          type: integer
+        normalizedPayload:
+          type: object
+          additionalProperties: true
+          nullable: true
+        rawMetadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+        measurements:
+          type: array
+          items:
+            $ref: '#/components/schemas/BiomarkerMeasurement'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    BiomarkerMeasurement:
+      type: object
+      required:
+        - id
+        - userId
+        - markerName
+        - status
+        - source
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        biomarkerId:
+          type: string
+          nullable: true
+        panelUploadId:
+          type: string
+          nullable: true
+        markerName:
+          type: string
+        value:
+          type: number
+          format: double
+          nullable: true
+        unit:
+          type: string
+          nullable: true
+        referenceLow:
+          type: number
+          nullable: true
+        referenceHigh:
+          type: number
+          nullable: true
+        capturedAt:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+        source:
+          type: string
+        confidence:
+          type: number
+          nullable: true
+        flags:
+          type: object
+          additionalProperties: true
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    LongevityPlan:
+      type: object
+      required:
+        - id
+        - userId
+        - status
+        - title
+        - focusAreas
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        status:
+          type: string
+          enum:
+            - DRAFT
+            - PROCESSING
+            - READY
+            - FAILED
+            - ARCHIVED
+        title:
+          type: string
+        summary:
+          type: string
+          nullable: true
+        focusAreas:
+          type: array
+          items:
+            type: string
+        sections:
+          type: object
+          additionalProperties: true
+          nullable: true
+        evidence:
+          type: object
+          additionalProperties: true
+          nullable: true
+        safetyState:
+          type: object
+          additionalProperties: true
+          nullable: true
+        validatedBy:
+          type: string
+          nullable: true
+        validatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        requestedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    LongevityPlanJob:
+      type: object
+      required:
+        - id
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        planId:
+          type: string
+          nullable: true
+        requestedById:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum:
+            - QUEUED
+            - RUNNING
+            - SUCCEEDED
+            - FAILED
+        queue:
+          type: string
+          nullable: true
+        cloudTaskName:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PaginatedBiomarkerLogs:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/BiomarkerLog'
+        meta:
+          type: object
+          required:
+            - hasMore
+          properties:
+            nextCursor:
+              type: string
+              nullable: true
+            hasMore:
+              type: boolean
+    HealthStatus:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          example: ok
+

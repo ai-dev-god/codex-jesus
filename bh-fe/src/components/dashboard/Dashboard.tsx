@@ -1,22 +1,80 @@
 import ScoreHero from './ScoreHero';
 import BentoGrid from './BentoGrid';
+import LongevityPlanPanel from './LongevityPlanPanel';
+import type { DashboardSummary, LongevityPlan } from '../../lib/api/types';
 
-export default function Dashboard() {
+interface DashboardProps {
+  userName: string;
+  summary: DashboardSummary | null;
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void;
+  plans: LongevityPlan[] | null;
+  planLoading: boolean;
+  planError: string | null;
+  onPlanRetry: () => void;
+  onRequestPlan: () => void;
+  planRequesting: boolean;
+}
+
+export default function Dashboard({
+  userName,
+  summary,
+  loading,
+  error,
+  onRetry,
+  plans,
+  planLoading,
+  planError,
+  onPlanRetry,
+  onRequestPlan,
+  planRequesting
+}: DashboardProps) {
+  const generatedLabel = summary ? new Date(summary.generatedAt).toLocaleString() : null;
+
   return (
     <div className="min-h-screen mesh-gradient pt-28 pb-20 px-6">
       <div className="max-w-7xl mx-auto space-y-12">
         {/* Welcome Section */}
         <div className="text-center mb-12">
-          <h1 className="mb-3">Welcome back, Alex</h1>
-          <p className="text-xl text-steel">Your daily performance snapshot</p>
+          <h1 className="mb-3">Welcome back, {userName}</h1>
+          <p className="text-xl text-steel">
+            {generatedLabel ? `Snapshot generated ${generatedLabel}` : 'Your daily performance snapshot'}
+          </p>
         </div>
 
+        {error && (
+          <div className="neo-card border border-pulse/40 bg-pulse/5 text-pulse px-6 py-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <span>{error}</span>
+            <button
+              onClick={onRetry}
+              className="px-4 py-2 rounded-xl bg-white text-pulse font-semibold border border-pulse/30 hover:bg-pearl transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {loading && !summary && (
+          <div className="neo-card p-4 text-steel animate-pulse text-center">Loading your latest biomarkers…</div>
+        )}
+
         {/* Hero Score */}
-        <ScoreHero />
+        <ScoreHero summary={summary} loading={loading} />
+
+        {/* Longevity Plan */}
+        <LongevityPlanPanel
+          plans={plans}
+          loading={planLoading}
+          error={planError}
+          onRetry={onPlanRetry}
+          onRequestPlan={onRequestPlan}
+          requesting={planRequesting}
+        />
 
         {/* Bento Grid Layout */}
         <div className="mt-16">
-          <BentoGrid />
+          <BentoGrid summary={summary} loading={loading} />
         </div>
 
         {/* Timeline */}
@@ -24,7 +82,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between mb-8">
             <div>
               <div className="tag text-steel mb-2">TODAY'S SCHEDULE</div>
-              <h2>November 1, 2025</h2>
+              <h2>{new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</h2>
             </div>
             <button className="text-sm font-bold text-electric hover:text-electric-bright transition-colors">
               View Full Calendar →
@@ -36,30 +94,36 @@ export default function Dashboard() {
               { time: '7:00 AM', title: 'Morning Protocol', status: 'completed', color: 'bio' },
               { time: '12:00 PM', title: 'Midday Optimization', status: 'completed', color: 'electric' },
               { time: '6:00 PM', title: 'Evening Training', status: 'active', color: 'pulse' },
-              { time: '10:00 PM', title: 'Sleep Preparation', status: 'upcoming', color: 'neural' },
+              { time: '10:00 PM', title: 'Sleep Preparation', status: 'upcoming', color: 'neural' }
             ].map((event, i) => (
               <div key={i} className="flex items-center gap-6">
-                <div className={`w-24 h-16 rounded-xl gradient-${event.color} flex flex-col items-center justify-center text-white flex-shrink-0 shadow-lg`}>
+                <div
+                  className={`w-24 h-16 rounded-xl gradient-${event.color} flex flex-col items-center justify-center text-white flex-shrink-0 shadow-lg`}
+                >
                   <span className="text-lg font-bold">{event.time.split(' ')[0]}</span>
                   <span className="text-xs opacity-80">{event.time.split(' ')[1]}</span>
                 </div>
 
-                <div className={`flex-1 p-6 rounded-xl transition-all ${
-                  event.status === 'active'
-                    ? `neo-card-${event.color} glow-${event.color}`
-                    : event.status === 'completed'
-                    ? 'neo-card bg-pearl'
-                    : 'neo-card'
-                }`}>
+                <div
+                  className={`flex-1 p-6 rounded-xl transition-all ${
+                    event.status === 'active'
+                      ? `neo-card-${event.color} glow-${event.color}`
+                      : event.status === 'completed'
+                      ? 'neo-card bg-pearl'
+                      : 'neo-card'
+                  }`}
+                >
                   <div className="flex items-center justify-between">
                     <h4>{event.title}</h4>
-                    <div className={`tag ${
-                      event.status === 'completed'
-                        ? 'text-bio bg-bio/10'
-                        : event.status === 'active'
-                        ? `text-${event.color} bg-${event.color}/10 animate-glow-pulse`
-                        : 'text-steel bg-cloud'
-                    } px-3 py-1.5 rounded-full`}>
+                    <div
+                      className={`tag ${
+                        event.status === 'completed'
+                          ? 'text-bio bg-bio/10'
+                          : event.status === 'active'
+                          ? `text-${event.color} bg-${event.color}/10 animate-glow-pulse`
+                          : 'text-steel bg-cloud'
+                      } px-3 py-1.5 rounded-full`}
+                    >
                       {event.status === 'completed' ? '✓ DONE' : event.status === 'active' ? '● IN PROGRESS' : 'UPCOMING'}
                     </div>
                   </div>
