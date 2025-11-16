@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Download, HardDrive, Clock, CheckCircle, RotateCcw, Trash2, Server, RefreshCw } from 'lucide-react';
+import { Download, HardDrive, Clock, CheckCircle, RotateCcw, Trash2, Server } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useAuth } from '../../lib/auth/AuthContext';
@@ -21,13 +21,6 @@ import { Badge } from '../ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Switch } from '../ui/switch';
-
-const FREQUENCY_LABELS: Record<BackupSettings['frequency'], string> = {
-  hourly: 'Every Hour',
-  six_hours: 'Every 6 Hours',
-  daily: 'Daily',
-  weekly: 'Weekly'
-};
 
 export default function BackupManagement() {
   const { ensureAccessToken } = useAuth();
@@ -192,7 +185,11 @@ export default function BackupManagement() {
           </div>
           <div className="neo-card bg-pearl p-4">
             <p className="font-medium text-ink mb-2">Backup Frequency</p>
-            <Select value={settings.frequency} onValueChange={(value) => void handleFrequencyChange(value)} disabled={updatingSettings}>
+            <Select
+              value={settings.frequency}
+              onValueChange={(value) => void handleFrequencyChange(value as BackupSettings['frequency'])}
+              disabled={updatingSettings}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Frequency" />
               </SelectTrigger>
@@ -374,5 +371,15 @@ const nextBackupLabel = (settings: BackupSettings) => {
     default:
       return 'In < 24 hours';
   }
+};
+
+const formatDate = (iso?: string | null) => {
+  if (!iso) {
+    return '—';
+  }
+  return new Intl.DateTimeFormat('en-US', {
+    dateStyle: 'medium',
+    timeStyle: 'short'
+  }).format(new Date(iso));
 };
 

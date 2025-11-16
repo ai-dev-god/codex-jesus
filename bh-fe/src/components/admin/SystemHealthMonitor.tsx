@@ -41,7 +41,7 @@ export default function SystemHealthMonitor() {
   const [summary, setSummary] = useState<SystemHealthSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [, setError] = useState<string | null>(null);
 
   const loadSummary = useCallback(
     async (showToast = false) => {

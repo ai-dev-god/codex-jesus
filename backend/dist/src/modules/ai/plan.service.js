@@ -11,6 +11,9 @@ const http_error_1 = require("../observability-ops/http-error");
 const queue_1 = require("./queue");
 const ACTIVE_JOB_STATUSES = ['QUEUED', 'RUNNING'];
 const DEFAULT_DAILY_LIMIT = 2;
+const STALE_JOB_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
+const STALE_JOB_ERROR_CODE = 'PLAN_JOB_STALE';
+const STALE_JOB_ERROR_MESSAGE = 'Plan request expired before it could run.';
 const toJsonValue = (value) => JSON.parse(JSON.stringify(value));
 class LongevityPlanService {
     constructor(prisma, options = {}) {
@@ -22,6 +25,7 @@ class LongevityPlanService {
         if (!env_1.default.AI_LONGEVITY_PLAN_ENABLED) {
             throw new http_error_1.HttpError(503, 'Longevity plan generation is temporarily disabled while we complete privacy hardening.', 'LONGEVITY_PLAN_PAUSED');
         }
+        await this.expireStaleJobs(userId);
         await this.ensureNoActiveJob(userId);
         await this.enforceDailyLimit(userId);
         const sanitized = this.sanitizeRequest(request);
@@ -129,6 +133,71 @@ class LongevityPlanService {
                 jobId: existing.id
             });
         }
+    }
+    async expireStaleJobs(userId) {
+        const staleThreshold = new Date(this.now().getTime() - STALE_JOB_WINDOW_MS);
+        const staleJobs = await this.prisma.longevityPlanJob.findMany({
+            where: {
+                requestedById: userId,
+                status: {
+                    in: [...ACTIVE_JOB_STATUSES]
+                },
+                updatedAt: {
+                    lt: staleThreshold
+                }
+            },
+            select: {
+                id: true,
+                planId: true,
+                cloudTask: {
+                    select: {
+                        id: true,
+                        attemptCount: true,
+                        firstAttemptAt: true
+                    }
+                }
+            }
+        });
+        if (staleJobs.length === 0) {
+            return;
+        }
+        await this.prisma.$transaction(async (tx) => {
+            for (const job of staleJobs) {
+                const expiredAt = this.now();
+                await tx.longevityPlanJob.update({
+                    where: { id: job.id },
+                    data: {
+                        status: 'FAILED',
+                        completedAt: expiredAt,
+                        errorCode: STALE_JOB_ERROR_CODE,
+                        errorMessage: STALE_JOB_ERROR_MESSAGE
+                    }
+                });
+                if (job.planId) {
+                    await tx.longevityPlan.updateMany({
+                        where: { id: job.planId },
+                        data: {
+                            status: 'FAILED',
+                            completedAt: expiredAt,
+                            errorCode: STALE_JOB_ERROR_CODE,
+                            errorMessage: STALE_JOB_ERROR_MESSAGE
+                        }
+                    });
+                }
+                if (job.cloudTask) {
+                    await tx.cloudTaskMetadata.update({
+                        where: { id: job.cloudTask.id },
+                        data: {
+                            status: 'FAILED',
+                            attemptCount: job.cloudTask.attemptCount + 1,
+                            firstAttemptAt: job.cloudTask.firstAttemptAt ?? expiredAt,
+                            lastAttemptAt: expiredAt,
+                            errorMessage: STALE_JOB_ERROR_MESSAGE
+                        }
+                    });
+                }
+            }
+        });
     }
     async enforceDailyLimit(userId) {
         const since = new Date(this.now().getTime() - 24 * 60 * 60 * 1000);

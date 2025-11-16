@@ -33,7 +33,6 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
   const [googleReady, setGoogleReady] = useState(false);
   const [googleInitialized, setGoogleInitialized] = useState(false);
   const [googleButtonRendered, setGoogleButtonRendered] = useState(false);
-  const [googlePrompting, setGooglePrompting] = useState(false);
   const [whoopLinking, setWhoopLinking] = useState(false);
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
 
@@ -205,21 +204,6 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
     window.google.accounts.id.prompt(handlePromptNotification);
   }, [googleInitialized, handlePromptNotification]);
 
-  const handleGoogleButtonClick = useCallback(() => {
-    if (!googleInitialized || !window.google?.accounts?.id) {
-      return;
-    }
-
-    setGooglePrompting(true);
-    window.google.accounts.id.prompt((notification: google.accounts.id.PromptMomentNotification) => {
-      handlePromptNotification(notification);
-      setGooglePrompting(false);
-    });
-  }, [googleInitialized, handlePromptNotification]);
-
-  const googleButtonDisabled =
-    googleConfigLoading || !googleClientId || !!googleConfigError || !googleInitialized || loading;
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -350,27 +334,30 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
           {/* OAuth Buttons */}
           <div className="space-y-3 mb-8">
             <div className="w-full space-y-2">
-            <button
-              type="button"
-                onClick={handleGoogleButtonClick}
-                disabled={googleButtonDisabled}
-                className="w-full flex items-center justify-between gap-4 px-6 py-4 rounded-2xl border-2 border-cloud bg-white font-semibold text-ink shadow-sm transition-all hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-                <span className="flex items-center gap-3">
-                  <ImageWithFallback
-                    src={GOOGLE_LOGO_SRC}
-                    alt=""
-                    className="w-5 h-5"
-                    aria-hidden="true"
-                  />
-              Continue with Google
-                </span>
-                {googlePrompting ? (
+              <div
+                className={`w-full flex justify-center ${googleButtonRendered ? '' : 'pointer-events-none opacity-0'}`}
+                aria-live="polite"
+              >
+                <div ref={googleButtonRef} />
+              </div>
+              {!googleButtonRendered && (
+                <button
+                  type="button"
+                  disabled
+                  className="w-full flex items-center justify-between gap-4 px-6 py-4 rounded-2xl border-2 border-cloud bg-white font-semibold text-ink shadow-sm opacity-60 cursor-not-allowed"
+                >
+                  <span className="flex items-center gap-3">
+                    <ImageWithFallback
+                      src={GOOGLE_LOGO_SRC}
+                      alt=""
+                      className="w-5 h-5"
+                      aria-hidden="true"
+                    />
+                    Continue with Google
+                  </span>
                   <Loader2 className="w-5 h-5 text-steel animate-spin" />
-                ) : (
-                  <ArrowRight className="w-5 h-5 text-steel" />
-                )}
-            </button>
+                </button>
+              )}
               {googleConfigLoading && (
                 <p className="text-sm text-steel text-center">Preparing Google Sign-In…</p>
               )}
@@ -382,12 +369,6 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
               {!googleConfigLoading && !googleConfigError && !googleClientId && (
                 <p className="text-sm text-solar text-center">Google Sign-In is unavailable right now.</p>
               )}
-              <div className="sr-only" aria-hidden="true">
-                <div
-                  ref={googleButtonRef}
-                  className={googleButtonRendered ? '' : 'opacity-0'}
-                />
-              </div>
             </div>
 
             <button

@@ -32,6 +32,7 @@ import { fetchCurrentUser, logoutUser, refreshTokens } from '../../lib/api/auth'
 import { ApiError } from '../../lib/api/error';
 import { fetchLongevityPlans, requestLongevityPlan } from '../../lib/api/ai';
 import { listBiomarkerDefinitions, createManualBiomarkerLog } from '../../lib/api/biomarkers';
+import { fetchProfile, updateProfile, type ConsentRecord } from '../../lib/api/profile';
 import { fetchAdminAccess } from '../../lib/api/admin';
 import {
   clearPersistedSession,
@@ -51,6 +52,7 @@ import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { parseDualEngineBody } from '../../lib/dashboardInsight';
+import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 
 type AppState = 'landing' | 'auth' | 'authenticated';
 type View =
@@ -65,6 +67,16 @@ type View =
   | 'integrations'
   | 'admin';
 
+const REQUIRED_CONSENT_TYPES = ['TERMS_OF_SERVICE', 'PRIVACY_POLICY', 'MEDICAL_DISCLAIMER'] as const;
+
+const getLocalTimezone = (): string => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC';
+  } catch {
+    return 'UTC';
+  }
+};
+
 const formatDateTimeLocal = (date: Date): string => {
   const pad = (value: number) => value.toString().padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(
@@ -78,6 +90,7 @@ export default function AppContent() {
   const [appState, setAppState] = useState<AppState>(initialSession ? 'authenticated' : 'landing');
   const [currentView, setCurrentView] = useState<View>('dashboard');
   const [showOnboarding, setShowOnboarding] = useState(initialSession?.user.status === 'PENDING_ONBOARDING');
+  const [isOnboardingRequired, setIsOnboardingRequired] = useState(initialSession?.user.status !== 'ACTIVE');
   const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
@@ -110,6 +123,19 @@ export default function AppContent() {
     () => parseDualEngineBody(dashboardSummary?.todaysInsight?.body ?? null),
     [dashboardSummary?.todaysInsight?.body]
   );
+  const isOnline = useNetworkStatus();
+  useEffect(() => {
+    const TOAST_ID = 'network-status';
+    if (isOnline) {
+      toast.dismiss(TOAST_ID);
+      toast.success('Back online. Syncing the latest BioHax data…', { id: TOAST_ID });
+    } else {
+      toast.error('You are offline. BioHax will sync once you reconnect.', {
+        id: TOAST_ID,
+        duration: Infinity
+      });
+    }
+  }, [isOnline]);
   const calendarEntries = useMemo(() => {
     if (!longevityPlans || longevityPlans.length === 0) {
       return [];
@@ -182,7 +208,7 @@ export default function AppContent() {
       const nextSession = createSessionFromAuthResponse(response);
       updateSession(nextSession);
       setAppState('authenticated');
-      setShowOnboarding(response.user.status !== 'ACTIVE');
+      setIsOnboardingRequired(response.user.status !== 'ACTIVE');
     },
     [updateSession]
   );
@@ -227,7 +253,7 @@ export default function AppContent() {
           tokens: freshSession.tokens
         };
         updateSession(mergedSession);
-        setShowOnboarding(remoteUser.status !== 'ACTIVE');
+        setIsOnboardingRequired(remoteUser.status !== 'ACTIVE');
 
         if (options.requireActive && remoteUser.status !== 'ACTIVE') {
           throw new Error('Complete the onboarding steps to continue.');
@@ -251,6 +277,44 @@ export default function AppContent() {
     },
     [session, ensureFreshSession, updateSession, setAppState]
   );
+
+  const ensureOnboardingRequirements = useCallback(async () => {
+    if (!session) {
+      throw new Error('Please sign in again to continue onboarding.');
+    }
+
+    const freshSession = await ensureFreshSession();
+    const profile = await fetchProfile(freshSession.tokens.accessToken);
+
+    if (!profile.baselineSurvey || Object.keys(profile.baselineSurvey).length === 0) {
+      throw new Error('Save your health profile before completing onboarding.');
+    }
+
+    const resolvedTimezone =
+      profile.timezone && profile.timezone.length > 0 ? profile.timezone : getLocalTimezone();
+
+    const missingConsents = REQUIRED_CONSENT_TYPES.filter(
+      (type) => !profile.consents.some((consent) => consent.type === type && consent.granted)
+    );
+
+    if (missingConsents.length === 0 && resolvedTimezone === profile.timezone) {
+      return;
+    }
+
+    await updateProfile(freshSession.tokens.accessToken, {
+      ...(resolvedTimezone !== profile.timezone ? { timezone: resolvedTimezone } : {}),
+      ...(missingConsents.length > 0
+        ? {
+            consents: missingConsents.map<ConsentRecord>((type) => ({
+              type,
+              granted: true,
+              grantedAt: new Date().toISOString(),
+              metadata: { source: 'ONBOARDING_FLOW' }
+            }))
+          }
+        : {})
+    });
+  }, [session, ensureFreshSession]);
 
   useEffect(() => {
     if (!session) {
@@ -300,9 +364,17 @@ export default function AppContent() {
   }, [allowAdminView, currentView]);
 
   const handleOnboardingComplete = useCallback(async () => {
-    await syncUserProfile({ requireActive: true, throwOnError: true });
-    toast.success('Onboarding complete. Your dashboard is unlocked.');
-  }, [syncUserProfile]);
+    try {
+      await ensureOnboardingRequirements();
+      await syncUserProfile({ requireActive: true, throwOnError: true });
+      toast.success('Onboarding complete. Your dashboard is unlocked.');
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unable to complete onboarding right now.';
+      toast.error(message);
+      throw error instanceof Error ? error : new Error(message);
+    }
+  }, [ensureOnboardingRequirements, syncUserProfile]);
 
   const loadDashboard = useCallback(async () => {
     if (!session) {
@@ -319,7 +391,7 @@ export default function AppContent() {
       setDashboardSummary(null);
       if (error instanceof ApiError) {
         if (error.code === 'ONBOARDING_REQUIRED') {
-          setShowOnboarding(true);
+          setIsOnboardingRequired(true);
           setDashboardError('Complete onboarding to unlock personalized insights.');
         } else {
           setDashboardError(error.message);
@@ -655,8 +727,8 @@ export default function AppContent() {
   }, [session, setAppState]);
 
   const handleNavigate = useCallback(
-    (nextView: View) => {
-      setCurrentView(nextView);
+    (nextView: string) => {
+      setCurrentView(nextView as View);
     },
     []
   );
@@ -665,6 +737,11 @@ export default function AppContent() {
     if (!session) {
       toast.error('Please sign in again to continue onboarding.');
       setAppState('auth');
+      return;
+    }
+
+    if (!isOnboardingRequired) {
+      toast.success('Your onboarding is already complete.');
       return;
     }
 
@@ -680,6 +757,7 @@ export default function AppContent() {
     setShowOnboarding(true);
   }, [
     session,
+    isOnboardingRequired,
     showOnboarding,
     setAppState,
     setShowActionsDialog,

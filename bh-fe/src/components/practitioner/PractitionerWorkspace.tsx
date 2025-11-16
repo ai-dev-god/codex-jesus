@@ -4,7 +4,6 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { Search, UserPlus, Download, FileText, TrendingUp, AlertCircle, Plus, Activity, Heart, Zap, Droplet, Flame, Brain, Shield, Sparkles } from 'lucide-react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
@@ -122,12 +121,11 @@ const standardBiomarkers = [
 ];
 
 export default function PractitionerWorkspace() {
-  const [isAddingBiomarker, setIsAddingBiomarker] = useState(false);
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
   const [selectedBiomarkers, setSelectedBiomarkers] = useState<string[]>([
     'glucose', 'hba1c', 'cholesterol', 'ldl', 'hdl', 'crp', 'testosterone', 'vitamin-d', 'tsh', 'alt', 'creatinine'
   ]);
-  const [clientPlan, setClientPlan] = useState('biohacker');
+  const clientPlan = 'biohacker' as 'explorer' | 'biohacker';
 
   const maxBiomarkers = clientPlan === 'explorer' ? 50 : 150;
   const currentBiomarkerCount = selectedBiomarkers.length;
@@ -350,9 +348,9 @@ export default function PractitionerWorkspace() {
                   <Badge variant="default" className="bg-neural text-white px-4 py-2">
                     {clientPlan === 'explorer' ? 'Explorer Plan' : 'Biohacker Plan'}
                   </Badge>
-                  <Badge 
-                    variant={currentBiomarkerCount >= maxBiomarkers * 0.9 ? 'warning' : 'success'}
-                    className="px-4 py-2"
+                  <Badge
+                    variant={currentBiomarkerCount >= maxBiomarkers * 0.9 ? 'destructive' : 'success'}
+                    className={`px-4 py-2 ${currentBiomarkerCount >= maxBiomarkers * 0.9 ? 'bg-solar/20 text-solar border-none' : ''}`}
                   >
                     {currentBiomarkerCount}/{maxBiomarkers} Biomarkers
                   </Badge>

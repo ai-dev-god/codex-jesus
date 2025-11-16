@@ -16,6 +16,14 @@ export type AdminUser = {
   protocolsActive: number;
 };
 
+export type UserSummary = {
+  id: string;
+  email: string;
+  displayName: string;
+  role: Role;
+  status: UserStatus;
+};
+
 export type ListAdminUsersResponse = {
   data: AdminUser[];
   meta: {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Shield, AlertTriangle, Lock, Key, CheckCircle, Ban, Globe, Server } from 'lucide-react';
+import { Shield, AlertTriangle, Lock, Key, CheckCircle, Ban } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Switch } from '../ui/switch';

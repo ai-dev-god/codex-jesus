@@ -1,4 +1,23 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Activity,
+  AlertCircle,
+  Clock,
+  Copy,
+  Dumbbell,
+  Flame,
+  HeartPulse,
+  Loader2,
+  PlayCircle,
+  Plus,
+  RefreshCcw,
+  Target,
+  TrendingUp,
+  Trophy
+} from 'lucide-react';
+
+import { useAuth } from '../../lib/auth/AuthContext';
+import { getGymOverview, syncGymWorkouts, type GymOverview as GymOverviewResponse } from '../../lib/api/gym';
 import { Card } from '../ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Button } from '../ui/button';
@@ -8,8 +27,10 @@ import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { Checkbox } from '../ui/checkbox';
-import { Dumbbell, Plus, Clock, TrendingUp, Flame, Target, Trophy, BarChart3, PlayCircle, Edit2, Trash2, Copy } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
+import { Skeleton } from '../ui/skeleton';
 import { Progress } from '../ui/progress';
+import { cn } from '../ui/utils';
 
 const workoutTemplates = [
   {
@@ -54,29 +75,6 @@ const workoutTemplates = [
   },
 ];
 
-const myWorkouts = [
-  {
-    id: 'w1',
-    name: 'Upper Body Power',
-    type: 'Strength',
-    lastPerformed: '2 days ago',
-    totalVolume: '12,450 lbs',
-    avgDuration: '52 min',
-    adherence: 94,
-    exercises: 6,
-  },
-  {
-    id: 'w2',
-    name: 'Zone 2 Endurance',
-    type: 'Cardio',
-    lastPerformed: 'Yesterday',
-    totalVolume: '480 cal',
-    avgDuration: '45 min',
-    adherence: 88,
-    exercises: 1,
-  },
-];
-
 const exerciseLibrary = [
   { name: 'Barbell Squat', category: 'Legs', equipment: 'Barbell' },
   { name: 'Deadlift', category: 'Full Body', equipment: 'Barbell' },
@@ -88,17 +86,215 @@ const exerciseLibrary = [
   { name: 'Lunges', category: 'Legs', equipment: 'Bodyweight' },
 ];
 
-const workoutMetrics = [
-  { label: 'Total Volume', value: '142,680 lbs', change: '+8%', trend: 'up' },
-  { label: 'Avg Session Duration', value: '48 min', change: '-3 min', trend: 'neutral' },
-  { label: 'Weekly Frequency', value: '5.2 sessions', change: '+1.2', trend: 'up' },
-  { label: 'Energy Expenditure', value: '2,840 cal', change: '+12%', trend: 'up' },
-];
-
 export default function GymWorkoutCreator() {
+  const { ensureAccessToken } = useAuth();
   const [isCreating, setIsCreating] = useState(false);
   const [newWorkoutName, setNewWorkoutName] = useState('');
   const [selectedExercises, setSelectedExercises] = useState<string[]>([]);
+  const [overview, setOverview] = useState<GymOverviewResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchOverview = useCallback(async () => {
+    setLoading(true);
+    try {
+      const token = await ensureAccessToken();
+      const data = await getGymOverview(token);
+      setOverview(data);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load WHOOP workouts.');
+    } finally {
+      setLoading(false);
+    }
+  }, [ensureAccessToken]);
+
+  useEffect(() => {
+    void fetchOverview();
+  }, [fetchOverview]);
+
+  const handleSync = useCallback(async () => {
+    if (!overview?.linked || syncing) {
+      return;
+    }
+    setSyncing(true);
+    try {
+      const token = await ensureAccessToken();
+      await syncGymWorkouts(token);
+      await fetchOverview();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to trigger WHOOP sync.');
+    } finally {
+      setSyncing(false);
+    }
+  }, [ensureAccessToken, fetchOverview, overview?.linked, syncing]);
+
+  const metrics = useMemo(() => {
+    const defaults = overview?.metrics;
+    return [
+      {
+        label: 'Sessions (7d)',
+        value: defaults ? defaults.totalWorkouts7d.toString() : '—',
+        helper: 'WHOOP workouts synced',
+        icon: Activity
+      },
+      {
+        label: 'Avg Duration',
+        value: defaults?.avgDurationMinutes7d ? `${defaults.avgDurationMinutes7d} min` : '—',
+        helper: 'Last 7 days',
+        icon: Clock
+      },
+      {
+        label: 'Avg Strain',
+        value: defaults?.avgStrain7d ? defaults.avgStrain7d.toFixed(1) : '—',
+        helper: 'WHOOP strain score',
+        icon: HeartPulse
+      },
+      {
+        label: 'Calories Burned',
+        value: defaults?.totalCalories7d ? `${defaults.totalCalories7d.toLocaleString()} kcal` : '—',
+        helper: 'Cumulative (7d)',
+        icon: Flame
+      }
+    ];
+  }, [overview]);
+
+  const recentWorkouts = overview?.workouts ?? [];
+  const sportDistribution = overview?.sportDistribution ?? [];
+  const weeklyTrend = overview?.weeklyStrain ?? [];
+  const canSync = overview?.linked ?? false;
+  const lastSyncLabel = overview?.lastSyncAt ? new Date(overview.lastSyncAt).toLocaleString() : 'Not synced yet';
+  const syncStatus = overview?.syncStatus ?? 'NOT_LINKED';
+  const statusLabel: Record<typeof syncStatus, string> = {
+    ACTIVE: 'Active',
+    PENDING: 'Pending',
+    ERROR: 'Error',
+    NOT_LINKED: 'Not linked'
+  };
+  const statusClasses: Record<typeof syncStatus, string> = {
+    ACTIVE: 'bg-green-100 text-green-800 border-green-200',
+    PENDING: 'bg-amber-100 text-amber-800 border-amber-200',
+    ERROR: 'bg-red-100 text-red-800 border-red-200',
+    NOT_LINKED: 'bg-neutral-100 text-neutral-700 border-neutral-200'
+  };
+
+  const renderWeeklyTrend = () => {
+    if (!weeklyTrend.length) {
+      return <p className="text-sm text-neutral-500">Not enough workout history yet.</p>;
+    }
+
+    const maxValue = Math.max(...weeklyTrend.map((point) => point.avgStrain ?? 0), 1);
+
+    return (
+      <div className="flex items-end gap-3">
+        {weeklyTrend.map((point) => {
+          const height = ((point.avgStrain ?? 0) / maxValue) * 100;
+          const date = new Date(point.weekStart);
+          const label = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+          return (
+            <div key={point.weekStart} className="flex-1 flex flex-col items-center gap-2">
+              <div
+                className="w-full bg-gradient-to-t from-blue-600 to-purple-600 rounded-t"
+                style={{ height: `${Math.max(height, 5)}%` }}
+              />
+              <span className="text-xs text-neutral-500">{label}</span>
+              <span className="text-xs text-neutral-600">{point.avgStrain ? point.avgStrain.toFixed(1) : '—'}</span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderSportDistribution = () => {
+    if (!sportDistribution.length) {
+      return <p className="text-sm text-neutral-500">No recent WHOOP workouts detected.</p>;
+    }
+
+    const maxCount = Math.max(...sportDistribution.map((entry) => entry.count), 1);
+
+    return (
+      <div className="space-y-3">
+        {sportDistribution.map((entry) => (
+          <div key={entry.sport}>
+            <div className="flex items-center justify-between text-sm text-neutral-600 mb-1">
+              <span className="text-neutral-900">{entry.sport}</span>
+              <span>{entry.count}</span>
+            </div>
+            <Progress value={(entry.count / maxCount) * 100} className="h-2" />
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const renderRecentWorkouts = () => {
+    if (loading) {
+      return (
+        <div className="space-y-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={`workout-skeleton-${index}`} className="space-y-2">
+              <Skeleton className="h-4 w-1/3" />
+              <Skeleton className="h-4 w-full" />
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (!recentWorkouts.length) {
+      return (
+        <div className="flex flex-col items-center justify-center py-10 text-center text-neutral-500">
+          <Dumbbell className="w-8 h-8 mb-3 text-neutral-400" />
+          <p className="text-sm">
+            No WHOOP workouts have been synced yet. Once your device syncs, workouts will appear here automatically.
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        {recentWorkouts.map((workout) => (
+          <div key={workout.id} className="flex flex-col gap-2 border-b border-neutral-200 pb-4 last:border-0 last:pb-0">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-neutral-900 font-medium">{workout.sport}</p>
+                <p className="text-sm text-neutral-500">
+                  {new Date(workout.startTime).toLocaleString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit'
+                  })}
+                </p>
+              </div>
+              <Badge variant="outline">{workout.category}</Badge>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm text-neutral-600">
+              <div>
+                <p className="text-neutral-500">Duration</p>
+                <p className="text-neutral-900">{workout.durationMinutes ? `${workout.durationMinutes.toFixed(1)} min` : '—'}</p>
+              </div>
+              <div>
+                <p className="text-neutral-500">Strain</p>
+                <p className="text-neutral-900">{workout.strain ? workout.strain.toFixed(1) : '—'}</p>
+              </div>
+              <div>
+                <p className="text-neutral-500">Avg HR</p>
+                <p className="text-neutral-900">{workout.avgHeartRate ? `${workout.avgHeartRate} bpm` : '—'}</p>
+              </div>
+              <div>
+                <p className="text-neutral-500">Calories</p>
+                <p className="text-neutral-900">{workout.calories ? `${workout.calories} kcal` : '—'}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <div className="p-8 space-y-6" data-testid="view-gym">
@@ -108,6 +304,12 @@ export default function GymWorkoutCreator() {
           <p className="text-neutral-600">
             Evidence-based training programs optimized for longevity and performance
           </p>
+          <div className="flex items-center gap-3 mt-3 text-sm text-neutral-600">
+            <Badge variant="outline" className={cn('capitalize', statusClasses[syncStatus])}>
+              {statusLabel[syncStatus]}
+            </Badge>
+            <span className="text-neutral-500">Last sync: {lastSyncLabel}</span>
+          </div>
         </div>
         <Dialog open={isCreating} onOpenChange={setIsCreating}>
           <DialogTrigger asChild>
@@ -208,38 +410,76 @@ export default function GymWorkoutCreator() {
         </Dialog>
       </div>
 
-      {/* Metrics Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {workoutMetrics.map((metric) => (
-          <Card key={metric.label} className="p-4">
-            <p className="text-sm text-neutral-600 mb-1">{metric.label}</p>
-            <p className="text-neutral-900 mb-1">{metric.value}</p>
-            <div className="flex items-center gap-1 text-sm">
-              <TrendingUp
-                className={`w-4 h-4 ${
-                  metric.trend === 'up' ? 'text-green-600' : 'text-neutral-500'
-                }`}
-              />
-              <span
-                className={
-                  metric.trend === 'up' ? 'text-green-600' : 'text-neutral-600'
-                }
-              >
-                {metric.change}
-              </span>
-              <span className="text-neutral-500">this week</span>
-            </div>
-          </Card>
-        ))}
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Unable to sync workouts</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {!loading && overview && !overview.linked && (
+        <Alert className="border-amber-200 bg-amber-50 text-amber-800">
+          <AlertTitle>Connect your WHOOP</AlertTitle>
+          <AlertDescription>
+            Link your WHOOP in the Integrations tab to start importing workouts automatically.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <div className="flex items-center justify-between text-sm text-neutral-600">
+        <p>WHOOP workouts sync automatically every hour. Trigger a manual sync anytime.</p>
+        <Button variant="outline" disabled={!canSync || syncing} onClick={() => void handleSync()}>
+          {syncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCcw className="w-4 h-4 mr-2" />}
+          Sync from WHOOP
+        </Button>
       </div>
 
-      <Tabs defaultValue="templates" className="w-full">
+      <Tabs defaultValue="overview" className="w-full">
         <TabsList>
+          <TabsTrigger value="overview">WHOOP Overview</TabsTrigger>
           <TabsTrigger value="templates">Protocol Templates</TabsTrigger>
-          <TabsTrigger value="my-workouts">My Workouts</TabsTrigger>
-          <TabsTrigger value="history">Workout History</TabsTrigger>
-          <TabsTrigger value="progress">Progress Tracking</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="overview" className="mt-6 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {metrics.map((metric) => (
+              <Card key={metric.label} className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm text-neutral-600">{metric.label}</p>
+                  <metric.icon className="w-4 h-4 text-neutral-400" />
+                </div>
+                <p className="text-neutral-900 text-xl font-semibold">{metric.value}</p>
+                <p className="text-xs text-neutral-500">{metric.helper}</p>
+              </Card>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <Card className="p-6 lg:col-span-2">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-neutral-900">Recent Workouts</h3>
+                <Badge variant="outline">{recentWorkouts.length} tracked</Badge>
+              </div>
+              {renderRecentWorkouts()}
+            </Card>
+            <div className="space-y-6">
+              <Card className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-neutral-900">Weekly Strain</h3>
+                  <TrendingUp className="w-4 h-4 text-neutral-400" />
+                </div>
+                {renderWeeklyTrend()}
+              </Card>
+              <Card className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-neutral-900">Sport Distribution</h3>
+                </div>
+                {renderSportDistribution()}
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
 
         <TabsContent value="templates" className="mt-6 space-y-4">
           {workoutTemplates.map((template) => (
@@ -307,158 +547,6 @@ export default function GymWorkoutCreator() {
               </div>
             </Card>
           ))}
-        </TabsContent>
-
-        <TabsContent value="my-workouts" className="mt-6 space-y-4">
-          {myWorkouts.map((workout) => (
-            <Card key={workout.id} className="p-6">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-neutral-900">{workout.name}</h3>
-                    <Badge variant="outline">{workout.type}</Badge>
-                  </div>
-                  <p className="text-sm text-neutral-600 mb-3">
-                    Last performed: {workout.lastPerformed}
-                  </p>
-                  <div className="grid grid-cols-3 gap-4 mb-4">
-                    <div>
-                      <p className="text-sm text-neutral-600">Total Volume</p>
-                      <p className="text-neutral-900">{workout.totalVolume}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-neutral-600">Avg Duration</p>
-                      <p className="text-neutral-900">{workout.avgDuration}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-neutral-600">Exercises</p>
-                      <p className="text-neutral-900">{workout.exercises}</p>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-neutral-600">Adherence</span>
-                      <span className="text-sm text-neutral-900">{workout.adherence}%</span>
-                    </div>
-                    <Progress value={workout.adherence} className="h-2" />
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button>
-                    <PlayCircle className="w-4 h-4 mr-2" />
-                    Start
-                  </Button>
-                  <Button variant="outline" size="icon">
-                    <Edit2 className="w-4 h-4" />
-                  </Button>
-                  <Button variant="outline" size="icon">
-                    <Trash2 className="w-4 h-4 text-red-600" />
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </TabsContent>
-
-        <TabsContent value="history" className="mt-6">
-          <Card className="p-6">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between pb-4 border-b border-neutral-200">
-                <div>
-                  <p className="text-neutral-900">Upper Body Power</p>
-                  <p className="text-sm text-neutral-600">Nov 1, 2025 • 52 min</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-neutral-900">12,450 lbs</p>
-                  <p className="text-sm text-green-600">+5% from last session</p>
-                </div>
-              </div>
-              <div className="flex items-center justify-between pb-4 border-b border-neutral-200">
-                <div>
-                  <p className="text-neutral-900">Zone 2 Endurance</p>
-                  <p className="text-sm text-neutral-600">Oct 31, 2025 • 45 min</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-neutral-900">480 cal</p>
-                  <p className="text-sm text-green-600">HR avg: 142 bpm</p>
-                </div>
-              </div>
-              <div className="flex items-center justify-between pb-4 border-b border-neutral-200">
-                <div>
-                  <p className="text-neutral-900">VO2 Max HIIT</p>
-                  <p className="text-sm text-neutral-600">Oct 30, 2025 • 28 min</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-neutral-900">620 cal</p>
-                  <p className="text-sm text-green-600">Peak HR: 178 bpm</p>
-                </div>
-              </div>
-            </div>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="progress" className="mt-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-neutral-900">Volume Progression</h3>
-                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                  <TrendingUp className="w-3 h-3 mr-1" />
-                  +18% (30d)
-                </Badge>
-              </div>
-              <div className="h-48 flex items-end justify-between gap-2">
-                {[65, 72, 68, 78, 85, 82, 90, 95].map((value, idx) => (
-                  <div key={idx} className="flex-1 flex flex-col items-center gap-2">
-                    <div
-                      className="w-full bg-gradient-to-t from-blue-600 to-purple-600 rounded-t"
-                      style={{ height: `${value}%` }}
-                    />
-                    <span className="text-xs text-neutral-600">W{idx + 1}</span>
-                  </div>
-                ))}
-              </div>
-            </Card>
-
-            <Card className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-neutral-900">Personal Records</h3>
-                <Button variant="outline" size="sm">View All</Button>
-              </div>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-100">
-                  <div>
-                    <p className="text-neutral-900">Deadlift</p>
-                    <p className="text-sm text-neutral-600">3 reps</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-blue-700">405 lbs</p>
-                    <p className="text-xs text-neutral-600">Oct 28</p>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-100">
-                  <div>
-                    <p className="text-neutral-900">Bench Press</p>
-                    <p className="text-sm text-neutral-600">5 reps</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-blue-700">265 lbs</p>
-                    <p className="text-xs text-neutral-600">Oct 25</p>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-100">
-                  <div>
-                    <p className="text-neutral-900">Back Squat</p>
-                    <p className="text-sm text-neutral-600">8 reps</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-blue-700">315 lbs</p>
-                    <p className="text-xs text-neutral-600">Oct 22</p>
-                  </div>
-                </div>
-              </div>
-            </Card>
-          </div>
         </TabsContent>
       </Tabs>
     </div>

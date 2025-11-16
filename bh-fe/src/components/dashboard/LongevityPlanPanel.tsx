@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, Loader2, RefreshCw, Shield, Sparkles } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Loader2, Shield, Sparkles } from 'lucide-react';
 import type { LongevityPlan, PlanIntervention, RiskScoreEntry } from '../../lib/api/types';
 
 interface LongevityPlanPanelProps {

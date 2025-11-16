@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { Brain, TrendingUp, DollarSign, Zap, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Brain, TrendingUp, DollarSign, Zap, CheckCircle } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { Progress } from '../ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';

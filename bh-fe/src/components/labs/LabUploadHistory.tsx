@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshCw, AlertTriangle, Clock, Activity, FileText, Download, Tag as TagIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -348,7 +348,7 @@ export default function LabUploadHistory({ refreshKey }: LabUploadHistoryProps) 
               <div className="text-xs text-steel uppercase tracking-wide">Pending</div>
               <div className="text-lg font-bold text-electric">{stats.pending}</div>
             </div>
-            <Button variant="outline" onClick={loadUploads} disabled={loading}>
+            <Button variant="outline" onClick={() => void loadUploads()} disabled={loading}>
               <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
               {primaryCtaLabel}
             </Button>

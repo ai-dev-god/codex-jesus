@@ -9,6 +9,7 @@
 - PWA is enabled in both `dev` and `build` commands (`devOptions.enabled`). During development, use Chrome Application tab → Service Workers to trigger `skipWaiting`.
 - CI/CD must ensure the `public/icons` directory and `offline.html` are deployed; `vite build` outputs the manifest and SW automatically.
 - Cache versioning is handled by Workbox; purging caches just requires clients to close/reopen or `self.skipWaiting()` in the Application panel.
+- `workbox.navigateFallback` now targets `/index.html` and `templatedURLs['/?source=pwa']` maps to `index.html` so installed experiences open the live shell instead of the offline fallback. Track installs via `matchMedia('(display-mode: standalone)')` rather than a query-param `start_url`.
 
 ### Install UX
 - Android / Desktop Chromium: `virtual:pwa-register` bootstrap + custom CTA banner (`PwaInstallBanner`) listens for `beforeinstallprompt` and lets users trigger install after 2+ visits.
@@ -16,9 +17,9 @@
 - Manifest shortcuts: `/#cta` and `/#pricing` anchor IDs exist on the landing page for jump navigation after install.
 
 ### Notifications & Background Work (next iterations)
-- Push: configure VAPID keys (Chrome) + APNs web push certificate (Safari 16.4+). Store tokens in backend with HIPAA-compliant scope flags before enabling production pushes.
-- Background sync: queue sensitive POSTs (e.g., contact/demo forms) inside `/api/` routes once endpoints are finalized. Current queue placeholder is `biohax-api-queue`.
-- Periodic background sync can refresh testimonial/pricing sections; requires origin trial for Chrome until the API fully stabilizes.
+- Push: configure VAPID keys (Chrome) + APNs web push certificate (Safari 16.4+). Store tokens in backend with HIPAA-compliant scope flags before enabling production pushes. Provide `/api/push/register` + `/api/push/preferences` endpoints; emit topic names `protocol-updates`, `pricing-news`, and `insight-ready`.
+- Background sync: once `/api/contact`, `/api/demo`, and `/api/community/post` endpoints land, wrap each `fetch` in a helper that writes to the `biohax-api-queue` when `navigator.onLine === false`. The queue worker should replay requests with original method/body/headers and clear entries after `response.ok`.
+- Periodic background sync can refresh testimonial/pricing sections; requires origin trial for Chrome until the API fully stabilizes. Target feeds: `/api/public/testimonials` + `/api/public/pricing`.
 
 ### QA Checklist
 1. `npm run build && npm run preview` → Lighthouse PWA score ≥ 95 on mobile + desktop.

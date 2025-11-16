@@ -67,8 +67,11 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,avif,woff2}'],
-        navigateFallback: '/offline.html',
+        navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//],
+        templatedURLs: {
+          '/?source=pwa': ['index.html'],
+        },
         runtimeCaching: [
           {
             urlPattern: ({ request }) => request.destination === 'document',

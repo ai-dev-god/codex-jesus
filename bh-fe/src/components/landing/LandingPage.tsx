@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Zap, Activity, Users, Brain, TrendingUp, Lock, CheckCircle2, Menu, X, Moon, Sun, Database, Sparkles, Calendar, Bell, BookOpen, Briefcase, ArrowRight, Shield, Gauge, Star } from 'lucide-react';
+import { Zap, Activity, Users, Brain, Lock, CheckCircle2, Menu, Moon, Sun, Database, Sparkles, Calendar, Bell, BookOpen, Briefcase, ArrowRight, Shield, Gauge, Star } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '../ui/sheet';
 import { ImageWithFallback } from '../figma/ImageWithFallback';

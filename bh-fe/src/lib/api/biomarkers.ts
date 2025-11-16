@@ -23,6 +23,6 @@ export const createManualBiomarkerLog = (
   apiFetch<BiomarkerLog>('/biomarker-logs', {
     method: 'POST',
     authToken: accessToken,
-    body: payload
+    body: JSON.stringify(payload)
   });
 

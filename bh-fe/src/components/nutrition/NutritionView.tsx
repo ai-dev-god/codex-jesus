@@ -9,7 +9,7 @@ import { Progress } from '../ui/progress';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Textarea } from '../ui/textarea';
-import { Apple, Plus, TrendingUp, Target, Flame, Droplets, Beef, Calendar, Clock, Award, ChevronRight, Edit2, Copy } from 'lucide-react';
+import { Apple, Plus, Target, Flame, Droplets, Beef, Calendar, Clock, Award, ChevronRight, Edit2, Copy } from 'lucide-react';
 
 const dailyMacros = {
   calories: { current: 2140, target: 2400, unit: 'cal' },

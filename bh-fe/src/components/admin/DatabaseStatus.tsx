@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Database, HardDrive, Activity, Clock, Users, Zap, RefreshCw } from 'lucide-react';
+import { Database, HardDrive, Activity, Clock, Users, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useAuth } from '../../lib/auth/AuthContext';
@@ -13,7 +13,7 @@ import { Badge } from '../ui/badge';
 export default function DatabaseStatus() {
   const { ensureAccessToken } = useAuth();
   const [status, setStatus] = useState<DatabaseStatusSummary | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

@@ -1,5 +1,4 @@
-import { Search, Bell, User, Sparkles } from 'lucide-react';
-import { Badge } from '../ui/badge';
+import { Search, Bell, Sparkles } from 'lucide-react';
 
 interface FloatingHeaderProps {
   onStartOnboarding: () => void;

@@ -9,7 +9,7 @@ declare global {
       accounts?: {
         id?: {
           initialize: (options: Record<string, unknown>) => void;
-          prompt: (callback?: (notification: any) => void) => void;
+          prompt: (callback?: (notification: google.accounts.id.PromptMomentNotification) => void) => void;
           renderButton?: (element: HTMLElement, options: Record<string, unknown>) => void;
         };
       };
@@ -20,8 +20,14 @@ declare global {
     namespace accounts {
       namespace id {
         function initialize(options: Record<string, unknown>): void;
-        function prompt(callback?: (notification: any) => void): void;
+        function prompt(callback?: (notification: PromptMomentNotification) => void): void;
         function renderButton(element: HTMLElement, options: Record<string, unknown>): void;
+        interface PromptMomentNotification {
+          isNotDisplayed: () => boolean;
+          getNotDisplayedReason: () => string | undefined;
+          isSkippedMoment: () => boolean;
+          getSkippedReason: () => string | undefined;
+        }
       }
     }
   }
