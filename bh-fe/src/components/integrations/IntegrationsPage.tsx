@@ -44,17 +44,7 @@ type IntegrationDefinition = {
   comingSoon?: boolean;
 };
 
-const integrationDefinitions: IntegrationDefinition[] = [
-  {
-    id: 'whoop',
-    name: 'WHOOP',
-    category: 'Wearable',
-    description: 'Advanced recovery and strain tracking',
-    icon: Activity,
-    metrics: ['HRV', 'Recovery Score', 'Strain', 'Sleep Performance', 'Respiratory Rate'],
-    color: 'pulse',
-    dataPoints: 'Real-time recovery telemetry'
-  },
+const comingSoonIntegrations: IntegrationDefinition[] = [
   {
     id: 'biomarker-panel',
     name: 'Practitioner Biomarker Panel',
@@ -170,7 +160,7 @@ export default function IntegrationsPage() {
 
   const whoopMetrics = useMemo(() => {
     if (!gymOverview) {
-      return integrationDefinitions.find((integration) => integration.id === 'whoop')?.metrics ?? [];
+      return ['HRV', 'Recovery Score', 'Strain', 'Sleep Performance', 'Respiratory Rate'];
     }
     const { metrics } = gymOverview;
     return [
@@ -254,17 +244,15 @@ export default function IntegrationsPage() {
     void fetchIntegrationData();
   }, [fetchIntegrationData]);
 
-  const renderIntegrationCard = (integration: IntegrationDefinition) => {
-    const Icon = integration.icon;
-    const isWhoop = integration.id === 'whoop';
-    const comingSoon = integration.comingSoon && !isWhoop;
-    const isConnected = isWhoop ? Boolean(whoopStatus?.linked) : false;
-    const cardClass = isConnected ? `neo-card-${integration.color}` : 'neo-card';
-    const gradientClass = `gradient-${integration.color}`;
-    const metrics = isWhoop ? whoopMetrics : integration.metrics;
+  const renderWhoopCard = () => {
+    const Icon = Activity;
+    const isConnected = Boolean(whoopStatus?.linked);
+    const cardClass = isConnected ? 'neo-card-pulse' : 'neo-card';
+    const gradientClass = 'gradient-pulse';
+    const metrics = whoopMetrics;
 
     return (
-      <div key={integration.id} className={`${cardClass} p-8 hover:scale-[1.01] transition-transform`}>
+      <div className={`${cardClass} p-8 hover:scale-[1.01] transition-transform`} key="whoop-live">
         <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
           <div className="flex items-start gap-4 flex-1">
             <div className={`w-16 h-16 rounded-2xl ${gradientClass} flex items-center justify-center flex-shrink-0`}>
@@ -272,41 +260,21 @@ export default function IntegrationsPage() {
             </div>
             <div className="flex-1">
               <div className="flex flex-wrap items-center gap-3 mb-3">
-                <h3>{integration.name}</h3>
-                {comingSoon && <Badge variant="secondary">Coming Soon</Badge>}
-                {isWhoop && whoopStatus?.linked && (
+                <h3>WHOOP</h3>
+                {whoopStatus?.linked ? (
                   <Badge variant="success">
                     <Check className="w-3 h-3 mr-1" />
                     Connected
                   </Badge>
-                )}
-                {integration.practitionerEdited && (
-                  <Badge className="bg-electric text-void">
-                    <Sparkles className="w-3 h-3 mr-1" />
-                    Practitioner Managed
-                  </Badge>
-                )}
-                {integration.premium && (
-                  <Badge className="bg-gradient-to-r from-neural to-bio text-white">
-                    <Star className="w-3 h-3 mr-1" />
-                    Premium
-                  </Badge>
+                ) : (
+                  <Badge variant="secondary">Not Linked</Badge>
                 )}
               </div>
-              <p className="text-ink mb-3">{isWhoop ? whoopSubtitle : integration.description}</p>
-              {isWhoop && gymOverview?.lastSyncAt && (
+              <p className="text-ink mb-3">{whoopSubtitle}</p>
+              {gymOverview?.lastSyncAt && (
                 <p className="text-sm text-steel mb-4">
                   <span className="font-semibold">WHOOP sync status:</span> {gymOverview.syncStatus}
                 </p>
-              )}
-              {integration.platforms && (
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {integration.platforms.map((platform) => (
-                    <span key={platform} className="px-4 py-2 bg-white rounded-xl text-sm font-semibold text-ink border border-cloud">
-                      {platform}
-                    </span>
-                  ))}
-                </div>
               )}
               <div className="flex flex-wrap gap-2">
                 {metrics.map((metric) => (
@@ -318,61 +286,97 @@ export default function IntegrationsPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-3 lg:flex-col lg:items-end">
-            {isWhoop ? (
+            <Button variant="outline" onClick={handleRefreshStatus} disabled={loading || actionLoading}>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Refresh Status
+            </Button>
+            {whoopStatus?.linked ? (
               <>
-                <Button variant="outline" onClick={handleRefreshStatus} disabled={loading || actionLoading}>
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Refresh Status
+                <Button variant="outline" onClick={handleManualSync} disabled={syncLoading}>
+                  {syncLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Syncing…
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Sync Now
+                    </>
+                  )}
                 </Button>
-                {whoopStatus?.linked ? (
-                  <>
-                    <Button variant="outline" onClick={handleManualSync} disabled={syncLoading}>
-                      {syncLoading ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Syncing…
-                        </>
-                      ) : (
-                        <>
-                          <RefreshCw className="w-4 h-4 mr-2" />
-                          Sync Now
-                        </>
-                      )}
-                    </Button>
-                    <Button variant="outline" onClick={handleNavigateToGym}>
-                      View Data
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="text-pulse border-pulse/20 hover:bg-pulse/10"
-                      onClick={handleWhoopDisconnect}
-                      disabled={actionLoading}
-                    >
-                      <X className="w-4 h-4 mr-2" />
-                      Disconnect
-                    </Button>
-                  </>
-                ) : (
-                  <Button onClick={handleWhoopConnect} disabled={actionLoading || loading}>
-                    {actionLoading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Starting…
-                      </>
-                    ) : (
-                      <>
-                        <Link2 className="w-4 h-4 mr-2" />
-                        Connect WHOOP
-                      </>
-                    )}
-                  </Button>
-                )}
+                <Button variant="outline" onClick={handleNavigateToGym}>
+                  View Data
+                </Button>
+                <Button
+                  variant="outline"
+                  className="text-pulse border-pulse/20 hover:bg-pulse/10"
+                  onClick={handleWhoopDisconnect}
+                  disabled={actionLoading}
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Disconnect
+                </Button>
               </>
             ) : (
-              <Button variant="outline" disabled className="cursor-not-allowed opacity-70">
-                Coming Soon
+              <Button onClick={handleWhoopConnect} disabled={actionLoading || loading}>
+                {actionLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Starting…
+                  </>
+                ) : (
+                  <>
+                    <Link2 className="w-4 h-4 mr-2" />
+                    Connect WHOOP
+                  </>
+                )}
               </Button>
             )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderComingSoonCard = (integration: IntegrationDefinition) => {
+    const Icon = integration.icon;
+    const gradientClass = `gradient-${integration.color}`;
+
+    return (
+      <div key={integration.id} className="neo-card p-8 opacity-80">
+        <div className="flex items-start gap-4">
+          <div className={`w-14 h-14 rounded-2xl ${gradientClass} flex items-center justify-center flex-shrink-0`}>
+            <Icon className="w-7 h-7 text-void" />
+          </div>
+          <div className="flex-1">
+            <div className="flex flex-wrap items-center gap-3 mb-2">
+              <h3>{integration.name}</h3>
+              <Badge variant="secondary">Coming Soon</Badge>
+              {integration.premium && (
+                <Badge className="bg-gradient-to-r from-neural to-bio text-white">
+                  <Star className="w-3 h-3 mr-1" />
+                  Premium
+                </Badge>
+              )}
+              {integration.practitionerEdited && (
+                <Badge className="bg-electric text-void">
+                  <Sparkles className="w-3 h-3 mr-1" />
+                  Practitioner Managed
+                </Badge>
+              )}
+            </div>
+            <p className="text-sm text-steel mb-4">{integration.description}</p>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {integration.metrics.map((metric) => (
+                <span key={metric} className="px-3 py-1.5 bg-white rounded-lg text-xs font-semibold text-ink border border-cloud">
+                  {metric}
+                </span>
+              ))}
+            </div>
+            <Button variant="outline" disabled className="cursor-not-allowed opacity-60">
+              Coming Soon
+            </Button>
           </div>
         </div>
       </div>
@@ -453,7 +457,8 @@ export default function IntegrationsPage() {
           </TabsList>
 
           <TabsContent value="all" className="mt-8 space-y-6">
-            {integrationDefinitions.map(renderIntegrationCard)}
+            {renderWhoopCard()}
+            {comingSoonIntegrations.map(renderComingSoonCard)}
             <div className="neo-card p-12 w-full hover:scale-[1.01] transition-transform text-center border-dashed">
               <Link2 className="w-12 h-12 text-steel mx-auto mb-4" />
               <h4 className="mb-2">Add Another Integration</h4>
@@ -467,15 +472,16 @@ export default function IntegrationsPage() {
           </TabsContent>
 
           <TabsContent value="wearables" className="mt-8 space-y-6">
-            {integrationDefinitions
+            {renderWhoopCard()}
+            {comingSoonIntegrations
               .filter((integration) => integration.category === 'Wearable' || integration.category === 'Health Platforms')
-              .map(renderIntegrationCard)}
+              .map(renderComingSoonCard)}
           </TabsContent>
 
           <TabsContent value="labs" className="mt-8 space-y-6">
-            {integrationDefinitions
+            {comingSoonIntegrations
               .filter((integration) => integration.category === 'Lab Testing' || integration.category === 'Epigenetic' || integration.category === 'Microbiome')
-              .map(renderIntegrationCard)}
+              .map(renderComingSoonCard)}
 
             <div className="neo-card-electric p-8">
               <div className="flex items-start gap-4">
