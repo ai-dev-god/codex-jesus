@@ -209,7 +209,7 @@ const runSync = async (
   if (!accessToken) {
     await prisma.whoopIntegration.update({
       where: { id: integration.id },
-      data: { syncStatus: 'ERROR' }
+      data: { syncStatus: 'PENDING' }
     });
     throw new Error(`Missing Whoop access token for user ${integration.userId}`);
   }

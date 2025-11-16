@@ -29,7 +29,11 @@ const registerSchema = zod_1.z.object({
     displayName: zod_1.z.string().min(1).max(120),
     timezone: zod_1.z.string().min(1),
     acceptedTerms: zod_1.z.boolean(),
-    marketingOptIn: zod_1.z.boolean().optional()
+    marketingOptIn: zod_1.z.boolean().optional(),
+    inviteCode: zod_1.z
+        .string()
+        .min(4, 'Invite codes must be at least 4 characters.')
+        .max(64, 'Invite codes must be 64 characters or fewer.')
 });
 const loginSchema = zod_1.z.object({
     email: zod_1.z.string().email(),
@@ -108,10 +112,10 @@ router.post('/refresh', async (req, res, next) => {
         next(error);
     }
 });
-router.post('/logout', guards_1.requireAuth, async (req, res, next) => {
+router.post('/logout', async (req, res, next) => {
     try {
         const payload = validate(logoutSchema, req.body ?? {});
-        await identity_service_1.identityService.logout(req.user.id, payload.refreshToken);
+        await identity_service_1.identityService.logout(req.user?.id ?? null, payload.refreshToken);
         res.status(204).send();
     }
     catch (error) {

@@ -707,6 +707,38 @@ async function seed() {
             userId: user.id
         }
     });
+    await prisma.membershipInvite.upsert({
+        where: { code: 'BIOHAX-ALPHA' },
+        update: {
+            maxUses: 500,
+            status: client_1.MembershipInviteStatus.ACTIVE,
+            metadata: { note: 'Default internal invite' }
+        },
+        create: {
+            id: 'seed-invite-alpha',
+            code: 'BIOHAX-ALPHA',
+            status: client_1.MembershipInviteStatus.ACTIVE,
+            maxUses: 500,
+            usedCount: 0,
+            metadata: { note: 'Default internal invite' }
+        }
+    });
+    await prisma.membershipInvite.upsert({
+        where: { code: 'LAB-FOUNDERS' },
+        update: {
+            email: 'founder@biohax.pro',
+            maxUses: 1,
+            status: client_1.MembershipInviteStatus.ACTIVE
+        },
+        create: {
+            id: 'seed-invite-founders',
+            code: 'LAB-FOUNDERS',
+            email: 'founder@biohax.pro',
+            status: client_1.MembershipInviteStatus.ACTIVE,
+            maxUses: 1,
+            usedCount: 0
+        }
+    });
     console.info('[seed] Created base member account:', user.email);
 }
 seed()

@@ -45,7 +45,8 @@ const envSchema = zod_1.z.object({
         .string()
         .url()
         .default('https://storage.biohax.pro'),
-    AI_LONGEVITY_PLAN_ENABLED: zod_1.z.coerce.boolean().default(false)
+    AI_LONGEVITY_PLAN_ENABLED: zod_1.z.coerce.boolean().default(false),
+    ALLOW_EMAIL_SIGNUPS: zod_1.z.coerce.boolean().default(false)
 });
 const rawEnv = { ...process.env };
 if (!rawEnv.AUTH_JWT_SECRET && rawEnv.JWT_SECRET) {
