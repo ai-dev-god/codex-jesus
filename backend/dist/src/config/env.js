@@ -32,6 +32,7 @@ const envSchema = zod_1.z.object({
     WHOOP_REDIRECT_URI: zod_1.z.string().url().default('http://localhost:5173/oauth/whoop/callback'),
     WHOOP_TOKEN_ENCRYPTION_KEY: zod_1.z.string().min(16).default('dev-whoop-token-secret'),
     WHOOP_TOKEN_KEY_ID: zod_1.z.string().default('whoop-token-key-v1'),
+    WHOOP_WEBHOOK_SECRET: zod_1.z.string().min(16).default('dev-whoop-webhook-secret'),
     STRAVA_CLIENT_ID: zod_1.z.string().optional(),
     STRAVA_CLIENT_SECRET: zod_1.z.string().optional(),
     STRAVA_REDIRECT_URI: zod_1.z.string().url().default('http://localhost:5173/oauth/strava/callback'),
@@ -67,7 +68,8 @@ if (parsed.NODE_ENV === 'production') {
         ['AUTH_JWT_SECRET', 'dev-jwt-secret'],
         ['AUTH_REFRESH_ENCRYPTION_KEY', 'dev-refresh-secret'],
         ['WHOOP_TOKEN_ENCRYPTION_KEY', 'dev-whoop-token-secret'],
-        ['STRAVA_TOKEN_ENCRYPTION_KEY', 'dev-strava-token-secret']
+        ['STRAVA_TOKEN_ENCRYPTION_KEY', 'dev-strava-token-secret'],
+        ['WHOOP_WEBHOOK_SECRET', 'dev-whoop-webhook-secret']
     ];
     const requireSecret = (key, defaultValue) => {
         const value = parsed[key];

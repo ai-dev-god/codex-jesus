@@ -6,6 +6,7 @@ const zod_1 = require("zod");
 const guards_1 = require("../identity/guards");
 const whoop_service_1 = require("./whoop.service");
 const http_error_1 = require("../observability-ops/http-error");
+const whoop_webhook_handler_1 = require("./whoop-webhook-handler");
 const linkRequestSchema = zod_1.z
     .object({
     authorizationCode: zod_1.z.string().min(1, 'authorizationCode cannot be empty').optional(),
@@ -29,6 +30,7 @@ const validate = (schema, data) => {
     }
     return result.data;
 };
+router.post('/webhook', whoop_webhook_handler_1.whoopWebhookHandler);
 router.use(guards_1.requireAuth);
 router.get('/status', async (req, res, next) => {
     try {

@@ -10,7 +10,7 @@ export const WHOOP_SYNC_RETRY_CONFIG = {
   maxBackoffSeconds: 600
 } as const;
 
-export type WhoopSyncReason = 'initial-link' | 'scheduled' | 'manual-retry';
+export type WhoopSyncReason = 'initial-link' | 'scheduled' | 'manual-retry' | 'webhook';
 
 export type WhoopSyncTaskPayload = {
     userId: string;

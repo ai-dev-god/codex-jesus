@@ -24,6 +24,14 @@ import { aiRouter } from './modules/ai/router';
 import { reportsRouter } from './modules/reports/router';
 import { practitionerRouter } from './modules/practitioner/router';
 
+const captureRawBody = (req: Request, _res: Response, buf: Buffer): void => {
+  if (buf?.length) {
+    req.rawBody = Buffer.from(buf);
+  } else {
+    req.rawBody = Buffer.alloc(0);
+  }
+};
+
 const app = express();
 const allowedOrigins = env.corsOrigins.length > 0 ? env.corsOrigins : ['http://localhost:5173'];
 const normalizeOrigin = (origin: string) => origin.replace(/\/$/, '').toLowerCase();
@@ -66,7 +74,7 @@ app.use((req, res, next) => {
 app.use(requestContext);
 app.use(observabilityMiddleware);
 app.use(helmet());
-app.use(express.json());
+app.use(express.json({ verify: captureRawBody }));
 app.use(sessionMiddleware);
 
 app.use('/healthz', healthRouter);

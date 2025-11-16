@@ -93,7 +93,7 @@ const createIntegrationRecord = (overrides: Partial<WhoopIntegration> = {}): Who
   ...overrides
 });
 
-const createService = (prisma: MockPrisma) => {
+const createService = (prisma: MockPrisma, overrides: { authorizeUrl?: string } = {}) => {
   const oauthClient: WhoopOAuthClient = {
     exchangeCode: jest.fn()
   };
@@ -113,7 +113,7 @@ const createService = (prisma: MockPrisma) => {
       clientId: 'client-id',
       clientSecret: 'client-secret',
       redirectUri: 'https://app.example.com/whoop/callback',
-      authorizeUrl: 'https://auth.example.com/authorize',
+      authorizeUrl: overrides.authorizeUrl ?? 'https://auth.example.com/auth',
       scopes: ['scope:read'],
       stateTtlMs: 600_000,
       tokenKeyId: 'key-1'
@@ -130,7 +130,9 @@ describe('WhoopService', () => {
 
   it('creates a new link session and returns link details', async () => {
     const prisma = createMockPrisma();
-    const { service } = createService(prisma);
+    const { service } = createService(prisma, {
+      authorizeUrl: 'https://api.prod.whoop.com/oauth/oauth2/authorize'
+    });
     const session = createSessionRecord();
 
     prisma.whoopIntegration.findUnique.mockResolvedValueOnce(null); // inside transaction
@@ -157,9 +159,26 @@ describe('WhoopService', () => {
     );
     expect(result.linked).toBe(false);
     expect(result.state).toBe('state-xyz');
-    expect(result.linkUrl).toContain('https://auth.example.com/authorize');
+    expect(result.linkUrl).toContain('https://api.prod.whoop.com/oauth/oauth2/auth');
     expect(result.linkUrl).toContain('state-xyz');
     expect(result.syncStatus).toBe('PENDING');
+  });
+
+  it('preserves custom authorize URLs that already use /auth', async () => {
+    const prisma = createMockPrisma();
+    const { service } = createService(prisma, {
+      authorizeUrl: 'https://auth.example.com/oauth/oauth2/auth'
+    });
+    const session = createSessionRecord();
+
+    prisma.whoopIntegration.findUnique.mockResolvedValueOnce(null);
+    prisma.whoopLinkSession.create.mockResolvedValue(session);
+    prisma.whoopIntegration.findUnique.mockResolvedValueOnce(null);
+    prisma.whoopLinkSession.findFirst.mockResolvedValueOnce(session);
+
+    const result = await service.initiateLink('user-1');
+
+    expect(result.linkUrl).toContain('https://auth.example.com/oauth/oauth2/auth');
   });
 
   it('throws when attempting to link while an active integration exists', async () => {

@@ -28,6 +28,14 @@ const router_12 = require("./modules/notifications/router");
 const router_13 = require("./modules/ai/router");
 const router_14 = require("./modules/reports/router");
 const router_15 = require("./modules/practitioner/router");
+const captureRawBody = (req, _res, buf) => {
+    if (buf?.length) {
+        req.rawBody = Buffer.from(buf);
+    }
+    else {
+        req.rawBody = Buffer.alloc(0);
+    }
+};
 const app = (0, express_1.default)();
 exports.app = app;
 const allowedOrigins = env_1.default.corsOrigins.length > 0 ? env_1.default.corsOrigins : ['http://localhost:5173'];
@@ -66,7 +74,7 @@ app.use((req, res, next) => {
 app.use(request_context_1.requestContext);
 app.use(middleware_1.observabilityMiddleware);
 app.use((0, helmet_1.default)());
-app.use(express_1.default.json());
+app.use(express_1.default.json({ verify: captureRawBody }));
 app.use(session_middleware_1.sessionMiddleware);
 app.use('/healthz', health_1.healthRouter);
 app.use('/auth', router_1.authRouter);

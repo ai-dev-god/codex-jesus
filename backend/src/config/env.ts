@@ -69,7 +69,7 @@ if (parsed.NODE_ENV === 'production') {
     | 'AUTH_REFRESH_ENCRYPTION_KEY'
     | 'WHOOP_TOKEN_ENCRYPTION_KEY'
     | 'STRAVA_TOKEN_ENCRYPTION_KEY'
-    | 'WHOOP_WEBHOOK_SECRET';
+    | 'WHOOP_WEBHOOK_SECRET'
     | 'LAB_UPLOAD_SEALING_KEY';
   const forbiddenDefaults: Array<[SecretKey, string]> = [
     ['AUTH_JWT_SECRET', 'dev-jwt-secret'],

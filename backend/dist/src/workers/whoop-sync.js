@@ -26,7 +26,9 @@ const resolvePayload = (metadataPayload) => {
     const userId = typeof record.userId === 'string' ? record.userId : null;
     const whoopUserId = typeof record.whoopUserId === 'string' ? record.whoopUserId : null;
     const reason = record.reason;
-    if (!userId || !whoopUserId || (reason !== 'initial-link' && reason !== 'scheduled' && reason !== 'manual-retry')) {
+    if (!userId ||
+        !whoopUserId ||
+        (reason !== 'initial-link' && reason !== 'scheduled' && reason !== 'manual-retry' && reason !== 'webhook')) {
         return null;
     }
     return {

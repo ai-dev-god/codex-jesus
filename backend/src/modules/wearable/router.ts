@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { requireAuth } from '../identity/guards';
 import { whoopService } from './whoop.service';
 import { HttpError } from '../observability-ops/http-error';
+import { whoopWebhookHandler } from './whoop-webhook-handler';
 
 const linkRequestSchema = z
   .object({
@@ -32,6 +33,8 @@ const validate = <T>(schema: z.ZodSchema<T>, data: unknown): T => {
   }
   return result.data;
 };
+
+router.post('/webhook', whoopWebhookHandler);
 
 router.use(requireAuth);
 
