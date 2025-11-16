@@ -12,7 +12,7 @@ const dashboard_service_1 = require("../dashboard/dashboard.service");
 const token_crypto_1 = require("./token-crypto");
 const oauth_client_1 = require("./oauth-client");
 const whoop_sync_queue_1 = require("./whoop-sync-queue");
-const DEFAULT_AUTHORIZE_URL = 'https://api.prod.whoop.com/oauth/oauth2/authorize';
+const DEFAULT_AUTHORIZE_URL = 'https://api.prod.whoop.com/oauth/oauth2/auth';
 const DEFAULT_SCOPES = ['offline_access', 'read:recovery', 'read:cycles', 'read:profile'];
 const DEFAULT_STATE_TTL_MS = 10 * 60 * 1000;
 class WhoopService {

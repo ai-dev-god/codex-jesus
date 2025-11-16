@@ -1,0 +1,46 @@
+steps:
+  - id: Build backend image
+    name: gcr.io/cloud-builders/docker
+    entrypoint: bash
+    env:
+      - DOCKER_BUILDKIT=1
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        docker build \
+          -t europe-west1-docker.pkg.dev/$PROJECT_ID/production/bh-backend-final:latest \
+          -f backend/Dockerfile \
+          backend
+
+  - id: Push image to registry
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - europe-west1-docker.pkg.dev/$PROJECT_ID/production/bh-backend-final:latest
+
+  - id: Deploy to Cloud Run
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - bh-backend-final
+      - --image
+      - europe-west1-docker.pkg.dev/$PROJECT_ID/production/bh-backend-final:latest
+      - --region
+      - europe-west1
+      - --platform
+      - managed
+      - --allow-unauthenticated
+      - --add-cloudsql-instances
+      - $PROJECT_ID:europe-west1:biohax-main-postgres
+      - --service-account
+      - codexjesus@biohax-777.iam.gserviceaccount.com
+      - --project
+      - $PROJECT_ID
+      - --quiet
+
+images:
+  - europe-west1-docker.pkg.dev/$PROJECT_ID/production/bh-backend-final:latest
+

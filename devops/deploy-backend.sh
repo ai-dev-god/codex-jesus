@@ -99,8 +99,7 @@ release() {
   log "Submitting Cloud Build deployment"
   gcloud builds submit "${ROOT_DIR}" \
     --project "${PROJECT_ID}" \
-    --config="${ROOT_DIR}/bh-fe/cloudbuild.yaml" \
-    --substitutions="_IMAGE_NAME=${IMAGE_NAME},_CLOUD_RUN_SERVICE=${SERVICE},_REGION=${REGION},_DOCKERFILE=${DOCKERFILE},_BUILD_CONTEXT=${BUILD_CONTEXT}"
+    --config="${ROOT_DIR}/backend/cloudbuild.yaml"
 }
 
 run_qa

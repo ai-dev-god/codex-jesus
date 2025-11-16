@@ -29,6 +29,7 @@ const envSchema = z.object({
   WHOOP_REDIRECT_URI: z.string().url().default('http://localhost:5173/oauth/whoop/callback'),
   WHOOP_TOKEN_ENCRYPTION_KEY: z.string().min(16).default('dev-whoop-token-secret'),
   WHOOP_TOKEN_KEY_ID: z.string().default('whoop-token-key-v1'),
+  WHOOP_WEBHOOK_SECRET: z.string().min(16).default('dev-whoop-webhook-secret'),
   STRAVA_CLIENT_ID: z.string().optional(),
   STRAVA_CLIENT_SECRET: z.string().optional(),
   STRAVA_REDIRECT_URI: z.string().url().default('http://localhost:5173/oauth/strava/callback'),
@@ -68,12 +69,14 @@ if (parsed.NODE_ENV === 'production') {
     | 'AUTH_REFRESH_ENCRYPTION_KEY'
     | 'WHOOP_TOKEN_ENCRYPTION_KEY'
     | 'STRAVA_TOKEN_ENCRYPTION_KEY'
+    | 'WHOOP_WEBHOOK_SECRET';
     | 'LAB_UPLOAD_SEALING_KEY';
   const forbiddenDefaults: Array<[SecretKey, string]> = [
     ['AUTH_JWT_SECRET', 'dev-jwt-secret'],
     ['AUTH_REFRESH_ENCRYPTION_KEY', 'dev-refresh-secret'],
     ['WHOOP_TOKEN_ENCRYPTION_KEY', 'dev-whoop-token-secret'],
-    ['STRAVA_TOKEN_ENCRYPTION_KEY', 'dev-strava-token-secret']
+    ['STRAVA_TOKEN_ENCRYPTION_KEY', 'dev-strava-token-secret'],
+    ['WHOOP_WEBHOOK_SECRET', 'dev-whoop-webhook-secret']
   ];
 
   const requireSecret = (key: SecretKey, defaultValue: string): void => {

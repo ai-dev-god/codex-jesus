@@ -17,6 +17,7 @@ declare global {
       requestId?: string;
       log?: Logger;
       trace?: TraceContext;
+      rawBody?: Buffer;
     }
 
     interface Locals {
