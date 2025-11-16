@@ -40,10 +40,12 @@ model User {
   longevityPlanJobs     LongevityPlanJob[]    @relation("UserLongevityPlanJobs")
   aiResponseAudits      AiResponseAudit[]
   loginAudits           LoginAudit[]
-  apiKeysCreated        ServiceApiKey[]   @relation("ApiKeysCreatedBy")
-  apiKeysRevoked        ServiceApiKey[]   @relation("ApiKeysRevokedBy")
-  backupJobsInitiated   AdminBackupJob[]  @relation("BackupJobInitiatedBy")
+  apiKeysCreated        ServiceApiKey[]        @relation("ApiKeysCreatedBy")
+  apiKeysRevoked        ServiceApiKey[]        @relation("ApiKeysRevokedBy")
+  backupJobsInitiated   AdminBackupJob[]       @relation("BackupJobInitiatedBy")
   panelDownloadTokens   PanelUploadDownloadToken[]
+  membershipInvitesCreated MembershipInvite[]  @relation("MembershipInvitesCreated")
+  membershipInviteRedemptions MembershipInviteRedemption[]
   dataExportJobs        DataExportJob[]
   dataDeletionJobs      DataDeletionJob[]
   createdAt             DateTime               @default(now())
@@ -356,6 +358,39 @@ model WhoopLinkSession {
   cancelledAt DateTime?
 
   @@index([userId, expiresAt])
+}
+
+model MembershipInvite {
+  id             String                 @id @default(cuid())
+  code           String                 @unique
+  email          String?
+  status         MembershipInviteStatus @default(ACTIVE)
+  maxUses        Int                    @default(1)
+  usedCount      Int                    @default(0)
+  expiresAt      DateTime?
+  metadata       Json?
+  createdBy      User?                  @relation("MembershipInvitesCreated", fields: [createdById], references: [id], onDelete: SetNull)
+  createdById    String?
+  lastRedeemedAt DateTime?
+  redemptions    MembershipInviteRedemption[]
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  @@index([email])
+  @@index([status, expiresAt])
+}
+
+model MembershipInviteRedemption {
+  id         String           @id @default(cuid())
+  invite     MembershipInvite @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  inviteId   String
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  email      String
+  redeemedAt DateTime         @default(now())
+
+  @@index([inviteId, redeemedAt])
+  @@index([userId, redeemedAt])
 }
 
 model WhoopWorkout {
@@ -784,4 +819,11 @@ enum CloudTaskStatus {
   DISPATCHED
   SUCCEEDED
   FAILED
+}
+
+enum MembershipInviteStatus {
+  ACTIVE
+  REDEEMED
+  REVOKED
+  EXPIRED
 }

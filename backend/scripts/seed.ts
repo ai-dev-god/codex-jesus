@@ -16,7 +16,8 @@ import {
   RoomMembershipStatus,
   FlagStatus,
   FlagTargetType,
-  WhoopSyncStatus
+  WhoopSyncStatus,
+  MembershipInviteStatus
 } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
@@ -756,6 +757,40 @@ async function seed() {
     where: {
       roomId: fullRoom.id,
       userId: user.id
+    }
+  });
+
+  await prisma.membershipInvite.upsert({
+    where: { code: 'BIOHAX-ALPHA' },
+    update: {
+      maxUses: 500,
+      status: MembershipInviteStatus.ACTIVE,
+      metadata: { note: 'Default internal invite' }
+    },
+    create: {
+      id: 'seed-invite-alpha',
+      code: 'BIOHAX-ALPHA',
+      status: MembershipInviteStatus.ACTIVE,
+      maxUses: 500,
+      usedCount: 0,
+      metadata: { note: 'Default internal invite' }
+    }
+  });
+
+  await prisma.membershipInvite.upsert({
+    where: { code: 'LAB-FOUNDERS' },
+    update: {
+      email: 'founder@biohax.pro',
+      maxUses: 1,
+      status: MembershipInviteStatus.ACTIVE
+    },
+    create: {
+      id: 'seed-invite-founders',
+      code: 'LAB-FOUNDERS',
+      email: 'founder@biohax.pro',
+      status: MembershipInviteStatus.ACTIVE,
+      maxUses: 1,
+      usedCount: 0
     }
   });
 

@@ -1,7 +1,7 @@
-import type { AuthProvider, PrismaClient, User } from '@prisma/client';
+import type { AuthProvider, MembershipInvite, PrismaClient, User } from '@prisma/client';
 import type { OAuth2Client } from 'google-auth-library';
 import type { Request, Response } from 'express';
-import { AuthProviderType, Role, UserStatus } from '@prisma/client';
+import { AuthProviderType, MembershipInviteStatus, Role, UserStatus } from '@prisma/client';
 
 import { IdentityService } from '../modules/identity/identity.service';
 import { requireAdmin, requireActiveUser } from '../modules/identity/guards';
@@ -26,10 +26,19 @@ type MockPrisma = {
     updateMany: jest.Mock;
     update: jest.Mock;
   };
+  membershipInvite: {
+    findUnique: jest.Mock;
+    findMany: jest.Mock;
+    update: jest.Mock;
+  };
+  membershipInviteRedemption: {
+    create: jest.Mock;
+  };
   loginAudit: {
     create: jest.Mock;
   };
   $transaction: jest.Mock;
+  $executeRaw: jest.Mock;
 };
 
 const createMockPrisma = (): MockPrisma => {
@@ -49,17 +58,29 @@ const createMockPrisma = (): MockPrisma => {
       updateMany: jest.fn(),
       update: jest.fn()
     },
+    membershipInvite: {
+      findUnique: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
+      update: jest.fn().mockResolvedValue({})
+    },
+    membershipInviteRedemption: {
+      create: jest.fn()
+    },
     loginAudit: {
       create: jest.fn()
     },
-    $transaction: jest.fn()
+    $transaction: jest.fn(),
+    $executeRaw: jest.fn().mockResolvedValue(1)
   };
 
   mock.$transaction.mockImplementation(async (callback: (tx: MockPrisma) => Promise<unknown>) =>
     callback({
       user: mock.user,
       profile: mock.profile,
-      authProvider: mock.authProvider
+      authProvider: mock.authProvider,
+      membershipInvite: mock.membershipInvite,
+      membershipInviteRedemption: mock.membershipInviteRedemption,
+      $executeRaw: jest.fn().mockResolvedValue(1)
     } as unknown as MockPrisma)
   );
 
@@ -101,6 +122,25 @@ const createProviderRecord = (user: User, overrides: Partial<AuthProvider> = {})
   };
 };
 
+const createInviteRecord = (overrides: Partial<MembershipInvite> = {}): MembershipInvite => {
+  const now = new Date();
+  return {
+    id: 'invite-1',
+    code: 'CODE123',
+    email: null,
+    status: MembershipInviteStatus.ACTIVE,
+    maxUses: 1,
+    usedCount: 0,
+    expiresAt: null,
+    metadata: null,
+    createdById: null,
+    lastRedeemedAt: null,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides
+  };
+};
+
 const createService = (prisma: MockPrisma): IdentityService => {
   const googleClientStub = {
     verifyIdToken: jest.fn()
@@ -117,8 +157,14 @@ describe('IdentityService', () => {
     const prisma = createMockPrisma();
     const service = createService(prisma);
     const registeredUser = createUserRecord({ passwordHash: 'hashed' });
+    const invite = createInviteRecord();
 
     prisma.user.findUnique.mockResolvedValueOnce(null);
+    prisma.membershipInvite.findUnique
+      .mockResolvedValueOnce(invite)
+      .mockResolvedValueOnce({ ...invite, usedCount: 1 });
+    prisma.membershipInvite.update.mockResolvedValue(invite);
+    prisma.membershipInviteRedemption.create.mockResolvedValue({});
     prisma.user.create.mockResolvedValue(registeredUser);
     prisma.profile.create.mockResolvedValue({});
     prisma.authProvider.create.mockResolvedValue({});
@@ -131,7 +177,8 @@ describe('IdentityService', () => {
         password: 'averysecurepassword',
         displayName: 'New Member',
         timezone: 'America/Los_Angeles',
-        acceptedTerms: true
+        acceptedTerms: true,
+        inviteCode: 'code123'
       },
       {
         ipAddress: '127.0.0.1',
@@ -163,8 +210,10 @@ describe('IdentityService', () => {
   it('returns conflict when a concurrent duplicate registration occurs', async () => {
     const prisma = createMockPrisma();
     const service = createService(prisma);
+    const invite = createInviteRecord();
 
     prisma.user.findUnique.mockResolvedValueOnce(null);
+    prisma.membershipInvite.findUnique.mockResolvedValue(invite);
     prisma.$transaction.mockImplementation(async () => {
       const error = { code: 'P2002' };
       throw error;
@@ -178,7 +227,8 @@ describe('IdentityService', () => {
           password: 'averysecurepassword',
           displayName: 'New Member',
           timezone: 'America/Los_Angeles',
-          acceptedTerms: true
+          acceptedTerms: true,
+          inviteCode: 'code123'
         },
         {
           ipAddress: '127.0.0.1',

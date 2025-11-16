@@ -27,7 +27,11 @@ const registerSchema = z.object({
   displayName: z.string().min(1).max(120),
   timezone: z.string().min(1),
   acceptedTerms: z.boolean(),
-  marketingOptIn: z.boolean().optional()
+  marketingOptIn: z.boolean().optional(),
+  inviteCode: z
+    .string()
+    .min(4, 'Invite codes must be at least 4 characters.')
+    .max(64, 'Invite codes must be 64 characters or fewer.')
 });
 
 const loginSchema = z.object({
@@ -116,10 +120,10 @@ router.post('/refresh', async (req, res, next) => {
   }
 });
 
-router.post('/logout', requireAuth, async (req, res, next) => {
+router.post('/logout', async (req, res, next) => {
   try {
     const payload = validate(logoutSchema, req.body ?? {});
-    await identityService.logout(req.user!.id, payload.refreshToken);
+    await identityService.logout(req.user?.id ?? null, payload.refreshToken);
     res.status(204).send();
   } catch (error) {
     next(error);

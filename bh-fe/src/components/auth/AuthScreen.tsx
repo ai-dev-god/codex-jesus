@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Mail, Lock, ArrowRight, Info, Loader2 } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Info, Loader2, Shield } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { Label } from '../ui/label';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
 import { ApiError } from '../../lib/api/error';
-import { fetchGoogleClientConfig, loginWithEmail, loginWithGoogle, registerWithEmail, refreshTokens } from '../../lib/api/auth';
+import { fetchGoogleClientConfig, loginWithEmail, loginWithGoogle, registerWithEmail } from '../../lib/api/auth';
 import type { AuthResponse } from '../../lib/api/types';
-import { requestWhoopLink } from '../../lib/api/whoop';
-import { clearPersistedSession, loadSession, normalizeTokens, persistSession } from '../../lib/auth/session';
 
 const GOOGLE_LOGO_SRC = 'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg';
 
@@ -22,6 +20,7 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -33,7 +32,6 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
   const [googleReady, setGoogleReady] = useState(false);
   const [googleInitialized, setGoogleInitialized] = useState(false);
   const [googleButtonRendered, setGoogleButtonRendered] = useState(false);
-  const [whoopLinking, setWhoopLinking] = useState(false);
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
 
   const inferredDisplayName = useMemo(() => {
@@ -207,6 +205,10 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    if (mode === 'signup' && !inviteCode.trim()) {
+      setError('An invite code is required to create a BioHax account.');
+      return;
+    }
     setLoading(true);
     try {
       if (mode === 'signin') {
@@ -221,7 +223,8 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
         displayName: inferredDisplayName,
         timezone,
         acceptedTerms,
-        marketingOptIn
+        marketingOptIn,
+        inviteCode: inviteCode.trim()
       });
       onAuth(response);
     } catch (err) {
@@ -234,66 +237,6 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
       setLoading(false);
     }
   };
-
-  const handleWhoopConnect = useCallback(async () => {
-    setError(null);
-    setWhoopLinking(true);
-
-    try {
-      const storedSession = loadSession();
-      if (!storedSession) {
-        setError('Please sign in first, then connect your Whoop device from the dashboard.');
-        return;
-      }
-
-      let session = storedSession;
-      if (session.tokens.accessTokenExpiresAt <= Date.now()) {
-        try {
-          const refreshed = await refreshTokens(session.tokens.refreshToken);
-          const normalizedTokens = normalizeTokens(refreshed);
-          session = {
-            ...session,
-            tokens: normalizedTokens
-          };
-          persistSession(session);
-        } catch (refreshError) {
-          console.warn('Failed to refresh session before Whoop linking', refreshError);
-          clearPersistedSession();
-          setError('Your session expired. Please sign in again to continue.');
-          return;
-        }
-      }
-
-      const status = await requestWhoopLink(session.tokens.accessToken);
-      if (status.linkUrl) {
-        window.location.href = status.linkUrl;
-        return;
-      }
-
-      if (status.linked) {
-        setError('Your Whoop account is already linked.');
-      } else {
-        setError('Whoop linking is not available right now.');
-      }
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else {
-        setError('Unable to start Whoop linking. Please try again.');
-      }
-    } finally {
-      setWhoopLinking(false);
-    }
-  }, [
-    setError,
-    setWhoopLinking,
-    clearPersistedSession,
-    loadSession,
-    normalizeTokens,
-    persistSession,
-    refreshTokens,
-    requestWhoopLink
-  ]);
 
   return (
     <div className="min-h-screen mesh-gradient flex items-center justify-center px-6 py-12">
@@ -330,6 +273,11 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
               <span>{error}</span>
             </div>
           )}
+
+          <div className="mb-6 rounded-xl border border-cloud bg-white/70 px-4 py-3 text-sm text-steel flex items-center gap-3">
+            <Shield className="w-4 h-4 text-ink" />
+            <span>BioHax membership is invite-only. Redeem your concierge invite code to activate an account.</span>
+          </div>
 
           {/* OAuth Buttons */}
           <div className="space-y-3 mb-8">
@@ -370,22 +318,6 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
                 <p className="text-sm text-solar text-center">Google Sign-In is unavailable right now.</p>
               )}
             </div>
-
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                void handleWhoopConnect();
-              }}
-              type="button"
-              disabled={loading || whoopLinking}
-              className="w-full flex items-center justify-between gap-3 px-6 py-4 rounded-xl gradient-pulse text-white transition-all font-semibold hover:scale-105 disabled:opacity-50"
-            >
-              <span className="flex items-center gap-3">
-                <Activity className="w-5 h-5" />
-                Connect with Whoop
-              </span>
-              {whoopLinking && <Loader2 className="w-5 h-5 animate-spin" />}
-            </button>
           </div>
 
           {/* Divider */}
@@ -438,6 +370,20 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
 
             {mode === 'signup' && (
               <>
+                <div>
+                  <Label htmlFor="inviteCode" className="text-sm font-semibold text-ink mb-2 block">
+                    Invite code
+                  </Label>
+                  <Input
+                    id="inviteCode"
+                    type="text"
+                    placeholder="BIOHAX-ALPHA"
+                    value={inviteCode}
+                    onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                    required
+                  />
+                </div>
+
                 <div>
                   <Label htmlFor="displayName" className="text-sm font-semibold text-ink mb-2 block">
                     Display name
@@ -492,7 +438,7 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
               type="submit"
               className="w-full"
               size="lg"
-              disabled={loading || (mode === 'signup' && !acceptedTerms)}
+              disabled={loading || (mode === 'signup' && (!acceptedTerms || !inviteCode.trim()))}
             >
               {loading ? (
                 'Loading...'
@@ -509,12 +455,15 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
         {/* Toggle Mode */}
         <div className="text-center">
           <p className="text-steel">
-            {mode === 'signin' ? "Don't have an account?" : 'Already have an account?'}{' '}
+            {mode === 'signin' ? "Have an invite?" : 'Already have an account?'}{' '}
             <button
-              onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
+              onClick={() => {
+                setMode(mode === 'signin' ? 'signup' : 'signin');
+                setError(null);
+              }}
               className="font-semibold text-electric hover:text-electric-bright transition-colors"
             >
-              {mode === 'signin' ? 'Sign up' : 'Sign in'}
+              {mode === 'signin' ? 'Redeem invite' : 'Sign in'}
             </button>
           </p>
         </div>
@@ -532,13 +481,5 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
         </div>
       </div>
     </div>
-  );
-}
-
-function Activity({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-    </svg>
   );
 }

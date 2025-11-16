@@ -1,5 +1,5 @@
-import type { Prisma, PrismaClient, User } from '@prisma/client';
-import { AuthProviderType, Role, UserStatus } from '@prisma/client';
+import type { MembershipInvite, Prisma, PrismaClient, User } from '@prisma/client';
+import { AuthProviderType, MembershipInviteStatus, Role, UserStatus } from '@prisma/client';
 import { OAuth2Client } from 'google-auth-library';
 
 import env from '../../config/env';
@@ -11,6 +11,9 @@ import type { AuthResponse, GoogleLoginInput, LoginInput, LoginAuditContext, Ref
 
 const DEFAULT_GOOGLE_DISPLAY_NAME = 'New BioHax Member';
 const DEFAULT_TIMEZONE = 'UTC';
+
+const normalizeInviteCode = (code: string): string => code.trim().toUpperCase();
+const normalizeEmail = (email: string): string => email.trim().toLowerCase();
 
 export class IdentityService {
   constructor(
@@ -24,7 +27,8 @@ export class IdentityService {
       throw new HttpError(400, 'Terms must be accepted to create an account', 'TERMS_NOT_ACCEPTED');
     }
 
-    const normalizedEmail = input.email.trim().toLowerCase();
+    const normalizedEmail = normalizeEmail(input.email);
+    const invite = await this.requireInviteForRegistration(input.inviteCode, normalizedEmail);
     const existing = await this.prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (existing) {
       throw new HttpError(409, 'Email is already registered', 'EMAIL_IN_USE');
@@ -69,6 +73,8 @@ export class IdentityService {
             providerUserId: normalizedEmail
           }
         });
+
+        await this.consumeInvite(tx, invite.id, createdUser.id, normalizedEmail);
 
         return createdUser;
       });
@@ -211,6 +217,7 @@ export class IdentityService {
     });
 
     let user: User;
+    let pendingInvite: MembershipInvite | null = null;
 
     if (existingProvider) {
       user = existingProvider.user;
@@ -220,11 +227,24 @@ export class IdentityService {
         await this.ensureGoogleProvider(existingUserByEmail.id, googleId);
         user = existingUserByEmail;
       } else {
+        pendingInvite = await this.findInviteForEmail(email);
+        if (!pendingInvite) {
+          await this.logLoginAttempt({
+            email,
+            provider: AuthProviderType.GOOGLE,
+            success: false,
+            failureReason: 'INVITE_REQUIRED',
+            ...context
+          });
+          throw new HttpError(403, 'BioHax membership is invite-only. Request an invite to join.', 'INVITE_REQUIRED');
+        }
+
         user = await this.createUserFromGoogle({
           email,
           googleId,
           displayName: ticketPayload.name ?? DEFAULT_GOOGLE_DISPLAY_NAME,
-          timezone: input.timezone ?? DEFAULT_TIMEZONE
+          timezone: input.timezone ?? DEFAULT_TIMEZONE,
+          invite: pendingInvite
         });
       }
     }
@@ -298,11 +318,11 @@ export class IdentityService {
     return this.issueAuthTokens(freshUser, decoded.provider);
   }
 
-  async logout(userId: string, refreshToken?: string): Promise<void> {
+  async logout(userId: string | null, refreshToken?: string): Promise<void> {
     if (refreshToken) {
       try {
         const decoded = this.tokenService.verifyRefreshToken(refreshToken);
-        if (decoded.sub !== userId) {
+        if (userId && decoded.sub !== userId) {
           throw new HttpError(401, 'Refresh token does not belong to the current user', 'REFRESH_INVALID');
         }
 
@@ -326,6 +346,10 @@ export class IdentityService {
         }
         throw new HttpError(401, 'Invalid refresh token', 'REFRESH_INVALID');
       }
+    }
+
+    if (!userId) {
+      return;
     }
 
     await this.prisma.authProvider.updateMany({
@@ -362,33 +386,170 @@ export class IdentityService {
     });
   }
 
-  private async createUserFromGoogle(params: { email: string; googleId: string; displayName: string; timezone: string }): Promise<User> {
-    const user = await this.prisma.user.create({
-      data: {
-        email: params.email,
-        fullName: params.displayName,
-        role: Role.MEMBER,
-        status: UserStatus.PENDING_ONBOARDING
+  private async createUserFromGoogle(params: {
+    email: string;
+    googleId: string;
+    displayName: string;
+    timezone: string;
+    invite?: MembershipInvite | null;
+  }): Promise<User> {
+    const normalizedEmail = normalizeEmail(params.email);
+
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email: normalizedEmail,
+          fullName: params.displayName,
+          role: Role.MEMBER,
+          status: UserStatus.PENDING_ONBOARDING
+        }
+      });
+
+      await tx.profile.create({
+        data: {
+          userId: user.id,
+          displayName: params.displayName,
+          timezone: params.timezone
+        }
+      });
+
+      await tx.authProvider.create({
+        data: {
+          userId: user.id,
+          type: AuthProviderType.GOOGLE,
+          providerUserId: params.googleId
+        }
+      });
+
+      if (params.invite) {
+        await this.consumeInvite(tx, params.invite.id, user.id, normalizedEmail);
+      }
+
+      return user;
+    });
+  }
+
+  private async requireInviteForRegistration(inviteCode: string, email: string): Promise<MembershipInvite> {
+    if (!inviteCode?.trim()) {
+      throw new HttpError(403, 'An invite code is required to join BioHax.', 'INVITE_REQUIRED');
+    }
+
+    const normalizedCode = normalizeInviteCode(inviteCode);
+    const invite = await this.prisma.membershipInvite.findUnique({ where: { code: normalizedCode } });
+    if (!invite) {
+      throw new HttpError(403, 'Invite code is invalid.', 'INVITE_INVALID');
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+    if (invite.email && normalizeEmail(invite.email) !== normalizedEmail) {
+      throw new HttpError(403, 'This invite is assigned to a different email.', 'INVITE_EMAIL_MISMATCH');
+    }
+
+    if (this.isInviteExpired(invite) || invite.status === MembershipInviteStatus.EXPIRED) {
+      await this.markInviteExpired(invite.id);
+      throw new HttpError(403, 'This invite has expired.', 'INVITE_EXPIRED');
+    }
+
+    if (invite.status === MembershipInviteStatus.REVOKED) {
+      throw new HttpError(403, 'This invite is no longer valid.', 'INVITE_REVOKED');
+    }
+
+    if (invite.status === MembershipInviteStatus.REDEEMED || invite.usedCount >= invite.maxUses) {
+      await this.markInviteRedeemed(invite.id);
+      throw new HttpError(403, 'Invite code has already been used.', 'INVITE_CONSUMED');
+    }
+
+    return invite;
+  }
+
+  private async findInviteForEmail(email: string): Promise<MembershipInvite | null> {
+    const normalizedEmail = normalizeEmail(email);
+    const invites = await this.prisma.membershipInvite.findMany({
+      where: {
+        email: normalizedEmail,
+        status: MembershipInviteStatus.ACTIVE
+      },
+      orderBy: {
+        createdAt: 'asc'
       }
     });
 
-    await this.prisma.profile.create({
+    for (const invite of invites) {
+      if (this.isInviteExpired(invite)) {
+        await this.markInviteExpired(invite.id);
+        continue;
+      }
+
+      if (invite.usedCount >= invite.maxUses) {
+        await this.markInviteRedeemed(invite.id);
+        continue;
+      }
+
+      return invite;
+    }
+
+    return null;
+  }
+
+  private async consumeInvite(
+    tx: Prisma.TransactionClient,
+    inviteId: string,
+    userId: string,
+    email: string
+  ): Promise<void> {
+    const now = new Date();
+    const updated = await tx.$executeRaw`
+      UPDATE "MembershipInvite"
+      SET "usedCount" = "usedCount" + 1,
+          "lastRedeemedAt" = ${now},
+          "updatedAt" = ${now}
+      WHERE "id" = ${inviteId}
+        AND "status" = ${MembershipInviteStatus.ACTIVE}
+        AND ("expiresAt" IS NULL OR "expiresAt" > ${now})
+        AND "usedCount" < "maxUses";
+    `;
+
+    if (updated === 0) {
+      throw new HttpError(403, 'Invite can no longer be used.', 'INVITE_CONSUMED');
+    }
+
+    await tx.membershipInviteRedemption.create({
       data: {
-        userId: user.id,
-        displayName: params.displayName,
-        timezone: params.timezone
+        inviteId,
+        userId,
+        email: normalizeEmail(email)
       }
     });
 
-    await this.prisma.authProvider.create({
-      data: {
-        userId: user.id,
-        type: AuthProviderType.GOOGLE,
-        providerUserId: params.googleId
-      }
-    });
+    const latest = await tx.membershipInvite.findUnique({ where: { id: inviteId } });
+    if (latest && latest.usedCount >= latest.maxUses && latest.status !== MembershipInviteStatus.REDEEMED) {
+      await tx.membershipInvite.update({
+        where: { id: inviteId },
+        data: { status: MembershipInviteStatus.REDEEMED }
+      });
+    }
+  }
 
-    return user;
+  private isInviteExpired(invite: MembershipInvite): boolean {
+    return Boolean(invite.expiresAt && invite.expiresAt.getTime() <= Date.now());
+  }
+
+  private async markInviteExpired(inviteId: string): Promise<void> {
+    await this.prisma.membershipInvite
+      .update({
+        where: { id: inviteId },
+        data: { status: MembershipInviteStatus.EXPIRED }
+      })
+      .catch(() => undefined);
+  }
+
+  private async markInviteRedeemed(inviteId: string): Promise<void> {
+    await this.prisma.membershipInvite
+      .update({
+        where: { id: inviteId },
+        data: { status: MembershipInviteStatus.REDEEMED }
+      })
+      .catch(() => undefined);
   }
 
   private async getUserOrThrow(userId: string): Promise<User> {

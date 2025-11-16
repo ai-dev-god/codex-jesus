@@ -28,6 +28,7 @@ export interface RegisterInput {
   timezone: string;
   acceptedTerms: boolean;
   marketingOptIn?: boolean;
+  inviteCode: string;
 }
 
 export interface LoginInput {
