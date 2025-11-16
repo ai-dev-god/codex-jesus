@@ -4,7 +4,6 @@ substitutions:
   _REGION: europe-west1
   _DOCKERFILE: Dockerfile
   _BUILD_CONTEXT: .
-  _VITE_API_BASE_URL: https://api.biohax.pro
 
 steps:
   - id: Build frontend image
@@ -46,7 +45,7 @@ steps:
       - managed
       - --allow-unauthenticated
       - --project
-      - $PROJECT_ID
+      - --biohax-777
       - --quiet
 
 images:
@@ -54,6 +53,6 @@ images:
 
 availableSecrets:
   secretManager:
-    - versionName: projects/$PROJECT_ID/secrets/google-client-id/versions/latest
+    - versionName: projects/biohax-777/secrets/google-client-id/versions/latest
       env: VITE_GOOGLE_CLIENT_ID
 

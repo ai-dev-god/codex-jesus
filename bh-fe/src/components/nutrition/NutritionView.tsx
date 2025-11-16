@@ -194,7 +194,7 @@ export default function NutritionView() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="meal-type">Meal Type</Label>
                     <Select>
@@ -215,7 +215,7 @@ export default function NutritionView() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="calories">Calories</Label>
                     <Input id="calories" type="number" placeholder="500" />
@@ -258,7 +258,7 @@ export default function NutritionView() {
 
         <div className="space-y-8">
           <Card className="p-6">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <div>
             <h2 className="text-neutral-900 mb-1">Today's Nutrition</h2>
             <p className="text-sm text-neutral-600">November 1, 2025</p>
@@ -271,14 +271,14 @@ export default function NutritionView() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
           {Object.entries(dailyMacros).map(([key, data]) => {
             const percentage = getMacroPercentage(data.current, data.target);
             const isComplete = percentage >= 95;
             
             return (
               <div key={key} className="space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     {key === 'calories' && <Flame className="w-4 h-4 text-orange-600" />}
                     {key === 'protein' && <Beef className="w-4 h-4 text-red-600" />}
@@ -309,7 +309,7 @@ export default function NutritionView() {
               <TabsContent value="meals" className="mt-6 space-y-4">
           {todaysMeals.map((meal) => (
             <Card key={meal.id} className="p-6 hover:shadow-lg transition-shadow">
-              <div className="flex items-start justify-between mb-4">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between mb-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
                     <h3 className="text-neutral-900">{meal.name}</h3>
@@ -370,7 +370,7 @@ export default function NutritionView() {
               <TabsContent value="protocols" className="mt-6 space-y-4">
           {nutritionProtocols.map((protocol) => (
             <Card key={protocol.id} className="p-6 hover:shadow-lg transition-shadow">
-              <div className="flex items-start justify-between mb-4">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between mb-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
                     <h3 className="text-neutral-900">{protocol.name}</h3>
@@ -396,7 +396,7 @@ export default function NutritionView() {
                   </div>
 
                   <div className="mb-4">
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
                       <span className="text-sm text-neutral-600">Adherence</span>
                       <span className="text-sm text-neutral-900">{protocol.adherence}%</span>
                     </div>
@@ -430,25 +430,25 @@ export default function NutritionView() {
                 <h3 className="text-neutral-900 mb-3">{template.name}</h3>
                 
                 <div className="space-y-2 mb-4">
-                  <div className="flex justify-between text-sm">
+                  <div className="flex flex-wrap justify-between gap-2 text-sm">
                     <span className="text-neutral-600">Calories</span>
                     <span className="text-neutral-900">{template.calories} cal</span>
                   </div>
-                  <div className="flex justify-between text-sm">
+                  <div className="flex flex-wrap justify-between gap-2 text-sm">
                     <span className="text-neutral-600">Protein</span>
                     <span className="text-neutral-900">{template.protein}g</span>
                   </div>
-                  <div className="flex justify-between text-sm">
+                  <div className="flex flex-wrap justify-between gap-2 text-sm">
                     <span className="text-neutral-600">Carbs</span>
                     <span className="text-neutral-900">{template.carbs}g</span>
                   </div>
-                  <div className="flex justify-between text-sm">
+                  <div className="flex flex-wrap justify-between gap-2 text-sm">
                     <span className="text-neutral-600">Fats</span>
                     <span className="text-neutral-900">{template.fats}g</span>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-4 border-t border-neutral-200">
+                <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-neutral-200">
                   <div className="flex items-center gap-4 text-sm text-neutral-600">
                     <div className="flex items-center gap-1">
                       <Clock className="w-4 h-4" />
@@ -484,7 +484,7 @@ export default function NutritionView() {
 
                 return (
                   <div key={nutrient.name}>
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
                       <div className="flex items-center gap-2">
                         <span className="text-neutral-900">{nutrient.name}</span>
                         <Badge

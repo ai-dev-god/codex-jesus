@@ -272,7 +272,7 @@ export default function GymWorkoutCreator() {
               </div>
               <Badge variant="outline">{workout.category}</Badge>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm text-neutral-600">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm text-neutral-600">
               <div>
                 <p className="text-neutral-500">Duration</p>
                 <p className="text-neutral-900">{workout.durationMinutes ? `${workout.durationMinutes.toFixed(1)} min` : '—'}</p>
@@ -360,7 +360,7 @@ export default function GymWorkoutCreator() {
                           />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label htmlFor="workout-type">Type</Label>
                             <Select>
@@ -479,7 +479,7 @@ export default function GymWorkoutCreator() {
                   </div>
 
                   <Card className="p-6">
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
                       <h3 className="text-neutral-900">Recent Workouts</h3>
                       <Badge variant="outline">{recentWorkouts.length} tracked</Badge>
                     </div>
@@ -490,7 +490,7 @@ export default function GymWorkoutCreator() {
                 <TabsContent value="templates" className="mt-6 space-y-4">
                   {workoutTemplates.map((template) => (
                     <Card key={template.id} className="p-6 hover:shadow-lg transition-shadow">
-                      <div className="flex items-start justify-between mb-4">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-4">
                         <div className="flex-1">
                           <div className="flex flex-wrap items-center gap-3 mb-2">
                             <Dumbbell className="w-5 h-5 text-blue-600" />
@@ -533,7 +533,7 @@ export default function GymWorkoutCreator() {
                         {template.exercises.map((exercise, idx) => (
                           <div
                             key={idx}
-                            className="flex items-center justify-between p-3 bg-neutral-50 rounded-lg"
+                            className="flex flex-wrap items-center justify-between gap-3 p-3 bg-neutral-50 rounded-lg"
                           >
                             <div className="flex items-center gap-3">
                               <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
@@ -559,14 +559,14 @@ export default function GymWorkoutCreator() {
 
           <div className="space-y-8">
             <div className="neo-card p-6">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
                 <h3 className="text-neutral-900">Weekly Strain</h3>
                 <TrendingUp className="w-4 h-4 text-neutral-400" />
               </div>
               {renderWeeklyTrend()}
             </div>
             <div className="neo-card p-6">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
                 <h3 className="text-neutral-900">Sport Distribution</h3>
                 <Activity className="w-4 h-4 text-neutral-400" />
               </div>

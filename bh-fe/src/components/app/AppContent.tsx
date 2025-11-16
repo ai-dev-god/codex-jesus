@@ -120,7 +120,6 @@ export default function AppContent() {
   const [appState, setAppState] = useState<AppState>(initialSession ? 'authenticated' : 'landing');
   const [currentView, setCurrentView] = useState<View>('dashboard');
   const [showOnboarding, setShowOnboarding] = useState(initialSession?.user.status === 'PENDING_ONBOARDING');
-  const [isOnboardingRequired, setIsOnboardingRequired] = useState(initialSession?.user.status !== 'ACTIVE');
   const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
@@ -310,8 +309,6 @@ export default function AppContent() {
           updateSession(mergedSession);
         }
 
-        setIsOnboardingRequired(remoteUser.status !== 'ACTIVE');
-
         if (options.requireActive && remoteUser.status !== 'ACTIVE') {
           throw new Error('Complete the onboarding steps to continue.');
         }
@@ -425,7 +422,6 @@ export default function AppContent() {
     try {
       await ensureOnboardingRequirements();
       await syncUserProfile({ requireActive: true, throwOnError: true });
-      setIsOnboardingRequired(false);
       toast.success('Onboarding complete. Your dashboard is unlocked.');
     } catch (error) {
       const message =
@@ -446,13 +442,11 @@ export default function AppContent() {
       const freshSession = await ensureFreshSession();
       const summary = await fetchDashboardSummary(freshSession.tokens.accessToken);
       setDashboardSummary(summary);
-      setIsOnboardingRequired(false);
       return true;
     } catch (error) {
       setDashboardSummary(null);
       if (error instanceof ApiError) {
         if (error.code === 'ONBOARDING_REQUIRED') {
-          setIsOnboardingRequired(true);
           setDashboardError('Complete onboarding to unlock personalized insights.');
         } else {
           setDashboardError(error.message);
@@ -611,38 +605,6 @@ export default function AppContent() {
   const handleViewCalendar = useCallback(() => {
     setShowCalendarDialog(true);
   }, []);
-
-  const handleStartOnboarding = useCallback(() => {
-    if (!session) {
-      toast.error('Please sign in again to continue onboarding.');
-      setAppState('auth');
-      return;
-    }
-
-    if (showOnboarding) {
-      return;
-    }
-
-    if (!isOnboardingRequired) {
-      toast.info('Onboarding is complete. You can review or edit details anytime.');
-    }
-
-    setShowActionsDialog(false);
-    setShowInsightDialog(false);
-    setShowCalendarDialog(false);
-    setShowBiomarkerDialog(false);
-    setPendingAction(null);
-    setShowOnboarding(true);
-  }, [
-    session,
-    isOnboardingRequired,
-    showOnboarding,
-    setAppState,
-    setShowActionsDialog,
-    setShowInsightDialog,
-    setShowCalendarDialog,
-    setShowBiomarkerDialog
-  ]);
 
   const handleDashboardAction = useCallback(
     (action: DashboardActionItem) => {
@@ -953,9 +915,9 @@ export default function AppContent() {
         if (!indexed) {
           throw new Error('Unable to refresh notifications right now.');
         }
-        setShowOnboarding(false);
-        setCurrentView('dashboard');
-        setShowActionsDialog(true);
+    setShowOnboarding(false);
+    setCurrentView('dashboard');
+    setShowActionsDialog(true);
       });
     } catch (error) {
       const message =
@@ -973,8 +935,8 @@ export default function AppContent() {
     try {
       await runCommandIndexing(async () => {
         await syncUserProfile({ throwOnError: true });
-        setShowOnboarding(false);
-        setCurrentView('settings');
+    setShowOnboarding(false);
+    setCurrentView('settings');
       });
     } catch (error) {
       const message =
@@ -1084,8 +1046,6 @@ export default function AppContent() {
 
         <div className="flex min-h-screen w-full flex-1 flex-col">
           <CommandBar
-            onStartOnboarding={handleStartOnboarding}
-            onboardingActive={showOnboarding}
             onOpenNotifications={handleOpenNotifications}
             onOpenProfile={handleOpenProfile}
             profileInitials={profileInitials}
