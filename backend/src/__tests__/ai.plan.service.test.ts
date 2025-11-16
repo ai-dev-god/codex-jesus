@@ -1,5 +1,12 @@
 import type { PrismaClient } from '@prisma/client';
 
+jest.mock('../config/env', () => ({
+  __esModule: true,
+  default: {
+    AI_LONGEVITY_PLAN_ENABLED: true
+  }
+}));
+
 import { LongevityPlanService } from '../modules/ai/plan.service';
 import { enqueueLongevityPlanTask } from '../modules/ai/queue';
 import { HttpError } from '../modules/observability-ops/http-error';
@@ -12,11 +19,17 @@ jest.mock('../modules/ai/queue', () => ({
 type MockPrisma = {
   longevityPlanJob: {
     findFirst: jest.Mock;
+    findMany: jest.Mock;
     count: jest.Mock;
     create: jest.Mock;
+    update: jest.Mock;
   };
   longevityPlan: {
     create: jest.Mock;
+    updateMany: jest.Mock;
+  };
+  cloudTaskMetadata: {
+    update: jest.Mock;
   };
   $transaction: jest.Mock;
 };
@@ -25,11 +38,17 @@ const createMockPrisma = (): MockPrisma => {
   const prisma: MockPrisma = {
     longevityPlanJob: {
       findFirst: jest.fn(),
+      findMany: jest.fn(),
       count: jest.fn(),
-      create: jest.fn()
+      create: jest.fn(),
+      update: jest.fn()
     },
     longevityPlan: {
-      create: jest.fn()
+      create: jest.fn(),
+      updateMany: jest.fn()
+    },
+    cloudTaskMetadata: {
+      update: jest.fn()
     },
     $transaction: jest.fn()
   };
@@ -37,6 +56,7 @@ const createMockPrisma = (): MockPrisma => {
   prisma.$transaction.mockImplementation(
     async (callback: (tx: MockPrisma) => Promise<unknown>) => callback(prisma)
   );
+  prisma.longevityPlanJob.findMany.mockResolvedValue([]);
 
   return prisma;
 };
@@ -160,6 +180,90 @@ describe('LongevityPlanService', () => {
     );
     expect(result.plan.id).toBe('plan-123');
     expect(result.job.id).toBe('job-123');
+  });
+
+  it('expires stale jobs before accepting a new request', async () => {
+    const prisma = createMockPrisma();
+    const service = createService(prisma);
+    prisma.longevityPlanJob.findMany.mockResolvedValueOnce([
+      {
+        id: 'job-stale',
+        planId: 'plan-stale',
+        cloudTask: {
+          id: 'task-stale',
+          attemptCount: 0,
+          firstAttemptAt: null
+        }
+      }
+    ]);
+    prisma.longevityPlanJob.findFirst.mockResolvedValue(null);
+    prisma.longevityPlanJob.count.mockResolvedValue(0);
+    prisma.longevityPlan.create.mockResolvedValue({
+      id: 'plan-123',
+      userId: 'user-1',
+      status: 'PROCESSING',
+      title: 'Personalized Longevity Plan',
+      summary: null,
+      focusAreas: [],
+      sections: null,
+      evidence: null,
+      safetyState: null,
+      requestedAt: baseDate,
+      completedAt: null,
+      createdAt: baseDate,
+      updatedAt: baseDate,
+      validatedAt: null,
+      validatedBy: null,
+      errorCode: null,
+      errorMessage: null
+    });
+    prisma.longevityPlanJob.create.mockResolvedValue({
+      id: 'job-123',
+      planId: 'plan-123',
+      requestedById: 'user-1',
+      status: 'QUEUED',
+      queue: 'longevity-plan-generate',
+      cloudTaskName: 'longevity-plan-user-1-123',
+      payload: {},
+      createdAt: baseDate,
+      updatedAt: baseDate,
+      dispatchedAt: null,
+      scheduledAt: null,
+      completedAt: null,
+      errorCode: null,
+      errorMessage: null,
+      cloudTask: null
+    });
+
+    await service.requestPlan('user-1', {});
+
+    expect(prisma.longevityPlanJob.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'job-stale' },
+        data: expect.objectContaining({
+          status: 'FAILED',
+          errorCode: 'PLAN_JOB_STALE'
+        })
+      })
+    );
+    expect(prisma.longevityPlan.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'plan-stale' },
+        data: expect.objectContaining({
+          status: 'FAILED',
+          errorCode: 'PLAN_JOB_STALE'
+        })
+      })
+    );
+    expect(prisma.cloudTaskMetadata.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'task-stale' },
+        data: expect.objectContaining({
+          status: 'FAILED',
+          errorMessage: expect.stringContaining('expired')
+        })
+      })
+    );
   });
 });
 

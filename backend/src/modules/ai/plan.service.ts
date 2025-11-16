@@ -41,6 +41,9 @@ type PlanRequestResult = {
 
 const ACTIVE_JOB_STATUSES = ['QUEUED', 'RUNNING'] as const;
 const DEFAULT_DAILY_LIMIT = 2;
+const STALE_JOB_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
+const STALE_JOB_ERROR_CODE = 'PLAN_JOB_STALE';
+const STALE_JOB_ERROR_MESSAGE = 'Plan request expired before it could run.';
 
 const toJsonValue = (value: unknown): Prisma.InputJsonValue =>
   JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
@@ -63,6 +66,7 @@ export class LongevityPlanService {
       );
     }
 
+    await this.expireStaleJobs(userId);
     await this.ensureNoActiveJob(userId);
     await this.enforceDailyLimit(userId);
 
@@ -193,6 +197,76 @@ export class LongevityPlanService {
         jobId: existing.id
       });
     }
+  }
+
+  private async expireStaleJobs(userId: string): Promise<void> {
+    const staleThreshold = new Date(this.now().getTime() - STALE_JOB_WINDOW_MS);
+    const staleJobs = await this.prisma.longevityPlanJob.findMany({
+      where: {
+        requestedById: userId,
+        status: {
+          in: [...ACTIVE_JOB_STATUSES]
+        },
+        updatedAt: {
+          lt: staleThreshold
+        }
+      },
+      select: {
+        id: true,
+        planId: true,
+        cloudTask: {
+          select: {
+            id: true,
+            attemptCount: true,
+            firstAttemptAt: true
+          }
+        }
+      }
+    });
+
+    if (staleJobs.length === 0) {
+      return;
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const job of staleJobs) {
+        const expiredAt = this.now();
+        await tx.longevityPlanJob.update({
+          where: { id: job.id },
+          data: {
+            status: 'FAILED',
+            completedAt: expiredAt,
+            errorCode: STALE_JOB_ERROR_CODE,
+            errorMessage: STALE_JOB_ERROR_MESSAGE
+          }
+        });
+
+        if (job.planId) {
+          await tx.longevityPlan.updateMany({
+            where: { id: job.planId },
+            data: {
+              status: 'FAILED',
+              completedAt: expiredAt,
+              errorCode: STALE_JOB_ERROR_CODE,
+              errorMessage: STALE_JOB_ERROR_MESSAGE
+            }
+          });
+        }
+
+        if (job.cloudTask) {
+          await tx.cloudTaskMetadata.update({
+            where: { id: job.cloudTask.id },
+            data: {
+              status: 'FAILED',
+              attemptCount: job.cloudTask.attemptCount + 1,
+              firstAttemptAt: job.cloudTask.firstAttemptAt ?? expiredAt,
+              lastAttemptAt: expiredAt,
+              errorMessage: STALE_JOB_ERROR_MESSAGE
+            }
+          });
+        }
+      }
+    });
   }
 
   private async enforceDailyLimit(userId: string): Promise<void> {

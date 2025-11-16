@@ -5,6 +5,7 @@ import { Sheet, SheetContent, SheetTrigger } from '../ui/sheet';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
 import { useTranslation } from '../../lib/i18n/LanguageContext';
 import { LanguageSwitcher } from '../layout/LanguageSwitcher';
+import { PwaInstallBanner } from '../pwa/PwaInstallBanner';
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -143,7 +144,7 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
             {t.landing.subHeading}
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-20">
+          <div id="cta" className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-10">
             <Button size="lg" onClick={handleGetStarted} className="shadow-2xl relative z-10">
               <Zap className="w-5 h-5 mr-2" />
               {t.landing.ctaPrimary}
@@ -157,6 +158,9 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
               {t.landing.ctaSecondary}
               <ArrowRight className="w-5 h-5 ml-2" />
             </Button>
+          </div>
+          <div className="max-w-2xl mx-auto mb-12">
+            <PwaInstallBanner />
           </div>
 
           {/* Highlight Cards */}

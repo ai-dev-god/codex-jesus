@@ -1,4 +1,4 @@
-import { Settings, Mail, Zap, DollarSign, Key, Shield } from 'lucide-react';
+import { Settings, Mail, Zap, DollarSign } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';

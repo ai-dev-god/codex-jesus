@@ -628,27 +628,6 @@ export default function AppContent() {
   }, [session, ensureFreshSession, loadDashboard]);
 
   // Landing/Auth Flow
-  if (appState === 'landing') {
-    return (
-      <>
-        <LandingPage
-          onGetStarted={() => setAppState('auth')}
-          onSignIn={() => setAppState('auth')}
-        />
-        <Toaster />
-      </>
-    );
-  }
-
-  if (appState === 'auth') {
-    return (
-      <>
-        <AuthScreen onAuth={handleAuthSuccess} onBack={() => setAppState('landing')} />
-        <Toaster />
-      </>
-    );
-  }
-
   const handleOpenLabUpload = useCallback(() => {
     setShowOnboarding(false);
     setCurrentView('labUpload');
@@ -755,6 +734,27 @@ export default function AppContent() {
         return renderDashboard();
     }
   };
+
+  if (appState === 'landing') {
+    return (
+      <>
+        <LandingPage
+          onGetStarted={() => setAppState('auth')}
+          onSignIn={() => setAppState('auth')}
+        />
+        <Toaster />
+      </>
+    );
+  }
+
+  if (appState === 'auth') {
+    return (
+      <>
+        <AuthScreen onAuth={handleAuthSuccess} onBack={() => setAppState('landing')} />
+        <Toaster />
+      </>
+    );
+  }
 
   return (
     <AuthProvider value={authValue}>
