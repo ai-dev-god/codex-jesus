@@ -9,47 +9,51 @@ datasource db {
 }
 
 model User {
-  id                    String                 @id @default(cuid())
-  email                 String                 @unique
-  passwordHash          String?
-  fullName              String?
-  role                  Role                   @default(MEMBER)
-  status                UserStatus             @default(PENDING_ONBOARDING)
-  whoopMemberId         String?                @unique
-  profile               Profile?
-  authProviders         AuthProvider[]
-  whoopIntegration      WhoopIntegration?
-  whoopLinkSessions     WhoopLinkSession[]
-  whoopWorkouts         WhoopWorkout[]
-  insights              Insight[]
-  insightActions        InsightAction[]        @relation("UserInsightActions")
-  insightGenerationJobs InsightGenerationJob[] @relation("UserInsightJobs")
-  biomarkerLogs         BiomarkerLog[]
-  panelUploads          PanelUpload[]
-  biomarkerMeasurements BiomarkerMeasurement[]
-  feedPosts             FeedPost[]             @relation("FeedPostAuthor")
-  comments              Comment[]              @relation("CommentAuthor")
-  reactions             Reaction[]             @relation("UserReactions")
-  engagementEvents      EngagementEvent[]
-  roomsHosted           Room[]                @relation("RoomHost")
-  roomMemberships       RoomMembership[]
-  flagsOpened           Flag[]                 @relation("FlagOpenedBy")
-  flagsResolved         Flag[]                 @relation("FlagResolvedBy")
-  auditLogs             AdminAuditLog[]        @relation("UserAuditLogs")
-  longevityPlans        LongevityPlan[]
-  longevityPlanJobs     LongevityPlanJob[]    @relation("UserLongevityPlanJobs")
-  aiResponseAudits      AiResponseAudit[]
-  loginAudits           LoginAudit[]
-  apiKeysCreated        ServiceApiKey[]        @relation("ApiKeysCreatedBy")
-  apiKeysRevoked        ServiceApiKey[]        @relation("ApiKeysRevokedBy")
-  backupJobsInitiated   AdminBackupJob[]       @relation("BackupJobInitiatedBy")
-  panelDownloadTokens   PanelUploadDownloadToken[]
-  membershipInvitesCreated MembershipInvite[]  @relation("MembershipInvitesCreated")
+  id                        String                 @id @default(cuid())
+  email                     String                 @unique
+  passwordHash              String?
+  fullName                  String?
+  role                      Role                   @default(MEMBER)
+  status                    UserStatus             @default(PENDING_ONBOARDING)
+  whoopMemberId             String?                @unique
+  profile                   Profile?
+  authProviders             AuthProvider[]
+  whoopIntegration          WhoopIntegration?
+  whoopLinkSessions         WhoopLinkSession[]
+  whoopWorkouts             WhoopWorkout[]
+  stravaIntegration         StravaIntegration?
+  stravaLinkSessions        StravaLinkSession[]
+  stravaActivities          StravaActivity[]
+  insights                  Insight[]
+  insightActions            InsightAction[]        @relation("UserInsightActions")
+  insightGenerationJobs     InsightGenerationJob[] @relation("UserInsightJobs")
+  biomarkerLogs             BiomarkerLog[]
+  panelUploads              PanelUpload[]
+  panelUploadSessions       PanelUploadSession[]
+  biomarkerMeasurements     BiomarkerMeasurement[]
+  feedPosts                 FeedPost[]             @relation("FeedPostAuthor")
+  comments                  Comment[]              @relation("CommentAuthor")
+  reactions                 Reaction[]             @relation("UserReactions")
+  engagementEvents          EngagementEvent[]
+  roomsHosted               Room[]                @relation("RoomHost")
+  roomMemberships           RoomMembership[]
+  flagsOpened               Flag[]                 @relation("FlagOpenedBy")
+  flagsResolved             Flag[]                 @relation("FlagResolvedBy")
+  auditLogs                 AdminAuditLog[]        @relation("UserAuditLogs")
+  longevityPlans            LongevityPlan[]
+  longevityPlanJobs         LongevityPlanJob[]    @relation("UserLongevityPlanJobs")
+  aiResponseAudits          AiResponseAudit[]
+  loginAudits               LoginAudit[]
+  apiKeysCreated            ServiceApiKey[]        @relation("ApiKeysCreatedBy")
+  apiKeysRevoked            ServiceApiKey[]        @relation("ApiKeysRevokedBy")
+  backupJobsInitiated       AdminBackupJob[]       @relation("BackupJobInitiatedBy")
+  panelDownloadTokens       PanelUploadDownloadToken[]
+  membershipInvitesCreated  MembershipInvite[]     @relation("MembershipInvitesCreated")
   membershipInviteRedemptions MembershipInviteRedemption[]
-  dataExportJobs        DataExportJob[]
-  dataDeletionJobs      DataDeletionJob[]
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
+  dataExportJobs            DataExportJob[]
+  dataDeletionJobs          DataDeletionJob[]
+  createdAt                 DateTime               @default(now())
+  updatedAt                 DateTime               @updatedAt
 }
 
 model Profile {
@@ -155,6 +159,8 @@ model PanelUpload {
   source           PanelUploadSource   @default(LAB_REPORT)
   storageKey       String
   contentType      String?
+  byteSize         Int?
+  sha256Hash       String?
   pageCount        Int?
   rawMetadata      Json?
   normalizedPayload Json?
@@ -165,6 +171,10 @@ model PanelUpload {
   plan             LongevityPlan?      @relation(fields: [planId], references: [id], onDelete: SetNull)
   planId           String?
   biomarkerTags    PanelUploadBiomarkerTag[]
+  sealedStorageKey String?
+  sealedKeyVersion String?
+  uploadSession    PanelUploadSession? @relation(fields: [uploadSessionId], references: [id], onDelete: SetNull)
+  uploadSessionId  String?
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
   measurements     BiomarkerMeasurement[]
@@ -172,6 +182,7 @@ model PanelUpload {
 
   @@index([userId, createdAt])
   @@index([planId])
+  @@index([uploadSessionId])
 }
 
 model BiomarkerMeasurement {
@@ -222,6 +233,31 @@ model PanelUploadDownloadToken {
   createdAt DateTime      @default(now())
 
   @@index([expiresAt])
+}
+
+model PanelUploadSession {
+  id          String                     @id @default(cuid())
+  user        User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  storageKey  String                     @unique
+  contentType String
+  byteSize    Int
+  sha256Hash  String
+  kmsKeyName  String?
+  expiresAt   DateTime
+  usedAt      DateTime?
+  status      PanelUploadSessionStatus   @default(PENDING)
+  createdAt   DateTime                   @default(now())
+  uploads     PanelUpload[]
+
+  @@index([userId])
+  @@index([status, expiresAt])
+}
+
+enum PanelUploadSessionStatus {
+  PENDING
+  USED
+  EXPIRED
 }
 
 model AuthProvider {
@@ -358,6 +394,84 @@ model WhoopLinkSession {
   cancelledAt DateTime?
 
   @@index([userId, expiresAt])
+}
+
+enum StravaSyncStatus {
+  PENDING
+  ACTIVE
+  ERROR
+  REVOKED
+}
+
+model StravaIntegration {
+  id               String            @id @default(cuid())
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId           String            @unique
+  athleteId        Int?
+  athleteUsername  String?
+  athleteName      String?
+  athleteAvatarUrl String?
+  athleteCity      String?
+  athleteCountry   String?
+  accessToken      String?
+  refreshToken     String?
+  expiresAt        DateTime?
+  scope            String[]          @default([])
+  syncStatus       StravaSyncStatus  @default(PENDING)
+  lastSyncedAt     DateTime?
+  lastSyncSummary  Json?
+  tokenKeyId       String?
+  tokenRotatedAt   DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  activities       StravaActivity[]
+}
+
+model StravaLinkSession {
+  id          String   @id @default(cuid())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  state       String   @unique
+  redirectUri String
+  scope       String[] @default([])
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  completedAt DateTime?
+  cancelledAt DateTime?
+
+  @@index([userId, expiresAt])
+}
+
+model StravaActivity {
+  id                 String            @id @default(cuid())
+  integration        StravaIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  integrationId      String
+  user               User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId             String
+  stravaActivityId   String            @unique
+  name               String
+  sportType          String
+  distanceMeters     Float?
+  movingTimeSeconds  Int?
+  elapsedTimeSeconds Int?
+  elevationGainMeters Float?
+  averageSpeedMps    Float?
+  maxSpeedMps        Float?
+  averageWatts       Float?
+  maxWatts           Float?
+  sufferScore        Float?
+  achievements       Int?
+  kudosCount         Int?
+  startDate          DateTime
+  startDateLocal     DateTime?
+  isCommute          Boolean?
+  isTrainer          Boolean?
+  rawPayload         Json?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@index([userId, startDate])
+  @@index([integrationId, startDate])
 }
 
 model MembershipInvite {

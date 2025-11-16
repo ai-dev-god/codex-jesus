@@ -357,6 +357,63 @@ describe('IdentityService', () => {
     const updated = prisma.authProvider.upsert.mock.calls[0][0].update.refreshToken;
     expect(updated).not.toBe(encrypted);
   });
+
+  it('revokes a specific refresh session when the authenticated user provides it', async () => {
+    const prisma = createMockPrisma();
+    const service = createService(prisma);
+    const activeUser = createUserRecord({ id: 'logout-owner', status: UserStatus.ACTIVE });
+    const { token } = tokenService.issueRefreshToken({
+      userId: activeUser.id,
+      provider: AuthProviderType.EMAIL_PASSWORD
+    });
+
+    prisma.authProvider.update.mockResolvedValue({});
+
+    await service.logout(activeUser.id, token);
+
+    expect(prisma.authProvider.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          userId_type: {
+            userId: activeUser.id,
+            type: AuthProviderType.EMAIL_PASSWORD
+          }
+        }
+      })
+    );
+  });
+
+  it('rejects logout attempts when the refresh token belongs to another user', async () => {
+    const prisma = createMockPrisma();
+    const service = createService(prisma);
+    const otherToken = tokenService.issueRefreshToken({
+      userId: 'different-user',
+      provider: AuthProviderType.EMAIL_PASSWORD
+    });
+
+    await expect(service.logout('attacker', otherToken.token)).rejects.toBeInstanceOf(HttpError);
+    expect(prisma.authProvider.update).not.toHaveBeenCalled();
+  });
+
+  it('revokes all refresh sessions for the current user when no token is supplied', async () => {
+    const prisma = createMockPrisma();
+    const service = createService(prisma);
+    const activeUser = createUserRecord({ id: 'logout-all', status: UserStatus.ACTIVE });
+
+    prisma.authProvider.updateMany.mockResolvedValue({ count: 1 });
+
+    await service.logout(activeUser.id);
+
+    expect(prisma.authProvider.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: activeUser.id },
+        data: {
+          refreshToken: null,
+          expiresAt: null
+        }
+      })
+    );
+  });
 });
 
 describe('RBAC guards', () => {

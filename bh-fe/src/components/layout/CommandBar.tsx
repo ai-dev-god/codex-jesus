@@ -1,5 +1,12 @@
 import { useState } from 'react';
 import { Search, Zap, Bell, Beaker, Loader2, LogOut } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from '../ui/dropdown-menu';
 
 interface CommandBarProps {
   onStartOnboarding: () => void;
@@ -117,29 +124,45 @@ export default function CommandBar({
               </div>
             </button>
 
-            <button
-              type="button"
-              onClick={handleOpenProfile}
-              className="flex h-12 w-12 items-center justify-center rounded-xl text-sm font-bold text-white transition-transform hover:scale-105 gradient-spectrum"
-              aria-label="Open profile"
-            >
-              {initials}
-            </button>
-
-            {isAuthenticated && (
-              <button
-                type="button"
-                onClick={handleSignOut}
-                disabled={signingOut}
-                aria-busy={signingOut}
-                className="flex-1 basis-full rounded-xl border border-cloud px-4 py-2 text-sm font-semibold text-steel transition-colors hover:border-pulse hover:text-pulse disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none sm:basis-auto sm:w-auto"
-              >
-                <span className="flex items-center justify-center gap-2">
-                  {signingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
-                  <span>{signingOut ? 'Signing out…' : 'Sign out'}</span>
-                </span>
-              </button>
-            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="flex h-12 w-12 items-center justify-center rounded-xl text-sm font-bold text-white transition-transform hover:scale-105 gradient-spectrum"
+                  aria-label="Open profile menu"
+                >
+                  {initials}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={handleOpenProfile} className="flex flex-col items-start gap-1">
+                  <span className="text-sm font-semibold text-ink">Profile & Settings</span>
+                  <span className="text-xs text-steel">Manage account details</span>
+                </DropdownMenuItem>
+                {isAuthenticated && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={handleSignOut}
+                      disabled={signingOut}
+                      className="flex items-center gap-2 font-semibold text-steel focus:text-pulse"
+                    >
+                      {signingOut ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Signing out…
+                        </>
+                      ) : (
+                        <>
+                          <LogOut className="h-4 w-4" />
+                          Sign out
+                        </>
+                      )}
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </div>

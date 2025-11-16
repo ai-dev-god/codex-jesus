@@ -5,15 +5,18 @@ import { useRef, useState, type ChangeEvent } from 'react';
 import { toast } from 'sonner';
 
 import { useAuth } from '../../lib/auth/AuthContext';
-import { recordPanelUpload } from '../../lib/api/ai';
+import { createPanelUploadSession, recordPanelUpload } from '../../lib/api/ai';
 import { ApiError } from '../../lib/api/error';
+
+type UploadStatus = 'hashing' | 'signing' | 'uploading' | 'registering' | 'complete' | 'error';
 
 interface UploadedFile {
   id: string;
   name: string;
   sizeLabel: string;
   type: string;
-  status: 'uploading' | 'complete' | 'error';
+  status: UploadStatus;
+  hash?: string;
   error?: string;
 }
 
@@ -58,19 +61,35 @@ export default function LabUpload({ onUploadComplete }: LabUploadProps) {
       name: file.name,
       sizeLabel: formatFileSize(file.size),
       type: file.type || 'File',
-      status: 'uploading'
+      status: 'hashing'
     };
     setFiles((prev) => [entry, ...prev]);
 
     try {
       const token = await ensureAccessToken();
+      const sha256 = await computeFileSha256(file);
+      updateFile(id, { status: 'signing', hash: sha256 });
+
+      const session = await createPanelUploadSession(token, {
+        fileName: file.name,
+        contentType: file.type || 'application/octet-stream',
+        byteSize: file.size,
+        sha256
+      });
+
+      updateFile(id, { status: 'uploading' });
+      await uploadToSignedUrl(session.uploadUrl, session.requiredHeaders, file);
+
+      updateFile(id, { status: 'registering' });
       await recordPanelUpload(token, {
-        storageKey: `labs/${Date.now()}-${file.name}`,
+        sessionId: session.sessionId,
+        storageKey: session.storageKey,
         contentType: file.type || 'application/octet-stream',
         rawMetadata: {
           fileName: file.name,
           size: file.size,
-          lastModified: file.lastModified
+          lastModified: file.lastModified,
+          sha256
         }
       });
 
@@ -81,19 +100,41 @@ export default function LabUpload({ onUploadComplete }: LabUploadProps) {
       onUploadComplete?.(file.name);
     } catch (error) {
       const message = error instanceof ApiError ? error.message : 'Unable to upload this file.';
-      setFiles((prev) =>
-        prev.map((item) =>
-          item.id === id
-            ? {
-                ...item,
-                status: 'error',
-                error: message
-              }
-            : item
-        )
-      );
+      updateFile(id, {
+        status: 'error',
+        error: message
+      });
       toast.error(message);
     }
+  };
+
+  const computeFileSha256 = async (file: File): Promise<string> => {
+    if (typeof window === 'undefined' || !window.crypto?.subtle) {
+      throw new ApiError('Secure hashing is unavailable in this environment.', 500, 'LAB_UPLOAD_HASH_UNAVAILABLE');
+    }
+    const buffer = await file.arrayBuffer();
+    const digest = await crypto.subtle.digest('SHA-256', buffer);
+    return Array.from(new Uint8Array(digest))
+      .map((value) => value.toString(16).padStart(2, '0'))
+      .join('');
+  };
+
+  const uploadToSignedUrl = async (url: string, headers: Record<string, string>, file: File): Promise<void> => {
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers,
+      body: file
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new ApiError('Signed upload failed', response.status, 'LAB_UPLOAD_SIGNED_URL_FAILED', text);
+    }
+  };
+
+  const updateFile = (id: string, patch: Partial<UploadedFile>) => {
+    setFiles((prev) =>
+      prev.map((file) => (file.id === id ? { ...file, ...patch, error: patch.error ?? file.error } : file))
+    );
   };
 
   const handleFilePickerClick = () => {
@@ -163,8 +204,15 @@ export default function LabUpload({ onUploadComplete }: LabUploadProps) {
                     <span>•</span>
                     <span>{file.sizeLabel}</span>
                     <span>•</span>
+                    {file.status === 'hashing' && <span className="text-electric font-semibold">Hashing…</span>}
+                    {file.status === 'signing' && (
+                      <span className="text-electric font-semibold">Securing channel…</span>
+                    )}
                     {file.status === 'uploading' && (
                       <span className="text-electric font-semibold">Uploading…</span>
+                    )}
+                    {file.status === 'registering' && (
+                      <span className="text-electric font-semibold">Verifying integrity…</span>
                     )}
                     {file.status === 'complete' && (
                       <span className="text-bio font-semibold flex items-center gap-1">

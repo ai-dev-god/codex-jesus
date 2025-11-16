@@ -100,6 +100,12 @@ paths:
                   $ref: '#/components/schemas/PanelUpload'
     post:
       summary: Record a panel upload with optional normalized measurements
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PanelUploadRequest'
       responses:
         '201':
           description: Stored panel upload with extracted measurements
@@ -107,6 +113,22 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PanelUpload'
+  /ai/uploads/sessions:
+    post:
+      summary: Create a signed upload URL for lab data ingestion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PanelUploadSessionRequest'
+      responses:
+        '201':
+          description: Signed upload session metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PanelUploadSession'
   /ai/uploads/{uploadId}:
     get:
       summary: Fetch a specific panel upload with tagging metadata
@@ -168,13 +190,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - url
-                properties:
-                  url:
-                    type: string
-                    format: uri
+                $ref: '#/components/schemas/PanelUploadDownloadSession'
   /ai/plans:
     get:
       summary: List recently generated longevity plans
@@ -634,6 +650,12 @@ components:
         contentType:
           type: string
           nullable: true
+        byteSize:
+          type: integer
+          nullable: true
+        sha256Hash:
+          type: string
+          nullable: true
         pageCount:
           type: integer
           nullable: true
@@ -659,7 +681,7 @@ components:
         measurements:
           type: array
           items:
-            $ref: '#/components/schemas/BiomarkerMeasurement'
+            $ref: '#/components/schemas/PanelUploadMeasurementInput'
         processedAt:
           type: string
           format: date-time
@@ -670,12 +692,147 @@ components:
         errorMessage:
           type: string
           nullable: true
+        uploadSessionId:
+          type: string
+          nullable: true
+        sealedStorageKey:
+          type: string
+          nullable: true
+        sealedKeyVersion:
+          type: string
+          nullable: true
         createdAt:
           type: string
           format: date-time
         updatedAt:
           type: string
           format: date-time
+    PanelUploadRequest:
+      type: object
+      required:
+        - sessionId
+        - storageKey
+      properties:
+        sessionId:
+          type: string
+        storageKey:
+          type: string
+        source:
+          type: string
+          enum:
+            - LAB_REPORT
+            - WEARABLE_EXPORT
+            - MANUAL_ENTRY
+        contentType:
+          type: string
+          nullable: true
+        pageCount:
+          type: integer
+          nullable: true
+        rawMetadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+        normalizedPayload:
+          type: object
+          additionalProperties: true
+          nullable: true
+        measurements:
+          type: array
+          items:
+            $ref: '#/components/schemas/BiomarkerMeasurement'
+    PanelUploadSessionRequest:
+      type: object
+      required:
+        - fileName
+        - contentType
+        - byteSize
+        - sha256
+      properties:
+        fileName:
+          type: string
+        contentType:
+          type: string
+        byteSize:
+          type: integer
+        sha256:
+          type: string
+          description: Lowercase hex-encoded SHA-256 digest
+    PanelUploadSession:
+      type: object
+      required:
+        - sessionId
+        - storageKey
+        - uploadUrl
+        - expiresAt
+        - requiredHeaders
+        - maxBytes
+      properties:
+        sessionId:
+          type: string
+        storageKey:
+          type: string
+        uploadUrl:
+          type: string
+          format: uri
+        expiresAt:
+          type: string
+          format: date-time
+        requiredHeaders:
+          type: object
+          additionalProperties:
+            type: string
+        kmsKeyName:
+          type: string
+          nullable: true
+        maxBytes:
+          type: integer
+    PanelUploadMeasurementInput:
+      type: object
+      properties:
+        biomarkerId:
+          type: string
+          nullable: true
+        markerName:
+          type: string
+        value:
+          type: number
+          nullable: true
+        unit:
+          type: string
+          nullable: true
+        referenceLow:
+          type: number
+          nullable: true
+        referenceHigh:
+          type: number
+          nullable: true
+        capturedAt:
+          type: string
+          format: date-time
+          nullable: true
+        confidence:
+          type: number
+          nullable: true
+        flags:
+          type: object
+          additionalProperties: true
+          nullable: true
+    PanelUploadDownloadSession:
+      type: object
+      required:
+        - url
+        - expiresAt
+      properties:
+        url:
+          type: string
+          format: uri
+        expiresAt:
+          type: string
+          format: date-time
+        token:
+          type: string
+          description: Opaque token recorded for audit logging
     PanelUploadPlanSummary:
       type: object
       nullable: true

@@ -84,6 +84,21 @@ const formatDateTimeLocal = (date: Date): string => {
   )}`;
 };
 
+const isSameUser = (a: SerializedUser | null | undefined, b: SerializedUser | null | undefined): boolean => {
+  if (!a || !b) {
+    return false;
+  }
+
+  return (
+    a.id === b.id &&
+    a.email === b.email &&
+    a.role === b.role &&
+    a.status === b.status &&
+    a.createdAt === b.createdAt &&
+    a.updatedAt === b.updatedAt
+  );
+};
+
 export default function AppContent() {
   const initialSession = useMemo(() => loadSession(), []);
   const [session, setSession] = useState<StoredSession | null>(initialSession);
@@ -248,11 +263,17 @@ export default function AppContent() {
       try {
         const freshSession = await ensureFreshSession();
         const remoteUser = await fetchCurrentUser(freshSession.tokens.accessToken);
-        const mergedSession: StoredSession = {
-          user: remoteUser,
-          tokens: freshSession.tokens
-        };
-        updateSession(mergedSession);
+        const tokensChanged = session.tokens !== freshSession.tokens;
+        const userChanged = !isSameUser(session.user, remoteUser);
+
+        if (tokensChanged || userChanged) {
+          const mergedSession: StoredSession = {
+            user: remoteUser,
+            tokens: freshSession.tokens
+          };
+          updateSession(mergedSession);
+        }
+
         setIsOnboardingRequired(remoteUser.status !== 'ACTIVE');
 
         if (options.requireActive && remoteUser.status !== 'ACTIVE') {
@@ -740,13 +761,12 @@ export default function AppContent() {
       return;
     }
 
-    if (!isOnboardingRequired) {
-      toast.success('Your onboarding is already complete.');
+    if (showOnboarding) {
       return;
     }
 
-    if (showOnboarding) {
-      return;
+    if (!isOnboardingRequired) {
+      toast.info('Update your onboarding details anytime.');
     }
 
     setShowActionsDialog(false);

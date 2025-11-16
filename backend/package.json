@@ -23,6 +23,7 @@
     "workers:run": "node dist/src/workers/runner.js"
   },
   "dependencies": {
+    "@google-cloud/storage": "^7.17.3",
     "@prisma/client": "^5.21.1",
     "@prisma/engines": "^6.19.0",
     "bcryptjs": "^3.0.3",

@@ -5,6 +5,8 @@ import { PanelUploadSource } from '@prisma/client';
 import { requireActiveUser, requireAuth } from '../identity/guards';
 import { HttpError } from '../observability-ops/http-error';
 import { panelIngestionService, type PanelUploadInput } from './panel-ingest.service';
+import { labUploadSessionService } from '../lab-upload/upload-session.service';
+import env from '../../config/env';
 import { longevityPlanService, type LongevityPlanRequest } from './plan.service';
 
 const router = Router();
@@ -18,6 +20,7 @@ const validate = <T>(schema: z.ZodSchema<T>, value: unknown): T => {
 };
 
 const panelUploadSchema = z.object({
+  sessionId: z.string().trim().min(1),
   storageKey: z.string().trim().min(1),
   source: z.nativeEnum(PanelUploadSource).optional(),
   contentType: z.string().trim().optional(),
@@ -25,6 +28,13 @@ const panelUploadSchema = z.object({
   rawMetadata: z.record(z.string(), z.unknown()).optional(),
   normalizedPayload: z.record(z.string(), z.unknown()).optional(),
   measurements: z
+const uploadSessionSchema = z.object({
+  fileName: z.string().trim().min(1).max(256),
+  contentType: z.string().trim().min(1).max(128),
+  byteSize: z.number().int().min(1).max(env.LAB_UPLOAD_MAX_SIZE_MB * 1024 * 1024),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/i)
+});
+
     .array(
       z.object({
         biomarkerId: z.string().trim().min(1).optional(),
@@ -81,6 +91,27 @@ const planListQuerySchema = z.object({
 type PlanListQuery = z.infer<typeof planListQuerySchema>;
 
 router.use(requireAuth, requireActiveUser);
+
+router.post('/uploads/sessions', async (req, res, next) => {
+  try {
+    const payload = validate(uploadSessionSchema, req.body) as {
+      fileName: string;
+      contentType: string;
+      byteSize: number;
+      sha256: string;
+    };
+    const session = await labUploadSessionService.createSession({
+      userId: req.user!.id,
+      fileName: payload.fileName,
+      contentType: payload.contentType,
+      byteSize: payload.byteSize,
+      sha256: payload.sha256.toLowerCase()
+    });
+    res.status(201).json(session);
+  } catch (error) {
+    next(error);
+  }
+});
 
 router.post('/uploads', async (req, res, next) => {
   try {

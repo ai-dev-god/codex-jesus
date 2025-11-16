@@ -259,6 +259,8 @@ export interface PanelUploadSummary {
   source: PanelUploadSource;
   storageKey: string;
   contentType: string | null;
+  byteSize?: number | null;
+  sha256Hash?: string | null;
   pageCount: number | null;
   rawMetadata: Record<string, unknown> | null;
   normalizedPayload: Record<string, unknown> | null;
@@ -272,5 +274,7 @@ export interface PanelUploadSummary {
   plan: PanelUploadPlanSummary | null;
   biomarkerTags: PanelUploadBiomarkerTag[];
   measurements?: PanelUploadMeasurement[];
+  sealedStorageKey?: string | null;
+  sealedKeyVersion?: string | null;
 }
 

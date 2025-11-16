@@ -25,6 +25,7 @@ export interface PanelMeasurementInput {
 }
 
 export interface PanelUploadInput {
+  sessionId: string;
   storageKey: string;
   source?: 'LAB_REPORT' | 'WEARABLE_EXPORT' | 'MANUAL_ENTRY';
   contentType?: string;
@@ -32,6 +33,23 @@ export interface PanelUploadInput {
   rawMetadata?: Record<string, unknown>;
   normalizedPayload?: Record<string, unknown>;
   measurements?: PanelMeasurementInput[];
+}
+
+export interface CreatePanelUploadSessionInput {
+  fileName: string;
+  contentType: string;
+  byteSize: number;
+  sha256: string;
+}
+
+export interface PanelUploadSession {
+  sessionId: string;
+  storageKey: string;
+  uploadUrl: string;
+  expiresAt: string;
+  requiredHeaders: Record<string, string>;
+  kmsKeyName: string | null;
+  maxBytes: number;
 }
 
 export async function fetchLongevityPlans(accessToken: string, limit = 3): Promise<LongevityPlan[]> {
@@ -51,6 +69,17 @@ export async function requestLongevityPlan(accessToken: string, payload: Longevi
 
 export async function recordPanelUpload(accessToken: string, payload: PanelUploadInput) {
   return apiFetch<PanelUploadSummary>(`/ai/uploads`, {
+    authToken: accessToken,
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function createPanelUploadSession(
+  accessToken: string,
+  payload: CreatePanelUploadSessionInput
+): Promise<PanelUploadSession> {
+  return apiFetch<PanelUploadSession>(`/ai/uploads/sessions`, {
     authToken: accessToken,
     method: 'POST',
     body: JSON.stringify(payload)
@@ -92,6 +121,7 @@ export async function updatePanelUploadTags(
 export type PanelDownloadSession = {
   url: string;
   expiresAt: string;
+  token?: string;
 };
 
 export async function fetchPanelUploadDownloadUrl(

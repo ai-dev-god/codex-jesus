@@ -8,6 +8,7 @@ import { notificationWorker } from './notify';
 import { insightsGenerateWorker } from './insights-generate';
 import { whoopSyncWorker } from './whoop-sync';
 import { longevityPlanWorker } from './longevity-plan';
+import { labUploadIngestionWorker } from './lab-upload-ingest';
 
 type WorkerHandler = (taskName: string) => Promise<void>;
 
@@ -18,7 +19,8 @@ const WORKER_REGISTRY: Record<string, WorkerHandler> = {
   'insights-generate': insightsGenerateWorker,
   'whoop-sync': whoopSyncWorker,
   'notifications-dispatch': notificationWorker,
-  'longevity-plan-generate': longevityPlanWorker
+  'longevity-plan-generate': longevityPlanWorker,
+  'lab-upload-ingest': labUploadIngestionWorker
 };
 
 const parseQueueList = (): string[] => {

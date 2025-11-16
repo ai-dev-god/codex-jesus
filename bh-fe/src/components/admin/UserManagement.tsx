@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Search,
   Download,
@@ -11,11 +11,13 @@ import {
   Shield,
   User as UserIcon,
   Save,
-  X
+  X,
+  RefreshCw
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useAuth } from '../../lib/auth/AuthContext';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { ApiError } from '../../lib/api/error';
 import type { Role, UserStatus } from '../../lib/api/types';
 import {
@@ -80,13 +82,14 @@ const ROLE_LABELS: Record<Role, string> = {
 };
 
 export default function UserManagement() {
-  const { ensureAccessToken } = useAuth();
+  const { ensureAccessToken, user: authUser } = useAuth();
 
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebouncedValue(searchQuery, 400);
   const [filterRole, setFilterRole] = useState<'all' | Role>('all');
   const [filterPlan, setFilterPlan] = useState<'all' | AdminUserPlanTier>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | UserStatus>('all');
@@ -100,33 +103,65 @@ export default function UserManagement() {
 
   const [actionLoading, setActionLoading] = useState(false);
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const requestCounterRef = useRef(0);
+  const lastRequestKeyRef = useRef<string | null>(null);
+
+  const buildRequestKey = useCallback(
+    () =>
+      JSON.stringify({
+        userId: authUser?.id ?? 'anonymous',
+        search: debouncedSearch.trim().toLowerCase(),
+        role: filterRole,
+        status: filterStatus
+      }),
+    [authUser?.id, debouncedSearch, filterRole, filterStatus]
+  );
 
   const loadUsers = useCallback(async () => {
+    const requestKey = buildRequestKey();
+    const requestId = ++requestCounterRef.current;
     setLoading(true);
     setError(null);
     try {
       const token = await ensureAccessToken();
       const response = await listAdminUsers(token, {
-        search: searchQuery.trim() || undefined,
+        search: debouncedSearch.trim() || undefined,
         role: filterRole === 'all' ? undefined : filterRole,
         status: filterStatus === 'all' ? undefined : filterStatus,
         limit: 50
       });
+      if (requestCounterRef.current !== requestId) {
+        return;
+      }
       setUsers(response.data);
+      setHasLoadedOnce(true);
+      setLastSyncedAt(new Date());
+      lastRequestKeyRef.current = requestKey;
     } catch (err) {
+      if (requestCounterRef.current !== requestId) {
+        return;
+      }
       if (err instanceof ApiError) {
         setError(err.message);
       } else {
         setError('Unable to load users. Please try again.');
       }
     } finally {
-      setLoading(false);
+      if (requestCounterRef.current === requestId) {
+        setLoading(false);
+      }
     }
-  }, [ensureAccessToken, searchQuery, filterRole, filterStatus]);
+  }, [ensureAccessToken, debouncedSearch, filterRole, filterStatus, buildRequestKey]);
 
   useEffect(() => {
+    const requestKey = buildRequestKey();
+    if (hasLoadedOnce && lastRequestKeyRef.current === requestKey) {
+      return;
+    }
     void loadUsers();
-  }, [loadUsers]);
+  }, [buildRequestKey, hasLoadedOnce, loadUsers]);
 
   const filteredUsers = useMemo(() => {
     return users.filter((user) => filterPlan === 'all' || user.planTier === filterPlan);
@@ -142,6 +177,46 @@ export default function UserManagement() {
 
     return { total, active, suspended, explorer, biohacker, longevityPro };
   }, [users]);
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (filterRole !== 'all') count += 1;
+    if (filterPlan !== 'all') count += 1;
+    if (filterStatus !== 'all') count += 1;
+    if (searchQuery.trim()) count += 1;
+    return count;
+  }, [filterRole, filterPlan, filterStatus, searchQuery]);
+
+  const lastSyncedLabel = useMemo(() => {
+    if (!lastSyncedAt) {
+      return 'Awaiting sync';
+    }
+    const diffSeconds = Math.floor((Date.now() - lastSyncedAt.getTime()) / 1000);
+    if (diffSeconds < 5) {
+      return 'Just now';
+    }
+    if (diffSeconds < 60) {
+      return `${diffSeconds}s ago`;
+    }
+    if (diffSeconds < 3600) {
+      return `${Math.floor(diffSeconds / 60)}m ago`;
+    }
+    if (diffSeconds < 86_400) {
+      return `${Math.floor(diffSeconds / 3600)}h ago`;
+    }
+    return `${Math.floor(diffSeconds / 86_400)}d ago`;
+  }, [lastSyncedAt]);
+
+  const handleResetFilters = useCallback(() => {
+    setSearchQuery('');
+    setFilterRole('all');
+    setFilterPlan('all');
+    setFilterStatus('all');
+  }, [setSearchQuery, setFilterRole, setFilterPlan, setFilterStatus]);
+
+  const handleManualRefresh = useCallback(() => {
+    void loadUsers();
+  }, [loadUsers]);
 
   const handleEditUser = (user: AdminUser) => {
     setEditingUser(user);
@@ -287,6 +362,8 @@ export default function UserManagement() {
     return new Date(lastLoginAt).toLocaleString();
   };
 
+  const canResetFilters = activeFilterCount > 0;
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -316,7 +393,26 @@ export default function UserManagement() {
         </div>
       </div>
 
-      <div className="neo-card bg-white p-6 space-y-4">
+      <div className="neo-card bg-white p-6 space-y-6">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="tag text-steel mb-1">Membership Directory</p>
+            <p className="text-2xl font-semibold text-ink">Users & Access Control</p>
+            <p className="text-sm text-steel">Search, triage, and govern admin-eligible accounts.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="rounded-xl bg-pearl px-3 py-1 text-xs font-semibold text-steel">
+              Last sync <span className="text-ink">{lastSyncedLabel}</span>
+            </div>
+            <Badge variant="outline" className="rounded-xl border-cloud px-3 py-1 text-steel">
+              {activeFilterCount} active {activeFilterCount === 1 ? 'filter' : 'filters'}
+            </Badge>
+            <Button variant="outline" onClick={handleManualRefresh} disabled={loading}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
+        </div>
         <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
           <div className="flex-1 w-full lg:max-w-md">
             <div className="relative">
@@ -340,7 +436,7 @@ export default function UserManagement() {
             </Button>
           </div>
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
           <Select value={filterRole} onValueChange={(value: Role | 'all') => setFilterRole(value)}>
             <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="Role" />
@@ -378,6 +474,15 @@ export default function UserManagement() {
               <SelectItem value="SUSPENDED">Suspended</SelectItem>
             </SelectContent>
           </Select>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleResetFilters}
+            disabled={!canResetFilters}
+            className="text-steel hover:text-ink"
+          >
+            Reset filters
+          </Button>
         </div>
         {error && <div className="rounded-xl border border-pulse/30 bg-pulse/5 px-4 py-3 text-sm text-pulse">{error}</div>}
       </div>
@@ -397,17 +502,59 @@ export default function UserManagement() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading && (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center text-steel">
-                    Loading users…
-                  </TableCell>
-                </TableRow>
-              )}
+              {loading &&
+                Array.from({ length: 4 }).map((_, idx) => (
+                  <TableRow key={`loading-${idx}`}>
+                    <TableCell>
+                      <div className="space-y-2">
+                        <div className="h-4 w-40 rounded-lg bg-cloud animate-pulse" />
+                        <div className="h-3 w-32 rounded-lg bg-cloud animate-pulse" />
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="h-6 w-20 rounded-full bg-cloud animate-pulse" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="h-6 w-24 rounded-full bg-cloud animate-pulse" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="h-6 w-24 rounded-full bg-cloud animate-pulse" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-2">
+                        <div className="h-3 w-28 rounded-lg bg-cloud animate-pulse" />
+                        <div className="h-3 w-20 rounded-lg bg-cloud animate-pulse" />
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="h-3 w-24 rounded-lg bg-cloud animate-pulse" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="h-8 w-8 rounded-full bg-cloud animate-pulse" />
+                    </TableCell>
+                  </TableRow>
+                ))}
               {!loading && filteredUsers.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-steel">
-                    No users match your filters.
+                  <TableCell colSpan={7}>
+                    <div className="py-10 flex flex-col items-center text-center space-y-3">
+                      <div className="w-12 h-12 rounded-2xl bg-pearl flex items-center justify-center text-steel">
+                        <UserIcon className="w-5 h-5" />
+                      </div>
+                      <p className="font-semibold text-ink">No users match these filters</p>
+                      <p className="text-sm text-steel">
+                        Try adjusting your filters or invite a new member directly.
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" onClick={handleResetFilters} disabled={!canResetFilters}>
+                          Reset filters
+                        </Button>
+                        <Button onClick={() => setIsCreateDialogOpen(true)}>
+                          <Plus className="w-4 h-4 mr-2" />
+                          Add user
+                        </Button>
+                      </div>
+                    </div>
                   </TableCell>
                 </TableRow>
               )}

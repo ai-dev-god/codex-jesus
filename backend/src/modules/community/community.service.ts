@@ -45,6 +45,39 @@ export type FeedPostDto = {
   updatedAt: string;
 };
 
+export type PerformanceLeaderboardEntryDto = {
+  rank: number;
+  user: UserSummaryDto;
+  totals: {
+    distanceKm: number;
+    movingMinutes: number;
+    sessions: number;
+    strainScore: number | null;
+    activityCount: number;
+  };
+  highlight: string | null;
+  strava: {
+    athleteName: string | null;
+    profileUrl: string | null;
+  } | null;
+};
+
+export type PerformanceLeaderboardDto = {
+  window: {
+    start: string;
+    end: string;
+    days: number;
+  };
+  generatedAt: string;
+  entries: PerformanceLeaderboardEntryDto[];
+  viewerRank: number | null;
+};
+
+export type PerformanceLeaderboardOptions = {
+  windowDays?: number;
+  limit?: number;
+};
+
 export type CommentDto = {
   id: string;
   postId: string;
@@ -134,6 +167,21 @@ const sanitizeSummary = (summary: Record<string, number>): Record<string, number
 
 const toMetadata = (value: Record<string, unknown> | null): Prisma.InputJsonValue | typeof Prisma.JsonNull =>
   value ? (value as Prisma.InputJsonValue) : Prisma.JsonNull;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const PERFORMANCE_DEFAULT_WINDOW_DAYS = 14;
+const PERFORMANCE_MIN_WINDOW_DAYS = 7;
+const PERFORMANCE_MAX_WINDOW_DAYS = 30;
+const PERFORMANCE_DEFAULT_LIMIT = 10;
+const PERFORMANCE_MIN_LIMIT = 5;
+const PERFORMANCE_MAX_LIMIT = 25;
+
+const toNumber = (value: Prisma.Decimal | number | null | undefined): number | null => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  return Number(value);
+};
 
 const buildUserSummary = (
   user: Prisma.UserGetPayload<{ include: { profile: true } }>

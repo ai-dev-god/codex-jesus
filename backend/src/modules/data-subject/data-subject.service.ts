@@ -7,6 +7,7 @@ import {
   Insight,
   LongevityPlan,
   PanelUpload,
+  StravaActivity,
   type PrismaClient
 } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
@@ -27,6 +28,8 @@ export type DataExportPayload = {
   panelUploads: PanelUpload[];
   longevityPlans: LongevityPlan[];
   insights: Insight[];
+  stravaIntegration: Record<string, unknown> | null;
+  stravaActivities: StravaActivity[];
 };
 
 type ExportJobProjection = Pick<
@@ -201,34 +204,45 @@ export class DataSubjectService {
   }
 
   private async collectUserSnapshot(userId: string): Promise<DataExportPayload> {
-    const [user, profile, biomarkerLogs, biomarkerMeasurements, panelUploads, longevityPlans, insights] =
-      await Promise.all([
-        this.prisma.user.findUnique({
-          where: { id: userId },
-          select: {
-            id: true,
-            email: true,
-            fullName: true,
-            role: true,
-            status: true,
-            whoopMemberId: true,
-            createdAt: true,
-            updatedAt: true
-          }
-        }),
-        this.prisma.profile.findUnique({ where: { userId } }),
-        this.prisma.biomarkerLog.findMany({ where: { userId } }),
-        this.prisma.biomarkerMeasurement.findMany({ where: { userId } }),
-        this.prisma.panelUpload.findMany({
-          where: { userId },
-          include: {
-            biomarkerTags: true,
-            measurements: true
-          }
-        }),
-        this.prisma.longevityPlan.findMany({ where: { userId } }),
-        this.prisma.insight.findMany({ where: { userId } })
-      ]);
+    const [
+      user,
+      profile,
+      biomarkerLogs,
+      biomarkerMeasurements,
+      panelUploads,
+      longevityPlans,
+      insights,
+      stravaIntegration,
+      stravaActivities
+    ] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          fullName: true,
+          role: true,
+          status: true,
+          whoopMemberId: true,
+          createdAt: true,
+          updatedAt: true
+        }
+      }),
+      this.prisma.profile.findUnique({ where: { userId } }),
+      this.prisma.biomarkerLog.findMany({ where: { userId } }),
+      this.prisma.biomarkerMeasurement.findMany({ where: { userId } }),
+      this.prisma.panelUpload.findMany({
+        where: { userId },
+        include: {
+          biomarkerTags: true,
+          measurements: true
+        }
+      }),
+      this.prisma.longevityPlan.findMany({ where: { userId } }),
+      this.prisma.insight.findMany({ where: { userId } }),
+      this.prisma.stravaIntegration.findUnique({ where: { userId } }),
+      this.prisma.stravaActivity.findMany({ where: { userId } })
+    ]);
 
     return {
       user: user ? JSON.parse(JSON.stringify(user)) : null,
@@ -237,7 +251,9 @@ export class DataSubjectService {
       biomarkerMeasurements,
       panelUploads,
       longevityPlans,
-      insights
+      insights,
+      stravaIntegration: stravaIntegration ? JSON.parse(JSON.stringify(stravaIntegration)) : null,
+      stravaActivities
     };
   }
 
@@ -260,6 +276,9 @@ export class DataSubjectService {
       await tally('insightJobs', tx.insightGenerationJob.deleteMany({ where: { requestedById: userId } }));
       await tally('whoopIntegrations', tx.whoopIntegration.deleteMany({ where: { userId } }));
       await tally('whoopLinkSessions', tx.whoopLinkSession.deleteMany({ where: { userId } }));
+      await tally('stravaActivities', tx.stravaActivity.deleteMany({ where: { userId } }));
+      await tally('stravaIntegrations', tx.stravaIntegration.deleteMany({ where: { userId } }));
+      await tally('stravaLinkSessions', tx.stravaLinkSession.deleteMany({ where: { userId } }));
       await tally('loginAudits', tx.loginAudit.deleteMany({ where: { userId } }));
 
       await tx.profile.updateMany({

@@ -8,7 +8,6 @@ import {
   fetchPanelUploads,
   updatePanelUploadTags
 } from '../../lib/api/ai';
-import { apiFetchBlob } from '../../lib/api/http';
 import type { LongevityPlan, PanelUploadSummary, BiomarkerDefinition } from '../../lib/api/types';
 import { listBiomarkerDefinitions } from '../../lib/api/biomarkers';
 import { useAuth } from '../../lib/auth/AuthContext';
@@ -235,7 +234,11 @@ export default function LabUploadHistory({ refreshKey }: LabUploadHistoryProps) 
       setDownloadTarget(upload.id);
       const token = await ensureAccessToken();
       const session = await fetchPanelUploadDownloadUrl(token, upload.id);
-      const blob = await apiFetchBlob(session.url, { authToken: token, method: 'GET' });
+      const response = await fetch(session.url);
+      if (!response.ok) {
+        throw new Error(`Download failed with status ${response.status}`);
+      }
+      const blob = await response.blob();
       const objectUrl = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = objectUrl;

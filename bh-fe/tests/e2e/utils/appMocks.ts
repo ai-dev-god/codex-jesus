@@ -354,6 +354,24 @@ export const mockApiRoutes = async (page: Page) => {
 
   await page.route(/.*\/ai\/uploads\/[^/]+\/tags/, (route) => respondJson(route, panelUploads[0]))
 
+  await page.route('**/ai/uploads/sessions', (route) =>
+    respondJson(route, {
+      sessionId: 'session-mock',
+      storageKey: 'uploads/longevity-panel.pdf',
+      uploadUrl: 'https://storage.googleapis.com/mock-upload',
+      expiresAt: nowIso,
+      requiredHeaders: {
+        'Content-Type': 'application/pdf',
+        'x-goog-content-sha256': 'a'.repeat(64),
+      },
+      kmsKeyName: null,
+      maxBytes: 25 * 1024 * 1024,
+    }),
+  )
+  await page.route('https://storage.googleapis.com/mock-upload', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/pdf', body: 'mock-pdf' }),
+  )
+
   await page.route('**/ai/uploads**', (route) => {
     if (route.request().method() === 'GET') {
       return respondJson(route, panelUploads)

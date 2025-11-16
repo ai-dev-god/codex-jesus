@@ -11,19 +11,42 @@ type MockPrisma = {
   biomarkerMeasurement: {
     create: jest.Mock;
   };
+  panelUploadSession: {
+    findFirst: jest.Mock;
+    update: jest.Mock;
+  };
+  $transaction: jest.Mock;
 };
 
 const baseDate = new Date('2025-01-01T00:00:00.000Z');
 
-const createMockPrisma = (): MockPrisma => ({
-  panelUpload: {
-    create: jest.fn(),
-    findUnique: jest.fn()
-  },
-  biomarkerMeasurement: {
-    create: jest.fn()
-  }
-});
+const createMockPrisma = (): MockPrisma => {
+  const mock = {
+    panelUpload: {
+      create: jest.fn(),
+      findUnique: jest.fn()
+    },
+    biomarkerMeasurement: {
+      create: jest.fn()
+    },
+    panelUploadSession: {
+      findFirst: jest.fn(),
+      update: jest.fn()
+    },
+    $transaction: jest.fn()
+  };
+
+  mock.$transaction.mockImplementation(async (callback: (tx: PrismaClient) => Promise<unknown>) => {
+    const tx = {
+      panelUpload: mock.panelUpload,
+      biomarkerMeasurement: mock.biomarkerMeasurement,
+      panelUploadSession: mock.panelUploadSession
+    } as unknown as PrismaClient;
+    return callback(tx);
+  });
+
+  return mock;
+};
 
 const createService = (prisma: MockPrisma) =>
   new PanelIngestionService(prisma as unknown as PrismaClient, {
@@ -38,6 +61,16 @@ describe('PanelIngestionService', () => {
   it('creates uploads and biomarker measurements from normalized payload', async () => {
     const prisma = createMockPrisma();
     const service = createService(prisma);
+    prisma.panelUploadSession.findFirst.mockResolvedValue({
+      id: 'session-1',
+      userId: 'user-1',
+      storageKey: 's3://panel.pdf',
+      contentType: 'application/pdf',
+      byteSize: 2048,
+      sha256Hash: 'a'.repeat(64),
+      status: 'PENDING',
+      expiresAt: new Date('2025-01-02T00:00:00.000Z')
+    });
     prisma.panelUpload.create.mockResolvedValue({
       id: 'upload-1',
       userId: 'user-1',
@@ -92,7 +125,10 @@ describe('PanelIngestionService', () => {
       measurements: []
     });
 
+    prisma.panelUploadSession.update.mockResolvedValue({});
+
     await service.recordUpload('user-1', {
+      sessionId: 'session-1',
       storageKey: 's3://panel.pdf',
       measurements: [
         {
@@ -123,10 +159,22 @@ describe('PanelIngestionService', () => {
   it('wraps unknown errors in HttpError', async () => {
     const prisma = createMockPrisma();
     const service = createService(prisma);
+    prisma.panelUploadSession.findFirst.mockResolvedValue({
+      id: 'session-1',
+      userId: 'user-1',
+      storageKey: 's3://panel.pdf',
+      contentType: 'application/pdf',
+      byteSize: 1,
+      sha256Hash: 'a'.repeat(64),
+      status: 'PENDING',
+      expiresAt: new Date('2025-01-02T00:00:00.000Z')
+    });
     prisma.panelUpload.create.mockRejectedValue(new Error('s3 unavailable'));
+    prisma.panelUploadSession.update.mockResolvedValue({});
 
     await expect(
       service.recordUpload('user-1', {
+        sessionId: 'session-1',
         storageKey: 's3://panel.pdf'
       })
     ).rejects.toBeInstanceOf(HttpError);

@@ -156,103 +156,108 @@ export default function NutritionView() {
   };
 
   return (
-    <div className="p-8 space-y-6" data-testid="view-nutrition">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-neutral-900 mb-2">Nutrition & Supplementation</h1>
-          <p className="text-neutral-600">
-            Personalized nutrition protocols optimized for your biomarkers and performance goals
-          </p>
+    <div className="min-h-screen mesh-gradient pt-28 pb-20 px-6" data-testid="view-nutrition">
+      <div className="max-w-7xl mx-auto space-y-10">
+        <div className="text-center space-y-4">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/60 text-steel text-sm font-semibold">
+            <Apple className="w-4 h-4" />
+            <span>Nutrition Studio</span>
+          </div>
+          <div className="space-y-3">
+            <h1 className="text-4xl font-semibold text-ink">Nutrition & Supplementation</h1>
+            <p className="text-lg text-steel max-w-3xl mx-auto">
+              Personalized protocols optimized for your biomarkers, daily routines, and recovery targets.
+            </p>
+          </div>
+          <Dialog open={isCreatingMeal} onOpenChange={setIsCreatingMeal}>
+            <DialogTrigger asChild>
+              <Button className="bg-gradient-to-r from-blue-600 to-purple-600">
+                <Plus className="w-4 h-4 mr-2" />
+                Log Meal
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Log Meal</DialogTitle>
+                <DialogDescription>
+                  Add a meal to track your daily nutrition and macros
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="meal-name">Meal Name</Label>
+                  <Input
+                    id="meal-name"
+                    placeholder="e.g., Breakfast Power Bowl"
+                    value={mealName}
+                    onChange={(e) => setMealName(e.target.value)}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="meal-type">Meal Type</Label>
+                    <Select>
+                      <SelectTrigger id="meal-type">
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="breakfast">Breakfast</SelectItem>
+                        <SelectItem value="lunch">Lunch</SelectItem>
+                        <SelectItem value="dinner">Dinner</SelectItem>
+                        <SelectItem value="snack">Snack</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="meal-time">Time</Label>
+                    <Input id="meal-time" type="time" defaultValue="12:00" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-4 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="calories">Calories</Label>
+                    <Input id="calories" type="number" placeholder="500" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="protein">Protein (g)</Label>
+                    <Input id="protein" type="number" placeholder="40" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="carbs">Carbs (g)</Label>
+                    <Input id="carbs" type="number" placeholder="50" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="fats">Fats (g)</Label>
+                    <Input id="fats" type="number" placeholder="20" />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="ingredients">Ingredients</Label>
+                  <Textarea
+                    id="ingredients"
+                    placeholder="List the ingredients (one per line)"
+                    rows={4}
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setIsCreatingMeal(false)}>
+                    Cancel
+                  </Button>
+                  <Button className="bg-gradient-to-r from-blue-600 to-purple-600">
+                    Log Meal
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
-        <Dialog open={isCreatingMeal} onOpenChange={setIsCreatingMeal}>
-          <DialogTrigger asChild>
-            <Button className="bg-gradient-to-r from-blue-600 to-purple-600">
-              <Plus className="w-4 h-4 mr-2" />
-              Log Meal
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Log Meal</DialogTitle>
-              <DialogDescription>
-                Add a meal to track your daily nutrition and macros
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="meal-name">Meal Name</Label>
-                <Input
-                  id="meal-name"
-                  placeholder="e.g., Breakfast Power Bowl"
-                  value={mealName}
-                  onChange={(e) => setMealName(e.target.value)}
-                />
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="meal-type">Meal Type</Label>
-                  <Select>
-                    <SelectTrigger id="meal-type">
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="breakfast">Breakfast</SelectItem>
-                      <SelectItem value="lunch">Lunch</SelectItem>
-                      <SelectItem value="dinner">Dinner</SelectItem>
-                      <SelectItem value="snack">Snack</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="meal-time">Time</Label>
-                  <Input id="meal-time" type="time" defaultValue="12:00" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-4 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="calories">Calories</Label>
-                  <Input id="calories" type="number" placeholder="500" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="protein">Protein (g)</Label>
-                  <Input id="protein" type="number" placeholder="40" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="carbs">Carbs (g)</Label>
-                  <Input id="carbs" type="number" placeholder="50" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="fats">Fats (g)</Label>
-                  <Input id="fats" type="number" placeholder="20" />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="ingredients">Ingredients</Label>
-                <Textarea
-                  id="ingredients"
-                  placeholder="List the ingredients (one per line)"
-                  rows={4}
-                />
-              </div>
-
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setIsCreatingMeal(false)}>
-                  Cancel
-                </Button>
-                <Button className="bg-gradient-to-r from-blue-600 to-purple-600">
-                  Log Meal
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {/* Daily Macros Overview */}
-      <Card className="p-6">
+        <div className="space-y-8">
+          <Card className="p-6">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-neutral-900 mb-1">Today's Nutrition</h2>
@@ -290,17 +295,18 @@ export default function NutritionView() {
             );
           })}
         </div>
-      </Card>
+          </Card>
 
-      <Tabs defaultValue="meals" className="w-full">
-        <TabsList>
-          <TabsTrigger value="meals">Today's Meals</TabsTrigger>
-          <TabsTrigger value="protocols">Supplement Protocols</TabsTrigger>
-          <TabsTrigger value="templates">Meal Templates</TabsTrigger>
-          <TabsTrigger value="micronutrients">Micronutrients</TabsTrigger>
-        </TabsList>
+          <div className="neo-card p-6">
+            <Tabs defaultValue="meals" className="w-full">
+              <TabsList className="flex w-full flex-wrap justify-center gap-2 bg-white/70 text-sm font-semibold">
+                <TabsTrigger value="meals" className="min-w-[150px]">Today's Meals</TabsTrigger>
+                <TabsTrigger value="protocols" className="min-w-[150px]">Supplement Protocols</TabsTrigger>
+                <TabsTrigger value="templates" className="min-w-[150px]">Meal Templates</TabsTrigger>
+                <TabsTrigger value="micronutrients" className="min-w-[150px]">Micronutrients</TabsTrigger>
+              </TabsList>
 
-        <TabsContent value="meals" className="mt-6 space-y-4">
+              <TabsContent value="meals" className="mt-6 space-y-4">
           {todaysMeals.map((meal) => (
             <Card key={meal.id} className="p-6 hover:shadow-lg transition-shadow">
               <div className="flex items-start justify-between mb-4">
@@ -361,7 +367,7 @@ export default function NutritionView() {
           ))}
         </TabsContent>
 
-        <TabsContent value="protocols" className="mt-6 space-y-4">
+              <TabsContent value="protocols" className="mt-6 space-y-4">
           {nutritionProtocols.map((protocol) => (
             <Card key={protocol.id} className="p-6 hover:shadow-lg transition-shadow">
               <div className="flex items-start justify-between mb-4">
@@ -417,7 +423,7 @@ export default function NutritionView() {
           ))}
         </TabsContent>
 
-        <TabsContent value="templates" className="mt-6">
+              <TabsContent value="templates" className="mt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {mealTemplates.map((template) => (
               <Card key={template.id} className="p-6 hover:shadow-lg transition-shadow cursor-pointer">
@@ -459,7 +465,7 @@ export default function NutritionView() {
           </div>
         </TabsContent>
 
-        <TabsContent value="micronutrients" className="mt-6">
+              <TabsContent value="micronutrients" className="mt-6">
           <Card className="p-6">
             <div className="mb-6">
               <h2 className="text-neutral-900 mb-2">Micronutrient Status</h2>
@@ -516,8 +522,11 @@ export default function NutritionView() {
               </ul>
             </div>
           </Card>
-        </TabsContent>
-      </Tabs>
+              </TabsContent>
+            </Tabs>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
