@@ -26,6 +26,7 @@
     "@google-cloud/storage": "^7.17.3",
     "@prisma/client": "^5.21.1",
     "@prisma/engines": "^6.19.0",
+    "@types/pdfkit": "^0.17.3",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
@@ -34,6 +35,7 @@
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
+    "pdfkit": "^0.17.2",
     "redis": "^5.9.0",
     "resend": "^6.4.2",
     "zod": "^3.23.8"

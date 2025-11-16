@@ -1,7 +1,8 @@
 import ScoreHero from './ScoreHero';
 import BentoGrid from './BentoGrid';
 import LongevityPlanPanel from './LongevityPlanPanel';
-import type { DashboardActionItem, DashboardSummary, LongevityPlan } from '../../lib/api/types';
+import LongevityStacks from './LongevityStacks';
+import type { DashboardActionItem, DashboardSummary, LongevityPlan, LongevityStack } from '../../lib/api/types';
 
 interface DashboardProps {
   userName: string;
@@ -15,6 +16,10 @@ interface DashboardProps {
   onPlanRetry: () => void;
   onRequestPlan: () => void;
   planRequesting: boolean;
+  stacks: LongevityStack[] | null;
+  stacksLoading: boolean;
+  stacksError: string | null;
+  onStackRetry: () => void;
   onViewActions: () => void;
   onViewCalendar: () => void;
   onViewInsight: () => void;
@@ -33,6 +38,10 @@ export default function Dashboard({
   onPlanRetry,
   onRequestPlan,
   planRequesting,
+  stacks,
+  stacksLoading,
+  stacksError,
+  onStackRetry,
   onViewActions,
   onViewCalendar,
   onViewInsight,
@@ -78,6 +87,13 @@ return (
           onRetry={onPlanRetry}
           onRequestPlan={onRequestPlan}
           requesting={planRequesting}
+        />
+
+        <LongevityStacks
+          stacks={stacks}
+          loading={stacksLoading}
+          error={stacksError}
+          onRetry={onStackRetry}
         />
 
         {/* Bento Grid Layout */}

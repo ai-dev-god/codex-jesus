@@ -78,6 +78,23 @@ export type PerformanceLeaderboardOptions = {
   limit?: number;
 };
 
+type LeaderboardWorkingEntry = {
+  userId: string;
+  user: UserSummaryDto;
+  totals: {
+    distanceKm: number;
+    movingMinutes: number;
+    sessions: number;
+    strainScore: number | null;
+    activityCount: number;
+  };
+  highlight: string | null;
+  strava: {
+    athleteName: string | null;
+    profileUrl: string | null;
+  } | null;
+};
+
 export type CommentDto = {
   id: string;
   postId: string;
@@ -821,6 +838,251 @@ export class CommunityService {
         }
       });
     });
+  }
+
+  async listPerformanceLeaderboard(
+    user: AuthenticatedUser,
+    options: PerformanceLeaderboardOptions = {}
+  ): Promise<PerformanceLeaderboardDto> {
+    const windowDays = Math.min(
+      Math.max(options.windowDays ?? PERFORMANCE_DEFAULT_WINDOW_DAYS, PERFORMANCE_MIN_WINDOW_DAYS),
+      PERFORMANCE_MAX_WINDOW_DAYS
+    );
+    const limit = Math.min(
+      Math.max(options.limit ?? PERFORMANCE_DEFAULT_LIMIT, PERFORMANCE_MIN_LIMIT),
+      PERFORMANCE_MAX_LIMIT
+    );
+
+    const now = this.now();
+    const windowStart = new Date(now.getTime() - windowDays * DAY_MS);
+
+    const [stravaAggregates, whoopAggregates, stravaHighlights] = await Promise.all([
+      this.prisma.stravaActivity.groupBy({
+        by: ['userId'],
+        where: {
+          startDate: {
+            gte: windowStart
+          }
+        },
+        _sum: {
+          distanceMeters: true,
+          movingTimeSeconds: true
+        },
+        _count: {
+          _all: true
+        }
+      }),
+      this.prisma.whoopWorkout.groupBy({
+        by: ['userId'],
+        where: {
+          startTime: {
+            gte: windowStart
+          }
+        },
+        _sum: {
+          durationSeconds: true,
+          strain: true
+        },
+        _avg: {
+          strain: true
+        },
+        _count: {
+          _all: true
+        }
+      }),
+      this.prisma.stravaActivity.findMany({
+        where: {
+          startDate: {
+            gte: windowStart
+          }
+        },
+        orderBy: [
+          { distanceMeters: 'desc' },
+          { movingTimeSeconds: 'desc' }
+        ],
+        take: 200
+      })
+    ]);
+
+    const userIds = new Set<string>([user.id]);
+    stravaAggregates.forEach((record) => userIds.add(record.userId));
+    whoopAggregates.forEach((record) => userIds.add(record.userId));
+    stravaHighlights.forEach((activity) => userIds.add(activity.userId));
+
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: Array.from(userIds) } },
+      include: {
+        profile: true,
+        stravaIntegration: true
+      }
+    });
+
+    const userSummaryMap = new Map<
+      string,
+      {
+        summary: UserSummaryDto;
+        strava: {
+          athleteName: string | null;
+          profileUrl: string | null;
+        } | null;
+      }
+    >();
+
+    for (const record of users) {
+      userSummaryMap.set(record.id, {
+        summary: buildUserSummary(record),
+        strava: record.stravaIntegration
+          ? {
+              athleteName:
+                record.stravaIntegration.athleteName ??
+                record.stravaIntegration.athleteUsername ??
+                null,
+              profileUrl: record.stravaIntegration.athleteAvatarUrl ?? null
+            }
+          : null
+      });
+    }
+
+    const entryMap = new Map<string, LeaderboardWorkingEntry>();
+    const ensureEntry = (userId: string): LeaderboardWorkingEntry => {
+      let entry = entryMap.get(userId);
+      if (!entry) {
+        const meta = userSummaryMap.get(userId);
+        entry = {
+          userId,
+          user:
+            meta?.summary ??
+            ({
+              id: userId,
+              displayName: 'Member',
+              avatarUrl: null
+            } satisfies UserSummaryDto),
+          totals: {
+            distanceKm: 0,
+            movingMinutes: 0,
+            sessions: 0,
+            strainScore: null,
+            activityCount: 0
+          },
+          highlight: null,
+          strava: meta?.strava ?? null
+        };
+        entryMap.set(userId, entry);
+      }
+      return entry;
+    };
+
+    for (const aggregate of stravaAggregates) {
+      const entry = ensureEntry(aggregate.userId);
+      const distanceKm = (aggregate._sum.distanceMeters ?? 0) / 1000;
+      const movingMinutes = (aggregate._sum.movingTimeSeconds ?? 0) / 60;
+
+      if (Number.isFinite(distanceKm)) {
+        entry.totals.distanceKm += distanceKm;
+      }
+      if (Number.isFinite(movingMinutes)) {
+        entry.totals.movingMinutes += movingMinutes;
+      }
+
+      entry.totals.activityCount += aggregate._count._all ?? 0;
+      entry.totals.sessions += aggregate._count._all ?? 0;
+    }
+
+    for (const aggregate of whoopAggregates) {
+      const entry = ensureEntry(aggregate.userId);
+      const movingMinutes = (aggregate._sum.durationSeconds ?? 0) / 60;
+      if (Number.isFinite(movingMinutes)) {
+        entry.totals.movingMinutes += movingMinutes;
+      }
+
+      entry.totals.sessions += aggregate._count._all ?? 0;
+
+      const strainValue = toNumber(aggregate._avg.strain);
+      if (strainValue !== null) {
+        entry.totals.strainScore = strainValue;
+      }
+    }
+
+    const highlightMap = new Map<
+      string,
+      {
+        distanceMeters: number;
+        name: string | null;
+      }
+    >();
+
+    for (const activity of stravaHighlights) {
+      const distance = activity.distanceMeters ?? 0;
+      if (!highlightMap.has(activity.userId) && distance > 0) {
+        highlightMap.set(activity.userId, {
+          distanceMeters: distance,
+          name: activity.name
+        });
+      }
+    }
+
+    for (const [userId, highlight] of highlightMap.entries()) {
+      const entry = ensureEntry(userId);
+      entry.highlight = `Longest effort ${(highlight.distanceMeters / 1000).toFixed(1)} km${
+        highlight.name ? ` • ${highlight.name}` : ''
+      }`;
+    }
+
+    for (const entry of entryMap.values()) {
+      if (!entry.highlight && entry.strava?.athleteName) {
+        entry.highlight = `Powered by ${entry.strava.athleteName}`;
+      }
+    }
+
+    if (!entryMap.has(user.id)) {
+      ensureEntry(user.id);
+    }
+
+    const ordered = Array.from(entryMap.values()).sort((a, b) => {
+      if (b.totals.distanceKm !== a.totals.distanceKm) {
+        return b.totals.distanceKm - a.totals.distanceKm;
+      }
+      if (b.totals.movingMinutes !== a.totals.movingMinutes) {
+        return b.totals.movingMinutes - a.totals.movingMinutes;
+      }
+      const strainA = a.totals.strainScore ?? 0;
+      const strainB = b.totals.strainScore ?? 0;
+      return strainB - strainA;
+    });
+
+    const rankMap = new Map<string, number>();
+    ordered.forEach((entry, index) => rankMap.set(entry.userId, index + 1));
+
+    const trimmed = ordered.filter((entry) => entry.totals.sessions > 0 || entry.userId === user.id).slice(0, limit);
+    const viewerEntry = ordered.find((entry) => entry.userId === user.id);
+    if (viewerEntry && !trimmed.some((entry) => entry.userId === viewerEntry.userId)) {
+      trimmed.push(viewerEntry);
+    }
+
+    const entries = trimmed.map<PerformanceLeaderboardEntryDto>((entry) => ({
+      rank: rankMap.get(entry.userId) ?? trimmed.length,
+      user: entry.user,
+      totals: {
+        distanceKm: Number(entry.totals.distanceKm.toFixed(2)),
+        movingMinutes: Number(entry.totals.movingMinutes.toFixed(1)),
+        sessions: entry.totals.sessions,
+        strainScore: entry.totals.strainScore !== null ? Number(entry.totals.strainScore.toFixed(2)) : null,
+        activityCount: entry.totals.activityCount
+      },
+      highlight: entry.highlight,
+      strava: entry.strava
+    }));
+
+    return {
+      window: {
+        start: windowStart.toISOString(),
+        end: now.toISOString(),
+        days: windowDays
+      },
+      generatedAt: now.toISOString(),
+      entries,
+      viewerRank: rankMap.get(user.id) ?? null
+    };
   }
 
   private mapPost(

@@ -7,6 +7,7 @@ import { HttpError } from '../observability-ops/http-error';
 import { panelIngestionService, type PanelUploadInput } from './panel-ingest.service';
 import { labUploadSessionService } from '../lab-upload/upload-session.service';
 import env from '../../config/env';
+import { longevityStackService } from './longevity-stack.service';
 import { longevityPlanService, type LongevityPlanRequest } from './plan.service';
 
 const router = Router();
@@ -19,6 +20,24 @@ const validate = <T>(schema: z.ZodSchema<T>, value: unknown): T => {
   return result.data;
 };
 
+const measurementsSchema = z
+  .array(
+    z.object({
+      biomarkerId: z.string().trim().min(1).optional(),
+      markerName: z.string().trim().min(1),
+      value: z.number().finite().optional(),
+      unit: z.string().trim().max(32).optional(),
+      referenceLow: z.number().optional(),
+      referenceHigh: z.number().optional(),
+      capturedAt: z.string().datetime().optional(),
+      confidence: z.number().min(0).max(1).optional(),
+      flags: z.record(z.string(), z.unknown()).optional(),
+      source: z.nativeEnum(PanelUploadSource).optional()
+    })
+  )
+  .max(200)
+  .optional();
+
 const panelUploadSchema = z.object({
   sessionId: z.string().trim().min(1),
   storageKey: z.string().trim().min(1),
@@ -27,30 +46,14 @@ const panelUploadSchema = z.object({
   pageCount: z.number().int().min(1).max(200).optional(),
   rawMetadata: z.record(z.string(), z.unknown()).optional(),
   normalizedPayload: z.record(z.string(), z.unknown()).optional(),
-  measurements: z
+  measurements: measurementsSchema
+});
+
 const uploadSessionSchema = z.object({
   fileName: z.string().trim().min(1).max(256),
   contentType: z.string().trim().min(1).max(128),
   byteSize: z.number().int().min(1).max(env.LAB_UPLOAD_MAX_SIZE_MB * 1024 * 1024),
   sha256: z.string().regex(/^[a-f0-9]{64}$/i)
-});
-
-    .array(
-      z.object({
-        biomarkerId: z.string().trim().min(1).optional(),
-        markerName: z.string().trim().min(1),
-        value: z.number().finite().optional(),
-        unit: z.string().trim().max(32).optional(),
-        referenceLow: z.number().optional(),
-        referenceHigh: z.number().optional(),
-        capturedAt: z.string().datetime().optional(),
-        confidence: z.number().min(0).max(1).optional(),
-        flags: z.record(z.string(), z.unknown()).optional(),
-        source: z.nativeEnum(PanelUploadSource).optional()
-      })
-    )
-    .max(200)
-    .optional()
 });
 
 const planRequestSchema = z.object({
@@ -118,6 +121,15 @@ router.post('/uploads', async (req, res, next) => {
     const payload = validate(panelUploadSchema, req.body) as PanelUploadInput;
     const upload = await panelIngestionService.recordUpload(req.user!.id, payload);
     res.status(201).json(upload);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/stacks', async (req, res, next) => {
+  try {
+    const stacks = await longevityStackService.computeStacks(req.user!.id);
+    res.status(200).json(stacks);
   } catch (error) {
     next(error);
   }

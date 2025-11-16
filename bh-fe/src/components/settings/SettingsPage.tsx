@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Shield, Lock, Download, Trash2, Bell, User, CreditCard, CheckCircle2, Zap } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Shield, Lock, Download, Trash2, Bell, User, CreditCard, CheckCircle2, Zap, Activity, Link2, RefreshCw, Unplug } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
@@ -16,9 +16,13 @@ import {
   getLatestDataExportJob,
   requestDataDeletionJob,
   requestDataExportJob,
+  updateProfile,
   type DataDeletionJob,
-  type DataExportJob
+  type DataExportJob,
+  type UpdateProfilePayload
 } from '../../lib/api/profile';
+import { getStravaStatus, requestStravaLink, unlinkStrava, type StravaLinkStatus } from '../../lib/api/strava';
+import { ApiError } from '../../lib/api/error';
 
 const pricingPlans = [
   {
@@ -76,23 +80,192 @@ export default function SettingsPage() {
   const [isAnnual, setIsAnnual] = useState(false);
   const currentPlan = 'biohacker';
   const { user, ensureAccessToken } = useAuth();
-  const { profile, loading: profileLoading, error: profileError } = useProfile();
+  const { profile, loading: profileLoading, error: profileError, setProfile } = useProfile();
   const [exportJob, setExportJob] = useState<DataExportJob | null>(null);
   const [deletionJob, setDeletionJob] = useState<DataDeletionJob | null>(null);
   const [privacyLoading, setPrivacyLoading] = useState(true);
   const [privacyAction, setPrivacyAction] = useState<'export' | 'delete' | null>(null);
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [timezoneValue, setTimezoneValue] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState('');
+  const [biologicalSex, setBiologicalSex] = useState('');
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileBaseline, setProfileBaseline] = useState({
+    displayName: '',
+    timezone: '',
+    dateOfBirth: '',
+    biologicalSex: ''
+  });
+  const [stravaStatus, setStravaStatus] = useState<StravaLinkStatus | null>(null);
+  const [stravaLoading, setStravaLoading] = useState(false);
+  const [stravaAction, setStravaAction] = useState<'link' | 'unlink' | null>(null);
 
-  const displayName = profile?.displayName ?? user?.email ?? 'BioHacker';
-  const [firstName, lastName] = useMemo(() => {
-    if (!displayName) {
-      return ['Bio', 'Hacker'];
+  useEffect(() => {
+    const fallbackDisplayName = profile?.displayName ?? user?.email ?? 'BioHacker';
+    const segments = fallbackDisplayName.trim().split(/\s+/).filter(Boolean);
+    const nextFirst = segments[0] ?? '';
+    const nextLast = segments.slice(1).join(' ');
+    const timezone = profile?.timezone ?? 'UTC';
+    const baselineSurvey = (profile?.baselineSurvey ?? {}) as Record<string, unknown>;
+    const dob = typeof baselineSurvey?.dateOfBirth === 'string' ? (baselineSurvey.dateOfBirth as string) : '';
+    const sex = typeof baselineSurvey?.biologicalSex === 'string' ? (baselineSurvey.biologicalSex as string) : '';
+
+    setFirstName(nextFirst);
+    setLastName(nextLast);
+    setTimezoneValue(timezone);
+    setDateOfBirth(dob);
+    setBiologicalSex(sex);
+    setProfileBaseline({
+      displayName: [nextFirst, nextLast].filter(Boolean).join(' ').trim(),
+      timezone,
+      dateOfBirth: dob,
+      biologicalSex: sex
+    });
+  }, [profile, user]);
+
+  const profileDirty = useMemo(() => {
+    const normalizedDisplayName = [firstName, lastName].filter(Boolean).join(' ').trim();
+    return (
+      normalizedDisplayName !== profileBaseline.displayName ||
+      timezoneValue !== profileBaseline.timezone ||
+      (dateOfBirth || '') !== (profileBaseline.dateOfBirth || '') ||
+      (biologicalSex || '') !== (profileBaseline.biologicalSex || '')
+    );
+  }, [firstName, lastName, timezoneValue, dateOfBirth, biologicalSex, profileBaseline]);
+
+  const formatKilometers = (meters?: number | null) => {
+    if (!meters || Number.isNaN(meters)) {
+      return '0.0';
     }
-    const parts = displayName.split(' ');
-    if (parts.length === 1) {
-      return [parts[0], ''];
+    return (meters / 1000).toFixed(1);
+  };
+
+  const formatMinutes = (seconds?: number | null) => {
+    if (!seconds || Number.isNaN(seconds)) {
+      return '0.0';
     }
-    return [parts[0], parts.slice(1).join(' ')];
-  }, [displayName]);
+    return (seconds / 60).toFixed(1);
+  };
+
+  const handleSaveProfile = useCallback(async () => {
+    const normalizedDisplayName = [firstName, lastName].filter(Boolean).join(' ').trim();
+    if (!normalizedDisplayName) {
+      toast.error('Please provide at least a first name.');
+      return;
+    }
+
+    const payload: UpdateProfilePayload = {};
+    if (normalizedDisplayName !== profileBaseline.displayName) {
+      payload.displayName = normalizedDisplayName;
+    }
+    if (timezoneValue && timezoneValue !== profileBaseline.timezone) {
+      payload.timezone = timezoneValue;
+    }
+    const surveyPayload: Record<string, unknown> = {
+      dateOfBirth: dateOfBirth || null,
+      biologicalSex: biologicalSex || null
+    };
+    const baselineChanged =
+      (surveyPayload.dateOfBirth ?? '') !== (profileBaseline.dateOfBirth || '') ||
+      (surveyPayload.biologicalSex ?? '') !== (profileBaseline.biologicalSex || '');
+    if (baselineChanged) {
+      payload.baselineSurvey = surveyPayload;
+    }
+
+    if (Object.keys(payload).length === 0) {
+      toast.info('No profile changes detected.');
+      return;
+    }
+
+    try {
+      setProfileSaving(true);
+      const token = await ensureAccessToken();
+      const updatedProfile = await updateProfile(token, payload);
+      setProfile(updatedProfile);
+      const updatedSurvey = (updatedProfile.baselineSurvey ?? {}) as Record<string, unknown>;
+      const updatedDob = typeof updatedSurvey.dateOfBirth === 'string' ? updatedSurvey.dateOfBirth : '';
+      const updatedSex = typeof updatedSurvey.biologicalSex === 'string' ? updatedSurvey.biologicalSex : '';
+      setProfileBaseline({
+        displayName: updatedProfile.displayName ?? normalizedDisplayName,
+        timezone: updatedProfile.timezone ?? timezoneValue,
+        dateOfBirth: updatedDob,
+        biologicalSex: updatedSex
+      });
+      toast.success('Profile updated.');
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : 'Unable to save profile changes.';
+      toast.error(message);
+    } finally {
+      setProfileSaving(false);
+    }
+  }, [
+    firstName,
+    lastName,
+    timezoneValue,
+    dateOfBirth,
+    biologicalSex,
+    ensureAccessToken,
+    profileBaseline.displayName,
+    profileBaseline.timezone,
+    profileBaseline.dateOfBirth,
+    profileBaseline.biologicalSex,
+    setProfile
+  ]);
+
+  const fetchStravaStatus = useCallback(async () => {
+    setStravaLoading(true);
+    try {
+      const token = await ensureAccessToken();
+      const status = await getStravaStatus(token);
+      setStravaStatus(status);
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : 'Unable to load Strava status.';
+      toast.error(message);
+      setStravaStatus(null);
+    } finally {
+      setStravaLoading(false);
+    }
+  }, [ensureAccessToken]);
+
+  useEffect(() => {
+    void fetchStravaStatus();
+  }, [fetchStravaStatus]);
+
+  const handleStravaLink = useCallback(async () => {
+    setStravaAction('link');
+    try {
+      const token = await ensureAccessToken();
+      const redirectUri = typeof window !== 'undefined' ? `${window.location.origin}/oauth/strava/callback` : '';
+      const status = await requestStravaLink(token, redirectUri ? { redirectUri } : undefined);
+      setStravaStatus(status);
+      if (status.linkUrl) {
+        window.location.href = status.linkUrl;
+      } else {
+        toast.info('Strava integration is already linked or unavailable.');
+      }
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : 'Unable to initiate Strava linking.';
+      toast.error(message);
+    } finally {
+      setStravaAction(null);
+    }
+  }, [ensureAccessToken]);
+
+  const handleStravaUnlink = useCallback(async () => {
+    setStravaAction('unlink');
+    try {
+      const token = await ensureAccessToken();
+      await unlinkStrava(token);
+      toast.success('Strava disconnected.');
+      await fetchStravaStatus();
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : 'Unable to disconnect Strava.';
+      toast.error(message);
+    } finally {
+      setStravaAction(null);
+    }
+  }, [ensureAccessToken, fetchStravaStatus]);
 
   const statusStyles: Record<
     DataExportJob['status'],
@@ -254,11 +427,21 @@ export default function SettingsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div className="space-y-2">
                   <Label>First Name</Label>
-                  <Input defaultValue={firstName} disabled={profileLoading} className="h-12" />
+                  <Input
+                    value={firstName}
+                    onChange={(event) => setFirstName(event.target.value)}
+                    disabled={profileLoading || profileSaving}
+                    className="h-12"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Last Name</Label>
-                  <Input defaultValue={lastName} disabled={profileLoading} className="h-12" />
+                  <Input
+                    value={lastName}
+                    onChange={(event) => setLastName(event.target.value)}
+                    disabled={profileLoading || profileSaving}
+                    className="h-12"
+                  />
                 </div>
               </div>
 
@@ -270,22 +453,148 @@ export default function SettingsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div className="space-y-2">
                   <Label>Date of Birth</Label>
-                  <Input type="date" defaultValue="1989-05-15" className="h-12" />
+                  <Input
+                    type="date"
+                    value={dateOfBirth}
+                    onChange={(event) => setDateOfBirth(event.target.value)}
+                    disabled={profileSaving}
+                    className="h-12"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Biological Sex</Label>
-                  <Input defaultValue="Male" className="h-12" />
+                  <Input
+                    value={biologicalSex}
+                    onChange={(event) => setBiologicalSex(event.target.value)}
+                    disabled={profileSaving}
+                    className="h-12"
+                  />
                 </div>
               </div>
 
               <div className="space-y-2 mb-8">
                 <Label>Timezone</Label>
-                <Input defaultValue={profile?.timezone ?? 'UTC'} disabled={profileLoading} className="h-12" />
+                <Input
+                  value={timezoneValue}
+                  onChange={(event) => setTimezoneValue(event.target.value)}
+                  disabled={profileLoading || profileSaving}
+                  className="h-12"
+                />
               </div>
 
-              <Button size="lg">
-                Save Changes
+              <Button size="lg" onClick={handleSaveProfile} disabled={!profileDirty || profileSaving || profileLoading}>
+                {profileSaving ? 'Saving…' : 'Save Changes'}
               </Button>
+
+              <div className="mt-10">
+                <div className="space-y-4">
+                  <div className="space-y-4">
+                    <div className="neo-card p-6">
+                      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-xl gradient-electric flex items-center justify-center">
+                            <Activity className="w-6 h-6 text-void" />
+                          </div>
+                          <div>
+                            <h4 className="mb-1">Strava Integration</h4>
+                            <p className="text-sm text-steel">
+                              Sync real Strava efforts into biohax-777 for community performance battles.
+                            </p>
+                          </div>
+                        </div>
+                        {stravaStatus?.linked && (
+                          <Badge variant="success" className="text-xs">
+                            Linked
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-4">
+                        <div>
+                          <p className="font-semibold text-ink">
+                            {stravaStatus?.athlete?.name ?? 'Not connected'}
+                          </p>
+                          <p className="text-sm text-steel">
+                            {stravaStatus?.linked
+                              ? `Last sync ${
+                                  stravaStatus.lastSyncAt
+                                    ? new Date(stravaStatus.lastSyncAt).toLocaleString()
+                                    : 'pending'
+                                }`
+                              : 'Connect Strava to import runs, rides, and recovery data.'}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-3">
+                          <Button
+                            variant="outline"
+                            onClick={() => fetchStravaStatus()}
+                            disabled={stravaLoading || stravaAction !== null}
+                          >
+                            <RefreshCw
+                              className={`w-4 h-4 mr-2 ${stravaLoading && stravaAction === null ? 'animate-spin' : ''}`}
+                            />
+                            Refresh
+                          </Button>
+                          {stravaStatus?.linked ? (
+                            <Button
+                              variant="outline"
+                              className="text-pulse border-pulse/30 hover:bg-pulse/10"
+                              onClick={handleStravaUnlink}
+                              disabled={stravaAction === 'unlink'}
+                            >
+                              <Unplug className={`w-4 h-4 mr-2 ${stravaAction === 'unlink' ? 'animate-spin' : ''}`} />
+                              Disconnect
+                            </Button>
+                          ) : (
+                            <Button onClick={handleStravaLink} disabled={stravaAction === 'link' || stravaLoading}>
+                              <Link2 className={`w-4 h-4 mr-2 ${stravaAction === 'link' ? 'animate-spin' : ''}`} />
+                              Connect Strava
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      {stravaStatus?.summary ? (
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+                          <div>
+                            <p className="text-xs uppercase text-cloud mb-1">Last 14d Distance</p>
+                            <p className="text-2xl font-semibold text-ink">
+                              {formatKilometers(stravaStatus.summary.totalDistanceMeters)} km
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs uppercase text-cloud mb-1">Moving Minutes</p>
+                            <p className="text-2xl font-semibold text-ink">
+                              {formatMinutes(stravaStatus.summary.totalMovingTimeSeconds)} min
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs uppercase text-cloud mb-1">Activities</p>
+                            <p className="text-2xl font-semibold text-ink">{stravaStatus.summary.activityCount}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs uppercase text-cloud mb-1">Longest Effort</p>
+                            <p className="text-2xl font-semibold text-ink">
+                              {formatKilometers(stravaStatus.summary.longestDistanceMeters)} km
+                            </p>
+                            {stravaStatus.summary.longestActivityName && (
+                              <p className="text-xs text-steel truncate">
+                                {stravaStatus.summary.longestActivityName}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-steel mt-6">
+                          {stravaStatus?.linked
+                            ? 'Waiting for your first sync from Strava…'
+                            : 'Once connected, your Strava efforts will feed performance leaderboards automatically.'}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </TabsContent>
 

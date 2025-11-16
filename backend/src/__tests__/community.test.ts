@@ -17,7 +17,8 @@ jest.mock('../modules/community/community.service', () => ({
     updateComment: jest.fn(),
     deleteComment: jest.fn(),
     reactToPost: jest.fn(),
-    removeReaction: jest.fn()
+    removeReaction: jest.fn(),
+    listPerformanceLeaderboard: jest.fn()
   }
 }));
 
@@ -207,5 +208,47 @@ describe('Community Router', () => {
       'post-1',
       { type: ReactionType.BOOST }
     );
+  });
+
+  it('validates performance leaderboard query params', async () => {
+    const token = issueToken(UserStatus.ACTIVE);
+
+    const response = await request(app)
+      .get('/community/performance')
+      .query({ windowDays: 2 })
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(422);
+    expect(mockedCommunityService.listPerformanceLeaderboard).not.toHaveBeenCalled();
+  });
+
+  it('returns performance leaderboards for active members', async () => {
+    const token = issueToken(UserStatus.ACTIVE);
+
+    mockedCommunityService.listPerformanceLeaderboard.mockResolvedValueOnce({
+      window: {
+        start: '2025-11-01T00:00:00.000Z',
+        end: '2025-11-15T00:00:00.000Z',
+        days: 14
+      },
+      generatedAt: '2025-11-15T00:00:00.000Z',
+      entries: [],
+      viewerRank: null
+    });
+
+    const response = await request(app)
+      .get('/community/performance')
+      .query({ windowDays: 14, limit: 8 })
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(200);
+    expect(mockedCommunityService.listPerformanceLeaderboard).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'community-user' }),
+      { windowDays: 14, limit: 8 }
+    );
+    expect(response.body).toMatchObject({
+      window: expect.any(Object),
+      entries: expect.any(Array)
+    });
   });
 });

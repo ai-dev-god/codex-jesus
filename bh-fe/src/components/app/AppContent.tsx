@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Activity, Users, Zap, Settings, Link2, Home, Dumbbell, Apple, Beaker, Shield } from 'lucide-react';
+import { Activity, Users, Zap, Heart, RefreshCcw, Settings, Link2, Home, Dumbbell, Apple, Beaker, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 
 import VerticalNav from '../layout/VerticalNav';
-import CommandBar from '../layout/CommandBar';
+import CommandBar, { type CommandBarMetric } from '../layout/CommandBar';
 import LandingPage from '../landing/LandingPage';
 import AuthScreen from '../auth/AuthScreen';
 import Dashboard from '../dashboard/Dashboard';
@@ -23,6 +23,7 @@ import type {
   DashboardActionItem,
   DashboardSummary,
   LongevityPlan,
+  LongevityStack,
   SerializedUser,
   BiomarkerDefinition,
   AdminAccessSummary
@@ -30,7 +31,7 @@ import type {
 import { fetchDashboardSummary } from '../../lib/api/dashboard';
 import { fetchCurrentUser, logoutUser, refreshTokens } from '../../lib/api/auth';
 import { ApiError } from '../../lib/api/error';
-import { fetchLongevityPlans, requestLongevityPlan } from '../../lib/api/ai';
+import { fetchLongevityPlans, fetchLongevityStacks, requestLongevityPlan } from '../../lib/api/ai';
 import { listBiomarkerDefinitions, createManualBiomarkerLog } from '../../lib/api/biomarkers';
 import { fetchProfile, updateProfile, type ConsentRecord } from '../../lib/api/profile';
 import { fetchAdminAccess } from '../../lib/api/admin';
@@ -44,6 +45,7 @@ import {
 } from '../../lib/auth/session';
 import { AuthProvider } from '../../lib/auth/AuthContext';
 import { requestWhoopLink } from '../../lib/api/whoop';
+import { requestStravaLink } from '../../lib/api/strava';
 import { Toaster } from '../ui/sonner';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
@@ -112,6 +114,9 @@ export default function AppContent() {
   const [longevityPlans, setLongevityPlans] = useState<LongevityPlan[] | null>(null);
   const [longevityPlansLoading, setLongevityPlansLoading] = useState(false);
   const [longevityPlanError, setLongevityPlanError] = useState<string | null>(null);
+  const [longevityStacks, setLongevityStacks] = useState<LongevityStack[] | null>(null);
+  const [longevityStacksLoading, setLongevityStacksLoading] = useState(false);
+  const [longevityStacksError, setLongevityStacksError] = useState<string | null>(null);
   const [planRequesting, setPlanRequesting] = useState(false);
   const t = useTranslation();
   const [showActionsDialog, setShowActionsDialog] = useState(false);
@@ -449,6 +454,29 @@ export default function AppContent() {
     }
   }, [session, ensureFreshSession]);
 
+  const loadLongevityStacks = useCallback(async () => {
+    if (!session) {
+      return;
+    }
+
+    setLongevityStacksLoading(true);
+    setLongevityStacksError(null);
+    try {
+      const freshSession = await ensureFreshSession();
+      const stacks = await fetchLongevityStacks(freshSession.tokens.accessToken);
+      setLongevityStacks(stacks);
+    } catch (error) {
+      setLongevityStacks(null);
+      if (error instanceof ApiError) {
+        setLongevityStacksError(error.message);
+      } else {
+        setLongevityStacksError('Unable to load longevity stacks.');
+      }
+    } finally {
+      setLongevityStacksLoading(false);
+    }
+  }, [session, ensureFreshSession]);
+
   const requestLongevityPlanGeneration = useCallback(async () => {
     if (!session) {
       return;
@@ -556,8 +584,9 @@ export default function AppContent() {
     if (session && appState === 'authenticated') {
       loadDashboard();
       loadLongevityPlans();
+      loadLongevityStacks();
     }
-  }, [session, appState, loadDashboard, loadLongevityPlans]);
+  }, [session, appState, loadDashboard, loadLongevityPlans, loadLongevityStacks]);
 
   useEffect(() => {
     if (!showBiomarkerDialog || !session) {
@@ -671,6 +700,47 @@ export default function AppContent() {
     return letters.slice(0, 2) || 'BH';
   }, [currentUser]);
 
+  const headerMetrics = useMemo<CommandBarMetric[]>(() => {
+    const formatScore = (value: number | null | undefined) =>
+      typeof value === 'number' && !Number.isNaN(value) ? `${Math.round(value)}` : '—';
+
+    const tiles = dashboardSummary?.tiles ?? [];
+    const tileLookup = new Map<string, (typeof tiles)[number]>();
+    tiles.forEach((tile) => tileLookup.set(tile.id, tile));
+
+    const formatDelta = (tileId: string) => tileLookup.get(tileId)?.delta ?? null;
+
+    const lastSyncLabel = dashboardSummary?.latestWhoopSyncAt
+      ? new Date(dashboardSummary.latestWhoopSyncAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+      : 'Not synced';
+
+    return [
+      {
+        id: 'readiness',
+        label: 'Readiness',
+        value: formatScore(dashboardSummary?.readinessScore),
+        helper: 'Overall score',
+        trend: formatDelta('readinessScore'),
+        icon: Zap
+      },
+      {
+        id: 'strain',
+        label: 'Strain',
+        value: formatScore(dashboardSummary?.strainScore),
+        helper: 'Last 24h',
+        trend: formatDelta('strainScore'),
+        icon: Heart
+      },
+      {
+        id: 'sync',
+        label: 'WHOOP sync',
+        value: lastSyncLabel,
+        helper: dashboardSummary?.latestWhoopSyncAt ? 'Last sync' : 'Link device',
+        icon: RefreshCcw
+      }
+    ];
+  }, [dashboardSummary]);
+
   const authValue = useMemo(
     () => ({
       session,
@@ -720,12 +790,41 @@ export default function AppContent() {
     void completeLink();
   }, [session, ensureFreshSession, loadDashboard]);
 
-  // Landing/Auth Flow
-  const handleOpenLabUpload = useCallback(() => {
-    setShowOnboarding(false);
-    setCurrentView('labUpload');
-  }, []);
+  useEffect(() => {
+    if (!session) {
+      return;
+    }
+    const url = new URL(window.location.href);
+    if (url.pathname !== '/oauth/strava/callback') {
+      return;
+    }
+    const code = url.searchParams.get('code');
+    const state = url.searchParams.get('state');
+    if (!code || !state) {
+      return;
+    }
 
+    const completeLink = async () => {
+      try {
+        const freshSession = await ensureFreshSession();
+        await requestStravaLink(freshSession.tokens.accessToken, {
+          authorizationCode: code,
+          state
+        });
+        toast.success('Strava account linked');
+        await loadDashboard();
+      } catch (error) {
+        console.error('Failed to complete Strava link', error);
+        toast.error('Unable to complete Strava linking. Please try again.');
+      } finally {
+        window.history.replaceState({}, '', '/');
+      }
+    };
+
+    void completeLink();
+  }, [session, ensureFreshSession, loadDashboard]);
+
+  // Landing/Auth Flow
   const handleOpenNotifications = useCallback(() => {
     if (!session) {
       setAppState('auth');
@@ -799,6 +898,10 @@ export default function AppContent() {
       onPlanRetry={loadLongevityPlans}
       onRequestPlan={requestLongevityPlanGeneration}
       planRequesting={planRequesting}
+      stacks={longevityStacks}
+      stacksLoading={longevityStacksLoading}
+      stacksError={longevityStacksError}
+      onStackRetry={loadLongevityStacks}
       onViewActions={handleViewActions}
       onViewCalendar={handleViewCalendar}
       onViewInsight={handleViewInsight}
@@ -862,13 +965,13 @@ export default function AppContent() {
         <div className="flex min-h-screen w-full flex-1 flex-col">
           <CommandBar
             onStartOnboarding={handleStartOnboarding}
-            onOpenLabUpload={handleOpenLabUpload}
             onboardingActive={showOnboarding}
             onOpenNotifications={handleOpenNotifications}
             onOpenProfile={handleOpenProfile}
             profileInitials={profileInitials}
             onSignOut={handleLogout}
             isAuthenticated={Boolean(session)}
+            metrics={headerMetrics}
           />
 
           <main className="flex-1 w-full pb-28 pt-6">{renderView()}</main>

@@ -72,6 +72,41 @@ const commentsQuerySchema = z.object({
   limit: limitSchema
 });
 
+const windowDaysSchema = z.preprocess(
+  (value) => {
+    if (value === undefined || value === null || value === '') {
+      return undefined;
+    }
+    const parsed = Number.parseInt(String(value), 10);
+    return Number.isNaN(parsed) ? undefined : parsed;
+  },
+  z
+    .number({ invalid_type_error: 'windowDays must be a number' })
+    .int()
+    .min(7, 'windowDays must be at least 7')
+    .max(30, 'windowDays must not exceed 30')
+).optional();
+
+const leaderboardLimitSchema = z.preprocess(
+  (value) => {
+    if (value === undefined || value === null || value === '') {
+      return undefined;
+    }
+    const parsed = Number.parseInt(String(value), 10);
+    return Number.isNaN(parsed) ? undefined : parsed;
+  },
+  z
+    .number({ invalid_type_error: 'limit must be a number' })
+    .int()
+    .min(5, 'limit must be at least 5')
+    .max(25, 'limit must not exceed 25')
+).optional();
+
+const leaderboardQuerySchema = z.object({
+  windowDays: windowDaysSchema,
+  limit: leaderboardLimitSchema
+});
+
 const commentBodySchema = z.object({
   body: z
     .string({ required_error: 'body is required' })
@@ -206,6 +241,19 @@ communityRouter.delete('/reactions/:reactionId', async (req, res, next) => {
   try {
     await communityService.removeReaction(req.user!, req.params.reactionId);
     res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
+
+communityRouter.get('/performance', async (req, res, next) => {
+  try {
+    const query = validate(leaderboardQuerySchema, req.query);
+    const leaderboard = await communityService.listPerformanceLeaderboard(req.user!, {
+      windowDays: query.windowDays,
+      limit: query.limit
+    });
+    res.status(200).json(leaderboard);
   } catch (error) {
     next(error);
   }

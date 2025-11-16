@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import type {
+import {
   Prisma,
-  PrismaClient,
-  StravaIntegration,
-  StravaLinkSession,
-  StravaSyncStatus
+  type PrismaClient,
+  type StravaIntegration,
+  type StravaLinkSession,
+  type StravaSyncStatus
 } from '@prisma/client';
 
 import env from '../../config/env';
@@ -110,7 +110,12 @@ const toStravaSummary = (value: Prisma.JsonValue | null): StravaSummary | null =
 };
 
 const sumNumbers = (values: Array<number | null | undefined>): number =>
-  values.reduce((total, value) => (Number.isFinite(value) ? total + Number(value) : total), 0);
+  values.reduce<number>((total, value) => {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return total + value;
+    }
+    return total;
+  }, 0);
 
 export class StravaService {
   private readonly config: Required<Omit<StravaServiceOptions, 'clientId' | 'clientSecret'>> & {
@@ -366,8 +371,6 @@ export class StravaService {
           update: this.mapActivityPayload(activity, params.integration),
           create: {
             id: randomUUID(),
-            integrationId: params.integration.id,
-            userId: params.integration.userId,
             ...this.mapActivityPayload(activity, params.integration),
             stravaActivityId: id
           }

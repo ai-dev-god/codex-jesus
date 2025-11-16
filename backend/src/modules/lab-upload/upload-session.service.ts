@@ -8,7 +8,7 @@ import { labUploadBucket } from '../../lib/storage';
 import { HttpError } from '../observability-ops/http-error';
 import { baseLogger } from '../../observability/logger';
 
-const logger = baseLogger.with({ module: 'lab-upload-storage' });
+const logger = baseLogger.with({ component: 'lab-upload-storage' });
 
 const MAX_METADATA_LENGTH = 256;
 

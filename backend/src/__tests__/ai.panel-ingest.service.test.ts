@@ -15,6 +15,9 @@ type MockPrisma = {
     findFirst: jest.Mock;
     update: jest.Mock;
   };
+  cloudTaskMetadata: {
+    create: jest.Mock;
+  };
   $transaction: jest.Mock;
 };
 
@@ -33,6 +36,9 @@ const createMockPrisma = (): MockPrisma => {
       findFirst: jest.fn(),
       update: jest.fn()
     },
+    cloudTaskMetadata: {
+      create: jest.fn()
+    },
     $transaction: jest.fn()
   };
 
@@ -40,7 +46,8 @@ const createMockPrisma = (): MockPrisma => {
     const tx = {
       panelUpload: mock.panelUpload,
       biomarkerMeasurement: mock.biomarkerMeasurement,
-      panelUploadSession: mock.panelUploadSession
+      panelUploadSession: mock.panelUploadSession,
+      cloudTaskMetadata: mock.cloudTaskMetadata
     } as unknown as PrismaClient;
     return callback(tx);
   });

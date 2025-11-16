@@ -106,7 +106,7 @@ export class PanelIngestionService {
     }
   } as const;
 
-  private readonly logger = baseLogger.with({ module: 'panel-ingestion-service' });
+  private readonly logger = baseLogger.with({ component: 'panel-ingestion-service' });
 
   constructor(private readonly prisma: PrismaClient, options: PanelIngestionOptions = {}) {
     this.now = options.now ?? (() => new Date());

@@ -9,6 +9,7 @@ import env from '../config/env';
 import { panelIngestionService } from '../modules/ai/panel-ingest.service';
 import { labIngestionSupervisor } from '../modules/lab-upload/ingestion-supervisor';
 import { sealLabPayload } from '../modules/lab-upload/lab-upload-crypto';
+import { labPlanLinkService } from '../modules/lab-upload/plan-link.service';
 
 type WorkerDeps = {
   prisma?: PrismaClient;
@@ -141,6 +142,8 @@ export const createLabUploadWorker = (deps: WorkerDeps = {}) => {
         sealedKeyVersion: 'lab-seal-v1',
         error: null
       });
+
+      await labPlanLinkService.autoLink(parsed.uploadId, parsed.userId, ingestion.measurements);
 
       await prisma.cloudTaskMetadata.update({
         where: { id: metadata.id },

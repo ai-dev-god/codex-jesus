@@ -278,3 +278,17 @@ export interface PanelUploadSummary {
   sealedKeyVersion?: string | null;
 }
 
+export interface LongevityStack {
+  id: string;
+  title: string;
+  focusArea: string;
+  adherenceScore: number;
+  impactDelta: number | null;
+  keyBiomarkers: Array<{
+    markerName: string;
+    deltaPercentage: number | null;
+  }>;
+  recommendedSupplements: string[];
+  narrative: string;
+}
+

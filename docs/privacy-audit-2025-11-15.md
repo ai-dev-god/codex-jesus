@@ -15,6 +15,11 @@
 - Sensitive third-party refresh tokens are encrypted at rest (AES-256-GCM) before persisting.
 - Consent tracking and onboarding enforce minimum required consents before promoting accounts to `ACTIVE`.
 
+## 2025-11-16 Hardening Update
+- Lab uploads now use signed GCS URLs with CMEK-backed AES-256 encryption headers plus an additional BioHax-managed AES-256-GCM sealing key that is rotated via `LAB_UPLOAD_SEALING_KEY`.
+- Upload session metadata is persisted in `PanelUploadSession` rows to prevent tampering, and download URLs are issued through `PanelUploadDownloadToken` records for HIPAA-grade auditing.
+- A background worker downloads, verifies, and re-encrypts artifacts before running AI-supervised ingestion with automated plan linking and report generation.
+
 ## Findings
 
 ### 1. Panel uploads exposed through permanent public URLs (Critical)

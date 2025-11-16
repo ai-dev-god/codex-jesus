@@ -8,6 +8,7 @@ import {
   fetchPanelUploads,
   updatePanelUploadTags
 } from '../../lib/api/ai';
+import { apiFetchBlob } from '../../lib/api/http';
 import type { LongevityPlan, PanelUploadSummary, BiomarkerDefinition } from '../../lib/api/types';
 import { listBiomarkerDefinitions } from '../../lib/api/biomarkers';
 import { useAuth } from '../../lib/auth/AuthContext';
@@ -81,6 +82,7 @@ export default function LabUploadHistory({ refreshKey }: LabUploadHistoryProps) 
   const [detailUpload, setDetailUpload] = useState<PanelUploadSummary | null>(null);
   const [tagUpload, setTagUpload] = useState<PanelUploadSummary | null>(null);
   const [downloadTarget, setDownloadTarget] = useState<string | null>(null);
+  const [reportDownloadTarget, setReportDownloadTarget] = useState<string | null>(null);
   const [metadataLoading, setMetadataLoading] = useState(false);
   const [plans, setPlans] = useState<LongevityPlan[] | null>(null);
   const [biomarkers, setBiomarkers] = useState<BiomarkerDefinition[] | null>(null);
@@ -250,6 +252,29 @@ export default function LabUploadHistory({ refreshKey }: LabUploadHistoryProps) 
       toast.error(message);
     } finally {
       setDownloadTarget(null);
+    }
+  };
+
+  const handleDownloadReport = async (upload: PanelUploadSummary, format: 'pdf' | 'csv') => {
+    const targetKey = `${upload.id}-${format}`;
+    try {
+      setReportDownloadTarget(targetKey);
+      const token = await ensureAccessToken();
+      const blob = await apiFetchBlob(`/reports/labs/${upload.id}?format=${format}`, {
+        authToken: token,
+        method: 'GET'
+      });
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = `lab-report-${upload.id}.${format}`;
+      anchor.click();
+      URL.revokeObjectURL(objectUrl);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'Unable to download report.';
+      toast.error(message);
+    } finally {
+      setReportDownloadTarget(null);
     }
   };
 
@@ -481,6 +506,32 @@ export default function LabUploadHistory({ refreshKey }: LabUploadHistoryProps) 
                   >
                     <Download className={`w-4 h-4 mr-2 ${downloadTarget === upload.id ? 'animate-spin' : ''}`} />
                     {downloadTarget === upload.id ? 'Preparing...' : 'Download File'}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => void handleDownloadReport(upload, 'pdf')}
+                    disabled={reportDownloadTarget === `${upload.id}-pdf`}
+                  >
+                    <FileText
+                      className={`w-4 h-4 mr-2 ${
+                        reportDownloadTarget === `${upload.id}-pdf` ? 'animate-spin' : ''
+                      }`}
+                    />
+                    PDF Report
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => void handleDownloadReport(upload, 'csv')}
+                    disabled={reportDownloadTarget === `${upload.id}-csv`}
+                  >
+                    <FileText
+                      className={`w-4 h-4 mr-2 ${
+                        reportDownloadTarget === `${upload.id}-csv` ? 'animate-spin' : ''
+                      }`}
+                    />
+                    CSV Export
                   </Button>
                   <Button variant="ghost" size="sm" onClick={() => setTagUpload(upload)}>
                     <TagIcon className="w-4 h-4 mr-2" />

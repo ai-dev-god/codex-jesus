@@ -59,3 +59,56 @@ export const fetchCommunityFeed = (accessToken: string, query: FeedQuery = {}): 
   });
 };
 
+export type PerformanceLeaderboardEntry = {
+  rank: number;
+  user: UserSummary;
+  totals: {
+    distanceKm: number;
+    movingMinutes: number;
+    sessions: number;
+    strainScore: number | null;
+    activityCount: number;
+  };
+  highlight: string | null;
+  strava: {
+    athleteName: string | null;
+    profileUrl: string | null;
+  } | null;
+};
+
+export type PerformanceLeaderboard = {
+  window: {
+    start: string;
+    end: string;
+    days: number;
+  };
+  generatedAt: string;
+  entries: PerformanceLeaderboardEntry[];
+  viewerRank: number | null;
+};
+
+type LeaderboardQuery = {
+  windowDays?: number;
+  limit?: number;
+};
+
+export const fetchPerformanceLeaderboard = (
+  accessToken: string,
+  query: LeaderboardQuery = {}
+): Promise<PerformanceLeaderboard> => {
+  const params = new URLSearchParams();
+  if (query.windowDays) {
+    params.set('windowDays', String(query.windowDays));
+  }
+  if (query.limit) {
+    params.set('limit', String(query.limit));
+  }
+
+  const path = params.toString() ? `/community/performance?${params.toString()}` : '/community/performance';
+
+  return apiFetch<PerformanceLeaderboard>(path, {
+    method: 'GET',
+    authToken: accessToken
+  });
+};
+

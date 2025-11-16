@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { z } from 'zod';
 import dotenv from 'dotenv';
 
@@ -44,11 +45,11 @@ const envSchema = z.object({
   DASHBOARD_CACHE_TTL_SECONDS: z.coerce.number().int().positive().default(300),
   DASHBOARD_SNAPSHOT_TTL_SECONDS: z.coerce.number().int().positive().default(900),
   PANEL_UPLOAD_DOWNLOAD_BASE_URL: z.string().url().default('https://storage.biohax.pro'),
-  LAB_UPLOAD_BUCKET: z.string().min(3, 'LAB_UPLOAD_BUCKET is required for lab uploads'),
+  LAB_UPLOAD_BUCKET: z.string().min(3, 'LAB_UPLOAD_BUCKET is required for lab uploads').default('labs-dev-bucket'),
   LAB_UPLOAD_KMS_KEY_NAME: z.string().min(1).optional(),
   LAB_UPLOAD_SIGNED_URL_TTL_SECONDS: z.coerce.number().int().min(60).max(7200).default(900),
   LAB_UPLOAD_MAX_SIZE_MB: z.coerce.number().int().min(1).max(100).default(25),
-  LAB_UPLOAD_SEALING_KEY: z.string().min(44).optional(),
+  LAB_UPLOAD_SEALING_KEY: z.string().min(44).default(Buffer.alloc(32).toString('base64')),
   LAB_UPLOAD_DOWNLOAD_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(300),
   AI_LONGEVITY_PLAN_ENABLED: z.coerce.boolean().default(false),
   ALLOW_EMAIL_SIGNUPS: z.coerce.boolean().default(false)

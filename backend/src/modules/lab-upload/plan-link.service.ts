@@ -1,4 +1,4 @@
-import type { LongevityPlan, PrismaClient } from '@prisma/client';
+import { Prisma, type LongevityPlan, type PrismaClient } from '@prisma/client';
 
 import prismaClient from '../../lib/prisma';
 
@@ -77,10 +77,13 @@ export class LabPlanLinkService {
       updatedEvidence.shift();
     }
 
+    const toJsonValue = (value: unknown): Prisma.InputJsonValue =>
+      JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+
     await this.prisma.longevityPlan.update({
       where: { id: best.plan.id },
       data: {
-        evidence: updatedEvidence as unknown as LongevityPlan['evidence']
+        evidence: toJsonValue(updatedEvidence)
       }
     });
   }

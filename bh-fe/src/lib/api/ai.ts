@@ -1,5 +1,5 @@
 import { apiFetch } from './http';
-import type { LongevityPlan, PanelUploadSummary } from './types';
+import type { LongevityPlan, LongevityStack, PanelUploadSummary } from './types';
 
 export interface LongevityPlanRequestInput {
   focusAreas?: string[];
@@ -129,6 +129,13 @@ export async function fetchPanelUploadDownloadUrl(
   uploadId: string
 ): Promise<PanelDownloadSession> {
   return apiFetch<PanelDownloadSession>(`/ai/uploads/${uploadId}/download`, {
+    authToken: accessToken,
+    method: 'GET'
+  });
+}
+
+export async function fetchLongevityStacks(accessToken: string): Promise<LongevityStack[]> {
+  return apiFetch<LongevityStack[]>(`/ai/stacks`, {
     authToken: accessToken,
     method: 'GET'
   });

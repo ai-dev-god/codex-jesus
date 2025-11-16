@@ -6,7 +6,12 @@ import { Badge } from '../ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
 import { useAuth } from '../../lib/auth/AuthContext';
-import { fetchCommunityFeed, type FeedPost } from '../../lib/api/community';
+import {
+  fetchCommunityFeed,
+  fetchPerformanceLeaderboard,
+  type FeedPost,
+  type PerformanceLeaderboard
+} from '../../lib/api/community';
 import { ApiError } from '../../lib/api/error';
 
 const milestones = [
@@ -23,6 +28,10 @@ export default function CommunityFeed() {
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const cursorRef = useRef<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'feed' | 'practitioners' | 'insights' | 'performance'>('feed');
+  const [leaderboard, setLeaderboard] = useState<PerformanceLeaderboard | null>(null);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
 
   const loadFeed = useCallback(
     async ({ reset = false }: { reset?: boolean } = {}) => {
@@ -55,9 +64,35 @@ export default function CommunityFeed() {
     [ensureAccessToken]
   );
 
+  const loadLeaderboard = useCallback(async () => {
+    setLeaderboardLoading(true);
+    setLeaderboardError(null);
+    try {
+      const token = await ensureAccessToken();
+      const result = await fetchPerformanceLeaderboard(token, { windowDays: 14, limit: 8 });
+      setLeaderboard(result);
+    } catch (err) {
+      setLeaderboardError(
+        err instanceof ApiError ? err.message : 'Unable to load the performance leaderboard right now.'
+      );
+    } finally {
+      setLeaderboardLoading(false);
+    }
+  }, [ensureAccessToken]);
+
   useEffect(() => {
     void loadFeed({ reset: true });
   }, [loadFeed]);
+
+  useEffect(() => {
+    if (activeTab !== 'performance') {
+      return;
+    }
+    if (leaderboard && !leaderboardError) {
+      return;
+    }
+    void loadLeaderboard();
+  }, [activeTab, leaderboard, leaderboardError, loadLeaderboard]);
 
   const totalReactions = useCallback(
     (post: FeedPost) => Object.values(post.reactionSummary ?? {}).reduce((sum, value) => sum + value, 0),
@@ -90,11 +125,12 @@ export default function CommunityFeed() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-8">
-            <Tabs defaultValue="feed" className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)} className="w-full">
+              <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="feed">Feed</TabsTrigger>
                 <TabsTrigger value="practitioners">Practitioners</TabsTrigger>
                 <TabsTrigger value="insights">Top Insights</TabsTrigger>
+                <TabsTrigger value="performance">Performance</TabsTrigger>
               </TabsList>
 
               <TabsContent value="feed" className="mt-8 space-y-6">
@@ -207,6 +243,103 @@ export default function CommunityFeed() {
                     Most impactful protocols and research shared by members
                   </p>
                   <Button>View Insights</Button>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="performance" className="mt-8">
+                <div className="neo-card p-8 space-y-6">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <h3 className="mb-1">Performance Leaderboard</h3>
+                      <p className="text-sm text-steel">
+                        {leaderboard
+                          ? `Window ${new Date(leaderboard.window.start).toLocaleDateString()} – ${new Date(leaderboard.window.end).toLocaleDateString()}`
+                          : 'See who is leading the latest biohax-777 community challenge'}
+                      </p>
+                    </div>
+                    <div className="flex gap-3">
+                      <Button variant="outline" onClick={() => loadLeaderboard()} disabled={leaderboardLoading}>
+                        {leaderboardLoading ? 'Refreshing…' : 'Refresh'}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {leaderboardError && (
+                    <div className="rounded-xl border border-pulse/30 bg-pulse/10 px-4 py-3 text-sm text-pulse">
+                      {leaderboardError}
+                    </div>
+                  )}
+
+                  {leaderboardLoading && (
+                    <div className="rounded-xl border border-cloud bg-white/60 px-4 py-6 text-steel animate-pulse">
+                      Crunching new rankings from Strava and Whoop data…
+                    </div>
+                  )}
+
+                  {!leaderboardLoading && leaderboard && leaderboard.entries.length === 0 && (
+                    <div className="rounded-xl border border-cloud bg-white/60 px-4 py-6 text-steel text-center">
+                      No performance activity yet. Connect Strava from Settings to join the leaderboard.
+                    </div>
+                  )}
+
+                  {!leaderboardLoading && leaderboard && leaderboard.entries.length > 0 && (
+                    <div className="space-y-4">
+                      {leaderboard.entries.map((entry) => (
+                        <div key={entry.user.id} className="rounded-2xl border border-cloud bg-white/80 p-5">
+                          <div className="flex flex-wrap items-center justify-between gap-4">
+                            <div className="flex items-center gap-4">
+                              <div className="w-12 h-12 rounded-2xl gradient-neural flex items-center justify-center text-void font-bold text-lg">
+                                #{entry.rank}
+                              </div>
+                              <div>
+                                <h4 className="mb-1">{entry.user.displayName}</h4>
+                                <p className="text-xs text-steel">
+                                  {entry.highlight ?? 'Consistent progress across the window'}
+                                </p>
+                              </div>
+                            </div>
+                            <Badge variant={entry.rank === 1 ? 'success' : 'secondary'}>
+                              {entry.rank === 1 ? 'Leader' : `Rank ${entry.rank}`}
+                            </Badge>
+                          </div>
+
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 text-sm">
+                            <div>
+                              <p className="text-xs uppercase text-cloud mb-1">Distance</p>
+                              <p className="text-lg font-semibold text-ink">
+                                {entry.totals.distanceKm.toFixed(1)} km
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs uppercase text-cloud mb-1">Moving Minutes</p>
+                              <p className="text-lg font-semibold text-ink">
+                                {entry.totals.movingMinutes.toFixed(1)} min
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs uppercase text-cloud mb-1">Sessions</p>
+                              <p className="text-lg font-semibold text-ink">{entry.totals.sessions}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs uppercase text-cloud mb-1">Avg Strain</p>
+                              <p className="text-lg font-semibold text-ink">
+                                {entry.totals.strainScore !== null ? entry.totals.strainScore.toFixed(2) : '—'}
+                              </p>
+                            </div>
+                          </div>
+                          {entry.strava?.athleteName && (
+                            <p className="text-xs text-steel mt-3">Strava: {entry.strava.athleteName}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {leaderboard?.viewerRank && (
+                    <p className="text-sm text-steel">
+                      You are currently ranked #{leaderboard.viewerRank}. Keep logging to climb the board!
+                    </p>
+                  )}
                 </div>
               </TabsContent>
             </Tabs>
