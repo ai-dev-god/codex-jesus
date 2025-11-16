@@ -106,7 +106,41 @@ Longevity plan generation (queue `longevity-plan-generate`) now ships beside the
 
 Ensure the worker has network access to Cloud SQL, Memorystore (if used), and OpenRouter. Monitor Cloud Tasks via `gcloud tasks queues describe` or the Admin dashboard to confirm `longevity-plan-generate` stays near-zero backlog.
 
-## 7. Recommended Next Checks
+## 8. One-Off Prisma Operations Against Cloud SQL
+When you need to run Prisma commands (migrations, `db:seed`, manual SQL) directly against the production Cloud SQL instance, follow this repeatable sequence:
+
+```bash
+# prerequisites: gcloud CLI, GOOGLE_APPLICATION_CREDENTIALS (or gcloud auth login)
+cd /Users/aurel/codex-jesus
+
+# 1) Download the Cloud SQL Auth proxy once
+curl -o cloud_sql_proxy https://dl.google.com/cloudsql/cloud_sql_proxy.darwin.amd64
+chmod +x cloud_sql_proxy
+
+# 2) Start the proxy in a separate shell
+GOOGLE_APPLICATION_CREDENTIALS=.secrets/biohax-777.json \
+  ./cloud_sql_proxy -instances=biohax-777:europe-west1:biohax-main-postgres=tcp:5434
+
+# 3) In a new shell, fetch the DATABASE_URL secret and rewrite it to use the proxy
+RAW_DB_URL="$(gcloud secrets versions access latest \
+  --secret=database-url \
+  --project=biohax-777)"
+export DATABASE_URL="$(node -e 'const url = new URL(process.env.RAW_DB_URL);
+  url.hostname = "127.0.0.1"; url.port = "5434"; url.searchParams.delete("host");
+  console.log(url.toString());')"
+
+# 4) Run any Prisma workflow
+cd backend
+npx prisma migrate deploy
+npm run db:seed
+
+# 5) Stop the proxy when finished
+pkill -f cloud_sql_proxy
+```
+
+This ensures migrations/seeds run against the managed instance via Secret Manager and the Cloud SQL connector without exposing credentials in local files. Future DevOps automation can wrap the above into `devops/run-prisma-with-proxy.sh` to reduce boilerplate.
+
+## 9. Recommended Next Checks
 - Confirm IAM bindings for Saffloders and DevOps using the command in §2; capture evidence (timestamped command output) for audit. A full IAM export gathered on 2025-11-07T14:36:34+02:00 is stored at `docs/biohax-777-iam-policy.json`.  
 - Rotate the `biohax-sa.json` key regularly and update the stored file path.  
 - Consider placing the key in Secret Manager or Workload Identity Federation instead of distributing JSON keys where possible.  

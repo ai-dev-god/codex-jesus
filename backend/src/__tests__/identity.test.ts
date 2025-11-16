@@ -3,6 +3,7 @@ import type { OAuth2Client } from 'google-auth-library';
 import type { Request, Response } from 'express';
 import { AuthProviderType, MembershipInviteStatus, Role, UserStatus } from '@prisma/client';
 
+import env from '../config/env';
 import { IdentityService } from '../modules/identity/identity.service';
 import { requireAdmin, requireActiveUser } from '../modules/identity/guards';
 import { sessionMiddleware } from '../modules/identity/session-middleware';
@@ -151,9 +152,11 @@ const createService = (prisma: MockPrisma): IdentityService => {
 describe('IdentityService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    env.ALLOW_EMAIL_SIGNUPS = false;
   });
 
-  it('hashes password and issues tokens on registration', async () => {
+  it('hashes password and issues tokens on registration when enabled', async () => {
+    env.ALLOW_EMAIL_SIGNUPS = true;
     const prisma = createMockPrisma();
     const service = createService(prisma);
     const registeredUser = createUserRecord({ passwordHash: 'hashed' });
@@ -208,6 +211,7 @@ describe('IdentityService', () => {
   });
 
   it('returns conflict when a concurrent duplicate registration occurs', async () => {
+    env.ALLOW_EMAIL_SIGNUPS = true;
     const prisma = createMockPrisma();
     const service = createService(prisma);
     const invite = createInviteRecord();
@@ -247,6 +251,40 @@ describe('IdentityService', () => {
     expect(error).toBeInstanceOf(HttpError);
     expect(error.status).toBe(409);
     expect(prisma.loginAudit.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects registration attempts when signups are disabled', async () => {
+    const prisma = createMockPrisma();
+    const service = createService(prisma);
+
+    let thrown: HttpError | null = null;
+    await service
+      .registerWithEmail(
+        {
+          email: 'member@example.com',
+          password: 'averysecurepassword',
+          displayName: 'New Member',
+          timezone: 'America/Los_Angeles',
+          acceptedTerms: true,
+          inviteCode: 'code123'
+        },
+        {
+          ipAddress: '127.0.0.1',
+          userAgent: 'jest'
+        }
+      )
+      .catch((error) => {
+        thrown = error as HttpError;
+      });
+
+    expect(thrown).toBeInstanceOf(HttpError);
+    if (!thrown) {
+      throw new Error('Expected registration to throw HttpError');
+    }
+    const error = thrown as HttpError;
+    expect(error.status).toBe(403);
+    expect(error.code).toBe('SIGNUPS_DISABLED');
+    expect(prisma.user.create).not.toHaveBeenCalled();
   });
 
   it('rejects invalid password attempts and records audit entry', async () => {

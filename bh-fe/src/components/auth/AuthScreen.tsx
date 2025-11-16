@@ -5,7 +5,7 @@ import { Button } from '../ui/button';
 import { Label } from '../ui/label';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
 import { ApiError } from '../../lib/api/error';
-import { fetchGoogleClientConfig, loginWithEmail, loginWithGoogle, registerWithEmail } from '../../lib/api/auth';
+import { fetchGoogleClientConfig, loginWithEmail, loginWithGoogle } from '../../lib/api/auth';
 import type { AuthResponse } from '../../lib/api/types';
 
 const GOOGLE_LOGO_SRC = 'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg';
@@ -16,13 +16,8 @@ interface AuthScreenProps {
 }
 
 export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [inviteCode, setInviteCode] = useState('');
-  const [acceptedTerms, setAcceptedTerms] = useState(false);
-  const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const envGoogleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? null;
@@ -33,15 +28,6 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
   const [googleInitialized, setGoogleInitialized] = useState(false);
   const [googleButtonRendered, setGoogleButtonRendered] = useState(false);
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
-
-  const inferredDisplayName = useMemo(() => {
-    if (displayName.trim().length > 0) {
-      return displayName;
-    }
-
-    const prefix = email.includes('@') ? email.split('@')[0] : '';
-    return prefix ? prefix.replace(/[^a-zA-Z0-9\s]/g, '') || 'BioHax Member' : 'BioHax Member';
-  }, [displayName, email]);
 
   const timezone = useMemo(() => {
     try {
@@ -205,27 +191,9 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (mode === 'signup' && !inviteCode.trim()) {
-      setError('An invite code is required to create a BioHax account.');
-      return;
-    }
     setLoading(true);
     try {
-      if (mode === 'signin') {
-        const response = await loginWithEmail({ email, password });
-        onAuth(response);
-        return;
-      }
-
-      const response = await registerWithEmail({
-        email,
-        password,
-        displayName: inferredDisplayName,
-        timezone,
-        acceptedTerms,
-        marketingOptIn,
-        inviteCode: inviteCode.trim()
-      });
+      const response = await loginWithEmail({ email, password });
       onAuth(response);
     } catch (err) {
       if (err instanceof ApiError) {
@@ -255,14 +223,8 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
             <span className="text-2xl font-bold text-ink">BioHax</span>
           </button>
 
-          <h2 className="mb-3">
-            {mode === 'signin' ? 'Welcome back' : 'Create account'}
-          </h2>
-          <p className="text-steel">
-            {mode === 'signin' 
-              ? 'Sign in to access your performance dashboard' 
-              : 'Start your longevity optimization journey'}
-          </p>
+          <h2 className="mb-3">Welcome back</h2>
+          <p className="text-steel">Sign in to access your performance dashboard</p>
         </div>
 
         {/* Auth Card */}
@@ -276,7 +238,10 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
 
           <div className="mb-6 rounded-xl border border-cloud bg-white/70 px-4 py-3 text-sm text-steel flex items-center gap-3">
             <Shield className="w-4 h-4 text-ink" />
-            <span>BioHax membership is invite-only. Redeem your concierge invite code to activate an account.</span>
+            <span>
+              BioHax membership is now invitation-only and new member onboarding is paused. Contact your concierge
+              partner for account assistance.
+            </span>
           </div>
 
           {/* OAuth Buttons */}
@@ -368,104 +333,28 @@ export default function AuthScreen({ onAuth, onBack }: AuthScreenProps) {
               </div>
             </div>
 
-            {mode === 'signup' && (
-              <>
-                <div>
-                  <Label htmlFor="inviteCode" className="text-sm font-semibold text-ink mb-2 block">
-                    Invite code
-                  </Label>
-                  <Input
-                    id="inviteCode"
-                    type="text"
-                    placeholder="BIOHAX-ALPHA"
-                    value={inviteCode}
-                    onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-                    required
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="displayName" className="text-sm font-semibold text-ink mb-2 block">
-                    Display name
-                  </Label>
-                  <Input
-                    id="displayName"
-                    type="text"
-                    placeholder="Alex Byrne"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                  />
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <input
-                    id="acceptedTerms"
-                    type="checkbox"
-                    checked={acceptedTerms}
-                    onChange={(e) => setAcceptedTerms(e.target.checked)}
-                    className="w-5 h-5 accent-electric"
-                    required
-                  />
-                  <Label htmlFor="acceptedTerms" className="text-sm text-steel">
-                    I agree to the Terms of Service and Privacy Policy.
-                  </Label>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <input
-                    id="marketingOptIn"
-                    type="checkbox"
-                    checked={marketingOptIn}
-                    onChange={(e) => setMarketingOptIn(e.target.checked)}
-                    className="w-5 h-5 accent-electric"
-                  />
-                  <Label htmlFor="marketingOptIn" className="text-sm text-steel">
-                    I’d like to receive product updates and optimization tips.
-                  </Label>
-                </div>
-              </>
-            )}
-
-            {mode === 'signin' && (
-              <div className="text-right">
-                <button type="button" className="text-sm font-semibold text-electric hover:text-electric-bright transition-colors">
-                  Forgot password?
-                </button>
-              </div>
-            )}
+            <div className="text-right">
+              <button type="button" className="text-sm font-semibold text-electric hover:text-electric-bright transition-colors">
+                Forgot password?
+              </button>
+            </div>
 
             <Button
               type="submit"
               className="w-full"
               size="lg"
-              disabled={loading || (mode === 'signup' && (!acceptedTerms || !inviteCode.trim()))}
+              disabled={loading}
             >
               {loading ? (
                 'Loading...'
               ) : (
                 <>
-                  {mode === 'signin' ? 'Sign In' : 'Create Account'}
+                  Sign In
                   <ArrowRight className="w-5 h-5 ml-2" />
                 </>
               )}
             </Button>
           </form>
-        </div>
-
-        {/* Toggle Mode */}
-        <div className="text-center">
-          <p className="text-steel">
-            {mode === 'signin' ? "Have an invite?" : 'Already have an account?'}{' '}
-            <button
-              onClick={() => {
-                setMode(mode === 'signin' ? 'signup' : 'signin');
-                setError(null);
-              }}
-              className="font-semibold text-electric hover:text-electric-bright transition-colors"
-            >
-              {mode === 'signin' ? 'Redeem invite' : 'Sign in'}
-            </button>
-          </p>
         </div>
 
         {/* Privacy Notice */}

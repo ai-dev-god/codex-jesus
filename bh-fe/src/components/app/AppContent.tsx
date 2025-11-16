@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Activity, Users, Zap, Settings, Link2, Home, Dumbbell, Apple, LogOut, Beaker, Shield } from 'lucide-react';
+import { Activity, Users, Zap, Settings, Link2, Home, Dumbbell, Apple, Beaker, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 
 import VerticalNav from '../layout/VerticalNav';
@@ -836,42 +836,33 @@ export default function AppContent() {
 
   return (
     <AuthProvider value={authValue}>
-      <div className="min-h-screen bg-background">
-        {session && (
-          <div className="fixed top-6 right-6 z-50">
-            <button
-              onClick={handleLogout}
-              className="inline-flex items-center gap-2 rounded-2xl bg-white/80 backdrop-blur px-4 py-2 text-sm font-semibold text-ink border border-cloud shadow-lg hover:bg-white transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-              Sign out
-            </button>
-          </div>
-        )}
-        {/* Vertical Navigation */}
+      <div className="flex min-h-screen bg-background">
         <VerticalNav items={navigationItems} currentView={currentView} onNavigate={handleNavigate} />
 
-        {/* Command Bar */}
-        <CommandBar
-          onStartOnboarding={handleStartOnboarding}
-          onOpenLabUpload={handleOpenLabUpload}
-          onboardingActive={showOnboarding}
-          onOpenNotifications={handleOpenNotifications}
-          onOpenProfile={handleOpenProfile}
-          profileInitials={profileInitials}
-        />
-
-        {/* Main Content */}
-        <main>{renderView()}</main>
-
-        {showOnboarding && (
-          <OnboardingFlow
-            onComplete={handleOnboardingComplete}
-            onDismiss={session?.user.status === 'ACTIVE' ? () => setShowOnboarding(false) : undefined}
+        <div className="flex min-h-screen w-full flex-1 flex-col">
+          <CommandBar
+            onStartOnboarding={handleStartOnboarding}
+            onOpenLabUpload={handleOpenLabUpload}
+            onboardingActive={showOnboarding}
+            onOpenNotifications={handleOpenNotifications}
+            onOpenProfile={handleOpenProfile}
+            profileInitials={profileInitials}
+            onSignOut={handleLogout}
+            isAuthenticated={Boolean(session)}
           />
-        )}
 
-        <Dialog open={showActionsDialog} onOpenChange={setShowActionsDialog}>
+          <main className="flex-1 w-full pb-28 pt-6">{renderView()}</main>
+
+          {showOnboarding && (
+            <OnboardingFlow
+              onComplete={handleOnboardingComplete}
+              onDismiss={session?.user.status === 'ACTIVE' ? () => setShowOnboarding(false) : undefined}
+            />
+          )}
+        </div>
+      </div>
+
+      <Dialog open={showActionsDialog} onOpenChange={setShowActionsDialog}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>Daily Actions</DialogTitle>
@@ -1063,7 +1054,6 @@ export default function AppContent() {
         </Dialog>
 
         <Toaster />
-      </div>
     </AuthProvider>
   );
 }

@@ -6,14 +6,6 @@ export interface LoginPayload {
   password: string;
 }
 
-export interface RegisterPayload extends LoginPayload {
-  displayName: string;
-  timezone: string;
-  acceptedTerms: boolean;
-  marketingOptIn?: boolean;
-  inviteCode: string;
-}
-
 export interface GoogleLoginPayload {
   idToken: string;
   timezone?: string;
@@ -26,12 +18,6 @@ export interface GoogleClientConfig {
 
 export const loginWithEmail = (payload: LoginPayload): Promise<AuthResponse> =>
   apiFetch<AuthResponse>('/auth/login', {
-    method: 'POST',
-    body: JSON.stringify(payload)
-  });
-
-export const registerWithEmail = (payload: RegisterPayload): Promise<AuthResponse> =>
-  apiFetch<AuthResponse>('/auth/register', {
     method: 'POST',
     body: JSON.stringify(payload)
   });

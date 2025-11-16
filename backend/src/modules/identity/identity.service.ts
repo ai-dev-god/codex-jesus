@@ -11,6 +11,8 @@ import type { AuthResponse, GoogleLoginInput, LoginInput, LoginAuditContext, Ref
 
 const DEFAULT_GOOGLE_DISPLAY_NAME = 'New BioHax Member';
 const DEFAULT_TIMEZONE = 'UTC';
+const SIGNUPS_DISABLED_MESSAGE = 'BioHax membership is invite-only and new signups are currently closed.';
+const SIGNUPS_DISABLED_CODE = 'SIGNUPS_DISABLED';
 
 const normalizeInviteCode = (code: string): string => code.trim().toUpperCase();
 const normalizeEmail = (email: string): string => email.trim().toLowerCase();
@@ -23,6 +25,10 @@ export class IdentityService {
   ) {}
 
   async registerWithEmail(input: RegisterInput, context: RequestContext = {}): Promise<AuthResponse> {
+    if (!env.ALLOW_EMAIL_SIGNUPS) {
+      throw new HttpError(403, SIGNUPS_DISABLED_MESSAGE, SIGNUPS_DISABLED_CODE);
+    }
+
     if (!input.acceptedTerms) {
       throw new HttpError(400, 'Terms must be accepted to create an account', 'TERMS_NOT_ACCEPTED');
     }
@@ -227,6 +233,17 @@ export class IdentityService {
         await this.ensureGoogleProvider(existingUserByEmail.id, googleId);
         user = existingUserByEmail;
       } else {
+        if (!env.ALLOW_EMAIL_SIGNUPS) {
+          await this.logLoginAttempt({
+            email,
+            provider: AuthProviderType.GOOGLE,
+            success: false,
+            failureReason: SIGNUPS_DISABLED_CODE,
+            ...context
+          });
+          throw new HttpError(403, SIGNUPS_DISABLED_MESSAGE, SIGNUPS_DISABLED_CODE);
+        }
+
         pendingInvite = await this.findInviteForEmail(email);
         if (!pendingInvite) {
           await this.logLoginAttempt({
@@ -325,11 +342,12 @@ export class IdentityService {
         if (userId && decoded.sub !== userId) {
           throw new HttpError(401, 'Refresh token does not belong to the current user', 'REFRESH_INVALID');
         }
+        const targetUserId: string = userId ?? decoded.sub;
 
         await this.prisma.authProvider.update({
           where: {
             userId_type: {
-              userId,
+              userId: targetUserId,
               type: decoded.provider
             }
           },

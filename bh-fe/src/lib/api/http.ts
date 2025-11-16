@@ -80,17 +80,17 @@ const buildRequest = async (
   });
 };
 
-const parseAndThrow = async (response: Response): Promise<never> => {
-  const text = await response.text();
-  const parsed = text ? safeParseJson(text) : null;
+const throwResponseError = (response: Response, bodyText: string | null, parsedBody: unknown): never => {
   const errorPayload =
-    parsed && typeof parsed === 'object' && 'error' in parsed ? (parsed as { error: any }).error : undefined;
+    parsedBody && typeof parsedBody === 'object' && 'error' in parsedBody
+      ? ((parsedBody as { error?: { message?: string; code?: string } }).error ?? undefined)
+      : undefined;
   const message =
     typeof errorPayload?.message === 'string'
       ? errorPayload.message
-      : text || response.statusText || 'Request failed';
+      : bodyText || response.statusText || 'Request failed';
   const code = typeof errorPayload?.code === 'string' ? errorPayload.code : undefined;
-  throw new ApiError(message, response.status, code, parsed ?? text);
+  throw new ApiError(message, response.status, code, parsedBody ?? bodyText ?? undefined);
 };
 
 export async function apiFetch<T>(path: string, options: ApiRequestInit = {}): Promise<T> {
@@ -99,7 +99,7 @@ export async function apiFetch<T>(path: string, options: ApiRequestInit = {}): P
   const parsed = text ? safeParseJson(text) : null;
 
   if (!response.ok) {
-    await parseAndThrow(response);
+    throwResponseError(response, text, parsed);
   }
 
   return (parsed as T) ?? (null as T);
@@ -108,7 +108,9 @@ export async function apiFetch<T>(path: string, options: ApiRequestInit = {}): P
 export async function apiFetchBlob(path: string, options: ApiRequestInit = {}): Promise<Blob> {
   const response = await buildRequest(path, options);
   if (!response.ok) {
-    await parseAndThrow(response);
+    const text = await response.text();
+    const parsed = text ? safeParseJson(text) : null;
+    throwResponseError(response, text, parsed);
   }
   return await response.blob();
 }

@@ -1,4 +1,5 @@
-import { Search, Zap, Bell, Beaker, Loader2 } from 'lucide-react';
+import { useState } from 'react';
+import { Search, Zap, Bell, Beaker, Loader2, LogOut } from 'lucide-react';
 
 interface CommandBarProps {
   onStartOnboarding: () => void;
@@ -7,6 +8,8 @@ interface CommandBarProps {
   onOpenNotifications?: () => void;
   onOpenProfile?: () => void;
   profileInitials?: string;
+  onSignOut?: () => Promise<void> | void;
+  isAuthenticated?: boolean;
 }
 
 export default function CommandBar({
@@ -15,8 +18,12 @@ export default function CommandBar({
   onboardingActive = false,
   onOpenNotifications,
   onOpenProfile,
-  profileInitials
+  profileInitials,
+  onSignOut,
+  isAuthenticated = false
 }: CommandBarProps) {
+  const [signingOut, setSigningOut] = useState(false);
+
   const handleOpenNotifications = () => {
     onOpenNotifications?.();
   };
@@ -25,84 +32,114 @@ export default function CommandBar({
     onOpenProfile?.();
   };
 
+  const handleSignOut = async () => {
+    if (!onSignOut || signingOut) {
+      return;
+    }
+    setSigningOut(true);
+    try {
+      await onSignOut();
+    } catch (error) {
+      console.error('Failed to sign out', error);
+    } finally {
+      setSigningOut(false);
+    }
+  };
+
   const initials = profileInitials?.trim().slice(0, 2).toUpperCase() || 'AR';
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 px-6 pt-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="neo-card p-3 flex items-center gap-3">
-          {/* Search Command */}
-          <div className="flex-1 flex items-center gap-3 px-4 py-2 rounded-xl bg-pearl hover:bg-mist transition-colors">
-            <Search className="w-5 h-5 text-steel" />
-            <input
-              type="text"
-              placeholder="Search biomarkers, protocols, insights..."
-              className="flex-1 bg-transparent border-0 outline-none text-ink placeholder:text-steel"
-            />
-            <div className="flex items-center gap-1">
-              <kbd className="px-2 py-1 rounded-lg bg-white border border-cloud text-xs text-steel">⌘</kbd>
-              <kbd className="px-2 py-1 rounded-lg bg-white border border-cloud text-xs text-steel">K</kbd>
+    <div className="sticky top-0 z-40 w-full border-b border-white/40 bg-background/95 px-4 pt-4 pb-3 backdrop-blur-sm sm:px-6" aria-label="Primary command bar">
+      <div className="mx-auto max-w-7xl">
+        <div className="neo-card flex flex-col gap-4 p-4 lg:p-5">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:gap-4">
+            <div className="flex flex-1 items-center gap-3 rounded-xl bg-pearl px-4 py-2 focus-within:ring-2 focus-within:ring-electric/40">
+              <Search className="h-5 w-5 text-steel" aria-hidden="true" />
+              <input
+                type="text"
+                placeholder="Search biomarkers, protocols, insights..."
+                aria-label="Search across BioHax"
+                className="flex-1 bg-transparent text-ink outline-none placeholder:text-steel"
+              />
+              <div className="hidden items-center gap-1 md:flex">
+                <kbd className="rounded-lg border border-cloud bg-white px-2 py-1 text-xs text-steel">⌘</kbd>
+                <kbd className="rounded-lg border border-cloud bg-white px-2 py-1 text-xs text-steel">K</kbd>
+              </div>
             </div>
           </div>
 
-          {/* Quick Actions */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap sm:justify-end">
             <button
               type="button"
               onClick={onStartOnboarding}
               disabled={onboardingActive}
               aria-busy={onboardingActive}
               aria-pressed={onboardingActive}
-              className={`px-5 py-2.5 rounded-xl gradient-electric text-void font-bold transition-transform shadow-lg ${
-                onboardingActive ? 'opacity-80 cursor-not-allowed' : 'hover:scale-105'
+              className={`flex-1 basis-full rounded-xl px-5 py-2.5 text-center font-bold text-void shadow-lg transition-transform sm:flex-none sm:basis-auto sm:w-auto ${
+                onboardingActive ? 'gradient-electric cursor-not-allowed opacity-80' : 'gradient-electric hover:scale-105'
               }`}
             >
-              <div className="flex items-center gap-2">
+              <span className="flex items-center justify-center gap-2">
                 {onboardingActive ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin" />
                     <span>Opening…</span>
                   </>
                 ) : (
                   <>
-                    <Zap className="w-4 h-4" />
+                    <Zap className="h-4 w-4" />
                     <span>Get Started</span>
                   </>
                 )}
-              </div>
+              </span>
             </button>
 
             <button
               type="button"
               onClick={onOpenLabUpload}
-              className="px-4 py-2.5 rounded-xl border border-cloud text-ink font-semibold hover:border-electric hover:text-electric transition-colors"
+              className="flex-1 basis-full rounded-xl border border-cloud px-4 py-2.5 text-center font-semibold text-ink transition-colors hover:border-electric hover:text-electric sm:flex-none sm:basis-auto sm:w-auto"
             >
-              <div className="flex items-center gap-2">
-                <Beaker className="w-4 h-4" />
+              <span className="flex items-center justify-center gap-2">
+                <Beaker className="h-4 w-4" />
                 <span>Upload Labs</span>
-              </div>
+              </span>
             </button>
 
             <button
               type="button"
               onClick={handleOpenNotifications}
-              className="relative w-11 h-11 rounded-xl bg-white hover:bg-pearl transition-colors flex items-center justify-center"
+              className="relative flex h-12 w-12 items-center justify-center rounded-xl border border-cloud bg-white text-ink transition-colors hover:bg-pearl"
               aria-label="Open notifications"
             >
-              <Bell className="w-5 h-5 text-ink" />
-              <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full gradient-pulse flex items-center justify-center">
-                <span className="text-xs font-bold text-white">3</span>
+              <Bell className="h-5 w-5" />
+              <div className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-pulse text-[11px] font-bold text-white shadow-lg">
+                3
               </div>
             </button>
 
             <button
               type="button"
               onClick={handleOpenProfile}
-              className="w-11 h-11 rounded-xl gradient-spectrum flex items-center justify-center hover:scale-105 transition-transform"
+              className="flex h-12 w-12 items-center justify-center rounded-xl text-sm font-bold text-white transition-transform hover:scale-105 gradient-spectrum"
               aria-label="Open profile"
             >
-              <span className="text-sm font-bold text-white">{initials}</span>
+              {initials}
             </button>
+
+            {isAuthenticated && (
+              <button
+                type="button"
+                onClick={handleSignOut}
+                disabled={signingOut}
+                aria-busy={signingOut}
+                className="flex-1 basis-full rounded-xl border border-cloud px-4 py-2 text-sm font-semibold text-steel transition-colors hover:border-pulse hover:text-pulse disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none sm:basis-auto sm:w-auto"
+              >
+                <span className="flex items-center justify-center gap-2">
+                  {signingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+                  <span>{signingOut ? 'Signing out…' : 'Sign out'}</span>
+                </span>
+              </button>
+            )}
           </div>
         </div>
       </div>
