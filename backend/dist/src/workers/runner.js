@@ -10,13 +10,15 @@ const notify_1 = require("./notify");
 const insights_generate_1 = require("./insights-generate");
 const whoop_sync_1 = require("./whoop-sync");
 const longevity_plan_1 = require("./longevity-plan");
+const lab_upload_ingest_1 = require("./lab-upload-ingest");
 const logger = logger_1.baseLogger.with({ component: 'worker-runner' });
 const prisma = prisma_1.default;
 const WORKER_REGISTRY = {
     'insights-generate': insights_generate_1.insightsGenerateWorker,
     'whoop-sync': whoop_sync_1.whoopSyncWorker,
     'notifications-dispatch': notify_1.notificationWorker,
-    'longevity-plan-generate': longevity_plan_1.longevityPlanWorker
+    'longevity-plan-generate': longevity_plan_1.longevityPlanWorker,
+    'lab-upload-ingest': lab_upload_ingest_1.labUploadIngestionWorker
 };
 const parseQueueList = () => {
     const configured = process.env.WORKER_QUEUES;

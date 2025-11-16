@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -7,6 +8,8 @@ import { Search, UserPlus, Download, FileText, TrendingUp, AlertCircle, Plus, Ac
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
+import { useAuth } from '../../lib/auth/AuthContext';
+import { approveAiInterpretation } from '../../lib/api/practitioner';
 
 const clients = [
   {
@@ -121,10 +124,14 @@ const standardBiomarkers = [
 ];
 
 export default function PractitionerWorkspace() {
+  const { ensureAccessToken } = useAuth();
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
   const [selectedBiomarkers, setSelectedBiomarkers] = useState<string[]>([
     'glucose', 'hba1c', 'cholesterol', 'ldl', 'hdl', 'crp', 'testosterone', 'vitamin-d', 'tsh', 'alt', 'creatinine'
   ]);
+  const [approvalEmail, setApprovalEmail] = useState('');
+  const [approving, setApproving] = useState(false);
+  const [approvalStatus, setApprovalStatus] = useState<string | null>(null);
   const clientPlan = 'biohacker' as 'explorer' | 'biohacker';
 
   const maxBiomarkers = clientPlan === 'explorer' ? 50 : 150;
@@ -148,6 +155,27 @@ export default function PractitionerWorkspace() {
       critical: { class: 'status-critical', color: 'pulse' },
     };
     return configs[status] || configs.good;
+  };
+
+  const handleApproval = async () => {
+    if (!approvalEmail.trim()) {
+      return;
+    }
+    try {
+      setApproving(true);
+      setApprovalStatus(null);
+      const token = await ensureAccessToken();
+      await approveAiInterpretation(token, approvalEmail.trim());
+      toast.success(`Approved ${approvalEmail.trim()} for AI interpretations.`);
+      setApprovalStatus(`Approved ${approvalEmail.trim()} for AI interpretations.`);
+      setApprovalEmail('');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to approve client.';
+      toast.error(message);
+      setApprovalStatus(message);
+    } finally {
+      setApproving(false);
+    }
   };
 
   return (
@@ -227,6 +255,27 @@ export default function PractitionerWorkspace() {
             </div>
             <p className="text-sm text-pulse font-semibold">Needs attention</p>
           </div>
+        </div>
+
+        <div className="neo-card p-6 space-y-4">
+          <div>
+            <div className="tag text-steel mb-2">AI APPROVALS</div>
+            <h3 className="text-xl font-semibold text-ink">Unlock client interpretations</h3>
+            <p className="text-sm text-steel">
+              Approve AI interpretations for a client after reviewing their latest lab report.
+            </p>
+          </div>
+          <div className="flex flex-col gap-3 md:flex-row">
+            <Input
+              placeholder="client@domain.com"
+              value={approvalEmail}
+              onChange={(event) => setApprovalEmail(event.target.value)}
+            />
+            <Button onClick={handleApproval} disabled={approving || approvalEmail.trim().length === 0}>
+              {approving ? 'Approving…' : 'Approve'}
+            </Button>
+          </div>
+          {approvalStatus && <p className="text-sm text-steel">{approvalStatus}</p>}
         </div>
 
         {/* Tabs */}

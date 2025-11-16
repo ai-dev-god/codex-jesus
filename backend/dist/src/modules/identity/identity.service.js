@@ -295,17 +295,19 @@ class IdentityService {
         return this.issueAuthTokens(freshUser, decoded.provider);
     }
     async logout(userId, refreshToken) {
+        if (!userId) {
+            throw new http_error_1.HttpError(401, 'Authentication is required to log out', 'AUTH_REQUIRED');
+        }
         if (refreshToken) {
             try {
                 const decoded = this.tokenService.verifyRefreshToken(refreshToken);
-                if (userId && decoded.sub !== userId) {
+                if (decoded.sub !== userId) {
                     throw new http_error_1.HttpError(401, 'Refresh token does not belong to the current user', 'REFRESH_INVALID');
                 }
-                const targetUserId = userId ?? decoded.sub;
                 await this.prisma.authProvider.update({
                     where: {
                         userId_type: {
-                            userId: targetUserId,
+                            userId,
                             type: decoded.provider
                         }
                     },
@@ -322,9 +324,6 @@ class IdentityService {
                 }
                 throw new http_error_1.HttpError(401, 'Invalid refresh token', 'REFRESH_INVALID');
             }
-        }
-        if (!userId) {
-            return;
         }
         await this.prisma.authProvider.updateMany({
             where: { userId },

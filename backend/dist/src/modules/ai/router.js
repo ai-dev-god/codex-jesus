@@ -1,4 +1,7 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.aiRouter = void 0;
 const express_1 = require("express");
@@ -7,6 +10,12 @@ const client_1 = require("@prisma/client");
 const guards_1 = require("../identity/guards");
 const http_error_1 = require("../observability-ops/http-error");
 const panel_ingest_service_1 = require("./panel-ingest.service");
+const upload_session_service_1 = require("../lab-upload/upload-session.service");
+const env_1 = __importDefault(require("../../config/env"));
+const longevity_stack_service_1 = require("./longevity-stack.service");
+const interpretation_service_1 = require("./interpretation.service");
+const cohort_benchmark_service_1 = require("./cohort-benchmark.service");
+const early_warning_service_1 = require("./early-warning.service");
 const plan_service_1 = require("./plan.service");
 const router = (0, express_1.Router)();
 exports.aiRouter = router;
@@ -17,28 +26,39 @@ const validate = (schema, value) => {
     }
     return result.data;
 };
+const measurementsSchema = zod_1.z
+    .array(zod_1.z.object({
+    biomarkerId: zod_1.z.string().trim().min(1).optional(),
+    markerName: zod_1.z.string().trim().min(1),
+    value: zod_1.z.number().finite().optional(),
+    unit: zod_1.z.string().trim().max(32).optional(),
+    referenceLow: zod_1.z.number().optional(),
+    referenceHigh: zod_1.z.number().optional(),
+    capturedAt: zod_1.z.string().datetime().optional(),
+    confidence: zod_1.z.number().min(0).max(1).optional(),
+    flags: zod_1.z.record(zod_1.z.string(), zod_1.z.unknown()).optional(),
+    source: zod_1.z.nativeEnum(client_1.PanelUploadSource).optional()
+}))
+    .max(200)
+    .optional();
 const panelUploadSchema = zod_1.z.object({
+    sessionId: zod_1.z.string().trim().min(1),
     storageKey: zod_1.z.string().trim().min(1),
     source: zod_1.z.nativeEnum(client_1.PanelUploadSource).optional(),
     contentType: zod_1.z.string().trim().optional(),
     pageCount: zod_1.z.number().int().min(1).max(200).optional(),
     rawMetadata: zod_1.z.record(zod_1.z.string(), zod_1.z.unknown()).optional(),
     normalizedPayload: zod_1.z.record(zod_1.z.string(), zod_1.z.unknown()).optional(),
-    measurements: zod_1.z
-        .array(zod_1.z.object({
-        biomarkerId: zod_1.z.string().trim().min(1).optional(),
-        markerName: zod_1.z.string().trim().min(1),
-        value: zod_1.z.number().finite().optional(),
-        unit: zod_1.z.string().trim().max(32).optional(),
-        referenceLow: zod_1.z.number().optional(),
-        referenceHigh: zod_1.z.number().optional(),
-        capturedAt: zod_1.z.string().datetime().optional(),
-        confidence: zod_1.z.number().min(0).max(1).optional(),
-        flags: zod_1.z.record(zod_1.z.string(), zod_1.z.unknown()).optional(),
-        source: zod_1.z.nativeEnum(client_1.PanelUploadSource).optional()
-    }))
-        .max(200)
-        .optional()
+    measurements: measurementsSchema
+});
+const uploadSessionSchema = zod_1.z.object({
+    fileName: zod_1.z.string().trim().min(1).max(256),
+    contentType: zod_1.z.string().trim().min(1).max(128),
+    byteSize: zod_1.z.number().int().min(1).max(env_1.default.LAB_UPLOAD_MAX_SIZE_MB * 1024 * 1024),
+    sha256: zod_1.z.string().regex(/^[a-f0-9]{64}$/i)
+});
+const interpretationRequestSchema = zod_1.z.object({
+    uploadId: zod_1.z.string().trim().min(1)
 });
 const planRequestSchema = zod_1.z.object({
     focusAreas: zod_1.z.array(zod_1.z.string().trim().min(1)).max(10).optional(),
@@ -65,11 +85,64 @@ const planListQuerySchema = zod_1.z.object({
         .optional()
 });
 router.use(guards_1.requireAuth, guards_1.requireActiveUser);
+router.post('/uploads/sessions', async (req, res, next) => {
+    try {
+        const payload = validate(uploadSessionSchema, req.body);
+        const session = await upload_session_service_1.labUploadSessionService.createSession({
+            userId: req.user.id,
+            fileName: payload.fileName,
+            contentType: payload.contentType,
+            byteSize: payload.byteSize,
+            sha256: payload.sha256.toLowerCase()
+        });
+        res.status(201).json(session);
+    }
+    catch (error) {
+        next(error);
+    }
+});
 router.post('/uploads', async (req, res, next) => {
     try {
         const payload = validate(panelUploadSchema, req.body);
         const upload = await panel_ingest_service_1.panelIngestionService.recordUpload(req.user.id, payload);
         res.status(201).json(upload);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.get('/stacks', async (req, res, next) => {
+    try {
+        const stacks = await longevity_stack_service_1.longevityStackService.computeStacks(req.user.id);
+        res.status(200).json(stacks);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.post('/interpretations', async (req, res, next) => {
+    try {
+        const payload = validate(interpretationRequestSchema, req.body);
+        const interpretation = await interpretation_service_1.aiInterpretationService.generate(req.user.id, payload.uploadId);
+        res.status(200).json(interpretation);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.get('/cohort-benchmarks', async (req, res, next) => {
+    try {
+        const benchmarks = await cohort_benchmark_service_1.cohortBenchmarkService.compute(req.user.id);
+        res.status(200).json(benchmarks);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.get('/early-warnings', async (req, res, next) => {
+    try {
+        const warnings = await early_warning_service_1.earlyWarningService.detect(req.user.id);
+        res.status(200).json(warnings);
     }
     catch (error) {
         next(error);

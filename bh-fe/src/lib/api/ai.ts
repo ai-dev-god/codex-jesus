@@ -1,5 +1,12 @@
 import { apiFetch } from './http';
-import type { LongevityPlan, LongevityStack, PanelUploadSummary } from './types';
+import type {
+  AiInterpretation,
+  CohortBenchmark,
+  EarlyWarning,
+  LongevityPlan,
+  LongevityStack,
+  PanelUploadSummary
+} from './types';
 
 export interface LongevityPlanRequestInput {
   focusAreas?: string[];
@@ -136,6 +143,31 @@ export async function fetchPanelUploadDownloadUrl(
 
 export async function fetchLongevityStacks(accessToken: string): Promise<LongevityStack[]> {
   return apiFetch<LongevityStack[]>(`/ai/stacks`, {
+    authToken: accessToken,
+    method: 'GET'
+  });
+}
+
+export async function requestAiInterpretation(
+  accessToken: string,
+  uploadId: string
+): Promise<AiInterpretation> {
+  return apiFetch<AiInterpretation>(`/ai/interpretations`, {
+    authToken: accessToken,
+    method: 'POST',
+    body: JSON.stringify({ uploadId })
+  });
+}
+
+export async function fetchCohortBenchmarks(accessToken: string): Promise<CohortBenchmark[]> {
+  return apiFetch<CohortBenchmark[]>(`/ai/cohort-benchmarks`, {
+    authToken: accessToken,
+    method: 'GET'
+  });
+}
+
+export async function fetchEarlyWarnings(accessToken: string): Promise<EarlyWarning[]> {
+  return apiFetch<EarlyWarning[]>(`/ai/early-warnings`, {
     authToken: accessToken,
     method: 'GET'
   });

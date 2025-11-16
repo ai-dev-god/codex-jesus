@@ -3,8 +3,14 @@ import { Beaker } from 'lucide-react';
 
 import LabUpload from '../onboarding/LabUpload';
 import LabUploadHistory from './LabUploadHistory';
+import type { AiInterpretation } from '../../lib/api/types';
 
-export default function LabUploadPage() {
+interface LabUploadPageProps {
+  aiInterpretationApproved: boolean;
+  onRequestInterpretation: (uploadId: string) => Promise<AiInterpretation>;
+}
+
+export default function LabUploadPage({ aiInterpretationApproved, onRequestInterpretation }: LabUploadPageProps) {
   const [refreshKey, setRefreshKey] = useState(0);
 
   const handleUploadComplete = useCallback(() => {
@@ -30,7 +36,19 @@ export default function LabUploadPage() {
           <div className="neo-card p-8">
             <LabUpload onUploadComplete={handleUploadComplete} />
           </div>
-          <LabUploadHistory refreshKey={refreshKey} />
+          <div className="space-y-4">
+            {!aiInterpretationApproved && (
+              <div className="rounded-xl border border-dashed border-cloud bg-white/80 p-4 text-sm text-steel">
+                Practitioner approval is required before AI interpretations can be displayed. Ask your coach or
+                practitioner to grant access inside the practitioner workspace.
+              </div>
+            )}
+            <LabUploadHistory
+              refreshKey={refreshKey}
+              aiInterpretationApproved={aiInterpretationApproved}
+              onRequestInterpretation={onRequestInterpretation}
+            />
+          </div>
         </div>
       </div>
     </div>

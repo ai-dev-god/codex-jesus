@@ -2,7 +2,16 @@ import ScoreHero from './ScoreHero';
 import BentoGrid from './BentoGrid';
 import LongevityPlanPanel from './LongevityPlanPanel';
 import LongevityStacks from './LongevityStacks';
-import type { DashboardActionItem, DashboardSummary, LongevityPlan, LongevityStack } from '../../lib/api/types';
+import CohortBenchmarks from './CohortBenchmarks';
+import EarlyWarnings from './EarlyWarnings';
+import type {
+  DashboardActionItem,
+  DashboardSummary,
+  LongevityPlan,
+  LongevityStack,
+  CohortBenchmark,
+  EarlyWarning
+} from '../../lib/api/types';
 
 interface DashboardProps {
   userName: string;
@@ -20,6 +29,14 @@ interface DashboardProps {
   stacksLoading: boolean;
   stacksError: string | null;
   onStackRetry: () => void;
+  cohortBenchmarks: CohortBenchmark[] | null;
+  cohortBenchmarksLoading: boolean;
+  cohortBenchmarksError: string | null;
+  onBenchmarkRetry: () => void;
+  earlyWarnings: EarlyWarning[] | null;
+  earlyWarningsLoading: boolean;
+  earlyWarningsError: string | null;
+  onEarlyWarningRetry: () => void;
   onViewActions: () => void;
   onViewCalendar: () => void;
   onViewInsight: () => void;
@@ -42,6 +59,14 @@ export default function Dashboard({
   stacksLoading,
   stacksError,
   onStackRetry,
+  cohortBenchmarks,
+  cohortBenchmarksLoading,
+  cohortBenchmarksError,
+  onBenchmarkRetry,
+  earlyWarnings,
+  earlyWarningsLoading,
+  earlyWarningsError,
+  onEarlyWarningRetry,
   onViewActions,
   onViewCalendar,
   onViewInsight,
@@ -95,6 +120,21 @@ return (
           error={stacksError}
           onRetry={onStackRetry}
         />
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <CohortBenchmarks
+            benchmarks={cohortBenchmarks}
+            loading={cohortBenchmarksLoading}
+            error={cohortBenchmarksError}
+            onRetry={onBenchmarkRetry}
+          />
+          <EarlyWarnings
+            warnings={earlyWarnings}
+            loading={earlyWarningsLoading}
+            error={earlyWarningsError}
+            onRetry={onEarlyWarningRetry}
+          />
+        </div>
 
         {/* Bento Grid Layout */}
         <div className="mt-16">

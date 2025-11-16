@@ -8,6 +8,9 @@ import { panelIngestionService, type PanelUploadInput } from './panel-ingest.ser
 import { labUploadSessionService } from '../lab-upload/upload-session.service';
 import env from '../../config/env';
 import { longevityStackService } from './longevity-stack.service';
+import { aiInterpretationService } from './interpretation.service';
+import { cohortBenchmarkService } from './cohort-benchmark.service';
+import { earlyWarningService } from './early-warning.service';
 import { longevityPlanService, type LongevityPlanRequest } from './plan.service';
 
 const router = Router();
@@ -54,6 +57,10 @@ const uploadSessionSchema = z.object({
   contentType: z.string().trim().min(1).max(128),
   byteSize: z.number().int().min(1).max(env.LAB_UPLOAD_MAX_SIZE_MB * 1024 * 1024),
   sha256: z.string().regex(/^[a-f0-9]{64}$/i)
+});
+
+const interpretationRequestSchema = z.object({
+  uploadId: z.string().trim().min(1)
 });
 
 const planRequestSchema = z.object({
@@ -130,6 +137,34 @@ router.get('/stacks', async (req, res, next) => {
   try {
     const stacks = await longevityStackService.computeStacks(req.user!.id);
     res.status(200).json(stacks);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/interpretations', async (req, res, next) => {
+  try {
+    const payload = validate(interpretationRequestSchema, req.body) as { uploadId: string };
+    const interpretation = await aiInterpretationService.generate(req.user!.id, payload.uploadId);
+    res.status(200).json(interpretation);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/cohort-benchmarks', async (req, res, next) => {
+  try {
+    const benchmarks = await cohortBenchmarkService.compute(req.user!.id);
+    res.status(200).json(benchmarks);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/early-warnings', async (req, res, next) => {
+  try {
+    const warnings = await earlyWarningService.detect(req.user!.id);
+    res.status(200).json(warnings);
   } catch (error) {
     next(error);
   }

@@ -152,7 +152,7 @@ class DataSubjectService {
         }
     }
     async collectUserSnapshot(userId) {
-        const [user, profile, biomarkerLogs, biomarkerMeasurements, panelUploads, longevityPlans, insights] = await Promise.all([
+        const [user, profile, biomarkerLogs, biomarkerMeasurements, panelUploads, longevityPlans, insights, stravaIntegration, stravaActivities] = await Promise.all([
             this.prisma.user.findUnique({
                 where: { id: userId },
                 select: {
@@ -177,7 +177,9 @@ class DataSubjectService {
                 }
             }),
             this.prisma.longevityPlan.findMany({ where: { userId } }),
-            this.prisma.insight.findMany({ where: { userId } })
+            this.prisma.insight.findMany({ where: { userId } }),
+            this.prisma.stravaIntegration.findUnique({ where: { userId } }),
+            this.prisma.stravaActivity.findMany({ where: { userId } })
         ]);
         return {
             user: user ? JSON.parse(JSON.stringify(user)) : null,
@@ -186,7 +188,9 @@ class DataSubjectService {
             biomarkerMeasurements,
             panelUploads,
             longevityPlans,
-            insights
+            insights,
+            stravaIntegration: stravaIntegration ? JSON.parse(JSON.stringify(stravaIntegration)) : null,
+            stravaActivities
         };
     }
     async scrubUserData(userId) {
@@ -206,6 +210,9 @@ class DataSubjectService {
             await tally('insightJobs', tx.insightGenerationJob.deleteMany({ where: { requestedById: userId } }));
             await tally('whoopIntegrations', tx.whoopIntegration.deleteMany({ where: { userId } }));
             await tally('whoopLinkSessions', tx.whoopLinkSession.deleteMany({ where: { userId } }));
+            await tally('stravaActivities', tx.stravaActivity.deleteMany({ where: { userId } }));
+            await tally('stravaIntegrations', tx.stravaIntegration.deleteMany({ where: { userId } }));
+            await tally('stravaLinkSessions', tx.stravaLinkSession.deleteMany({ where: { userId } }));
             await tally('loginAudits', tx.loginAudit.deleteMany({ where: { userId } }));
             await tx.profile.updateMany({
                 where: { userId },

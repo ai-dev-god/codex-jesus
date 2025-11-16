@@ -292,3 +292,32 @@ export interface LongevityStack {
   narrative: string;
 }
 
+export interface AiInterpretation {
+  uploadId: string;
+  generatedAt: string;
+  summary: string;
+  recommendations: string[];
+  citation: {
+    label: string;
+    reportUrl: string;
+  };
+}
+
+export interface CohortBenchmark {
+  markerName: string;
+  displayName: string;
+  userValue: number | null;
+  cohortAverage: number | null;
+  cohortSampleSize: number;
+  percentile: number | null;
+  unit: string | null;
+}
+
+export interface EarlyWarning {
+  markerName: string;
+  value: number | null;
+  unit: string | null;
+  message: string;
+  capturedAt: string | null;
+}
+

@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 
-import type { PrismaClient } from '@prisma/client';
+import type { CloudTaskStatus, PrismaClient } from '@prisma/client';
+import type { SaveOptions } from '@google-cloud/storage';
 
 import prismaClient from '../lib/prisma';
 import { baseLogger } from '../observability/logger';
@@ -47,7 +48,12 @@ const parseTaskPayload = (payload: unknown): ParsedTaskPayload | null => {
 
 export const createLabUploadWorker = (deps: WorkerDeps = {}) => {
   const prisma = deps.prisma ?? prismaClient;
-  const logger = deps.logger ?? baseLogger.with({ worker: 'lab-upload-ingest' });
+  const logger =
+    deps.logger ??
+    baseLogger.with({
+      component: 'lab-upload-ingest',
+      defaultFields: { worker: 'lab-upload-ingest' }
+    });
   const now = deps.now ?? (() => new Date());
 
   return async (taskName: string): Promise<void> => {
@@ -104,16 +110,21 @@ export const createLabUploadWorker = (deps: WorkerDeps = {}) => {
 
       const sealed = sealLabPayload(buffer);
       const sealedKey = `sealed/${upload.userId}/${upload.id}-${Date.now()}.sealed`;
-      await labUploadBucket.file(sealedKey).save(sealed.ciphertext, {
+      const saveOptions: SaveOptions = {
         resumable: false,
         contentType: 'application/octet-stream',
         metadata: {
           'x-biohax-seal-iv': sealed.iv,
           'x-biohax-seal-tag': sealed.authTag,
           'x-biohax-seal-alg': sealed.algorithm
-        },
-        kmsKeyName: env.LAB_UPLOAD_KMS_KEY_NAME
-      });
+        }
+      };
+
+      if (env.LAB_UPLOAD_KMS_KEY_NAME) {
+        (saveOptions as SaveOptions & { kmsKeyName?: string }).kmsKeyName = env.LAB_UPLOAD_KMS_KEY_NAME;
+      }
+
+      await labUploadBucket.file(sealedKey).save(sealed.ciphertext, saveOptions);
 
       const textPayload = bufferToText(buffer, upload.contentType);
       const ingestion = await labIngestionSupervisor.supervise(textPayload, {
@@ -148,7 +159,7 @@ export const createLabUploadWorker = (deps: WorkerDeps = {}) => {
       await prisma.cloudTaskMetadata.update({
         where: { id: metadata.id },
         data: {
-          status: 'COMPLETED',
+          status: 'COMPLETED' as CloudTaskStatus,
           errorMessage: null,
           attemptCount: metadata.attemptCount + 1,
           firstAttemptAt: metadata.firstAttemptAt ?? now(),

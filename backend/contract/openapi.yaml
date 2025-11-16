@@ -248,6 +248,53 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/LongevityStack'
+  /ai/interpretations:
+    post:
+      summary: Generate AI-supervised interpretation for a specific lab upload (practitioner approval required)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - uploadId
+              properties:
+                uploadId:
+                  type: string
+      responses:
+        '200':
+          description: AI interpretation with citation metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiInterpretation'
+        '403':
+          description: Practitioner approval missing
+  /ai/cohort-benchmarks:
+    get:
+      summary: Compare the user's biomarkers to the wider BioHax cohort
+      responses:
+        '200':
+          description: Cohort benchmark results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CohortBenchmark'
+  /ai/early-warnings:
+    get:
+      summary: Detect early-warning biomarker drifts before the next scheduled upload
+      responses:
+        '200':
+          description: Early-warning alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EarlyWarning'
   /health/ping:
     get:
   /reports/labs/{uploadId}:
@@ -987,6 +1034,72 @@ components:
             type: string
         narrative:
           type: string
+    AiInterpretation:
+      type: object
+      required:
+        - uploadId
+        - generatedAt
+        - summary
+        - recommendations
+        - citation
+      properties:
+        uploadId:
+          type: string
+        generatedAt:
+          type: string
+          format: date-time
+        summary:
+          type: string
+        recommendations:
+          type: array
+          items:
+            type: string
+        citation:
+          type: object
+          properties:
+            label:
+              type: string
+            reportUrl:
+              type: string
+              format: uri
+    CohortBenchmark:
+      type: object
+      properties:
+        markerName:
+          type: string
+        displayName:
+          type: string
+        userValue:
+          type: number
+          nullable: true
+        cohortAverage:
+          type: number
+          nullable: true
+        cohortSampleSize:
+          type: integer
+        percentile:
+          type: integer
+          nullable: true
+        unit:
+          type: string
+          nullable: true
+    EarlyWarning:
+      type: object
+      properties:
+        markerName:
+          type: string
+        value:
+          type: number
+          nullable: true
+        unit:
+          type: string
+          nullable: true
+        message:
+          type: string
+        capturedAt:
+          type: string
+          format: date-time
+          nullable: true
     PanelUploadPlanSummary:
       type: object
       nullable: true

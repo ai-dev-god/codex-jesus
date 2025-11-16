@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { RefreshCw, AlertTriangle, Clock, Activity, FileText, Download, Tag as TagIcon } from 'lucide-react';
+import { RefreshCw, AlertTriangle, Clock, Activity, FileText, Download, Tag as TagIcon, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
 import {
@@ -9,7 +9,7 @@ import {
   updatePanelUploadTags
 } from '../../lib/api/ai';
 import { apiFetchBlob } from '../../lib/api/http';
-import type { LongevityPlan, PanelUploadSummary, BiomarkerDefinition } from '../../lib/api/types';
+import type { LongevityPlan, PanelUploadSummary, BiomarkerDefinition, AiInterpretation } from '../../lib/api/types';
 import { listBiomarkerDefinitions } from '../../lib/api/biomarkers';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { Button } from '../ui/button';
@@ -23,6 +23,8 @@ import { Textarea } from '../ui/textarea';
 
 interface LabUploadHistoryProps {
   refreshKey: number;
+  aiInterpretationApproved: boolean;
+  onRequestInterpretation: (uploadId: string) => Promise<AiInterpretation>;
 }
 
 const statusStyles: Record<
@@ -74,7 +76,11 @@ const formatMeasurementValue = (value: string | number | null | undefined): stri
 const POLL_INTERVAL_MS = 8000;
 const NO_PLAN_VALUE = '__no_plan__';
 
-export default function LabUploadHistory({ refreshKey }: LabUploadHistoryProps) {
+export default function LabUploadHistory({
+  refreshKey,
+  aiInterpretationApproved,
+  onRequestInterpretation
+}: LabUploadHistoryProps) {
   const { ensureAccessToken } = useAuth();
   const [uploads, setUploads] = useState<PanelUploadSummary[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -82,6 +88,8 @@ export default function LabUploadHistory({ refreshKey }: LabUploadHistoryProps) 
   const [detailUpload, setDetailUpload] = useState<PanelUploadSummary | null>(null);
   const [tagUpload, setTagUpload] = useState<PanelUploadSummary | null>(null);
   const [downloadTarget, setDownloadTarget] = useState<string | null>(null);
+  const [interpretation, setInterpretation] = useState<AiInterpretation | null>(null);
+  const [interpretationTarget, setInterpretationTarget] = useState<string | null>(null);
   const [reportDownloadTarget, setReportDownloadTarget] = useState<string | null>(null);
   const [metadataLoading, setMetadataLoading] = useState(false);
   const [plans, setPlans] = useState<LongevityPlan[] | null>(null);
@@ -252,6 +260,23 @@ export default function LabUploadHistory({ refreshKey }: LabUploadHistoryProps) 
       toast.error(message);
     } finally {
       setDownloadTarget(null);
+    }
+  };
+
+  const handleInterpretationRequest = async (upload: PanelUploadSummary) => {
+    if (!aiInterpretationApproved) {
+      toast.error('AI interpretations require practitioner approval.');
+      return;
+    }
+    try {
+      setInterpretationTarget(upload.id);
+      const result = await onRequestInterpretation(upload.id);
+      setInterpretation(result);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'Unable to generate interpretation.';
+      toast.error(message);
+    } finally {
+      setInterpretationTarget(null);
     }
   };
 
@@ -533,6 +558,22 @@ export default function LabUploadHistory({ refreshKey }: LabUploadHistoryProps) 
                     />
                     CSV Export
                   </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => void handleInterpretationRequest(upload)}
+                    disabled={!aiInterpretationApproved || interpretationTarget === upload.id}
+                    title={
+                      aiInterpretationApproved
+                        ? undefined
+                        : 'Practitioner approval required to unlock AI interpretations.'
+                    }
+                  >
+                    <Sparkles
+                      className={`w-4 h-4 mr-2 ${interpretationTarget === upload.id ? 'animate-spin' : ''}`}
+                    />
+                    {interpretationTarget === upload.id ? 'Generating…' : 'AI Interpretation'}
+                  </Button>
                   <Button variant="ghost" size="sm" onClick={() => setTagUpload(upload)}>
                     <TagIcon className="w-4 h-4 mr-2" />
                     Tag Data
@@ -557,6 +598,47 @@ export default function LabUploadHistory({ refreshKey }: LabUploadHistoryProps) 
           <Textarea value={detailJson} readOnly className="min-h-[320px] font-mono text-xs bg-void/5" />
           <DialogFooter>
             <Button variant="ghost" onClick={() => setDetailUpload(null)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(interpretation)} onOpenChange={(open) => {
+        if (!open) {
+          setInterpretation(null);
+        }
+      }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>AI Interpretation</DialogTitle>
+            <DialogDescription>
+              {interpretation ? `Citing ${interpretation.citation.label}` : 'Practitioner-approved insight'}
+            </DialogDescription>
+          </DialogHeader>
+          {interpretation && (
+            <div className="space-y-4">
+              <p className="text-sm text-ink leading-relaxed">{interpretation.summary}</p>
+              <div>
+                <p className="text-xs font-semibold text-steel uppercase mb-2">Recommendations</p>
+                <ul className="list-disc list-inside space-y-1 text-sm text-steel">
+                  {interpretation.recommendations.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+              <a
+                href={interpretation.citation.reportUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm font-semibold text-electric hover:text-electric-bright transition-colors"
+              >
+                View cited report →
+              </a>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setInterpretation(null)}>
               Close
             </Button>
           </DialogFooter>

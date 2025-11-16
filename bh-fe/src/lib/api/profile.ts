@@ -14,6 +14,7 @@ export type Profile = {
   baselineSurvey: Record<string, unknown> | null;
   consents: ConsentRecord[];
   onboardingCompletedAt: string | null;
+  aiInterpretationApprovedAt?: string | null;
   deleteRequested: boolean;
   tokens?: {
     access: {

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Activity, Users, Zap, Heart, RefreshCcw, Settings, Link2, Home, Dumbbell, Apple, Beaker, Shield } from 'lucide-react';
+import { Activity, Users, Zap, Settings, Link2, Home, Dumbbell, Apple, Beaker, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 
 import VerticalNav from '../layout/VerticalNav';
-import CommandBar, { type CommandBarMetric } from '../layout/CommandBar';
+import CommandBar from '../layout/CommandBar';
 import LandingPage from '../landing/LandingPage';
 import AuthScreen from '../auth/AuthScreen';
 import Dashboard from '../dashboard/Dashboard';
@@ -24,6 +24,8 @@ import type {
   DashboardSummary,
   LongevityPlan,
   LongevityStack,
+  CohortBenchmark,
+  EarlyWarning,
   SerializedUser,
   BiomarkerDefinition,
   AdminAccessSummary
@@ -31,9 +33,16 @@ import type {
 import { fetchDashboardSummary } from '../../lib/api/dashboard';
 import { fetchCurrentUser, logoutUser, refreshTokens } from '../../lib/api/auth';
 import { ApiError } from '../../lib/api/error';
-import { fetchLongevityPlans, fetchLongevityStacks, requestLongevityPlan } from '../../lib/api/ai';
+import {
+  fetchLongevityPlans,
+  fetchLongevityStacks,
+  fetchCohortBenchmarks,
+  fetchEarlyWarnings,
+  requestLongevityPlan,
+  requestAiInterpretation as requestAiInterpretationApi
+} from '../../lib/api/ai';
 import { listBiomarkerDefinitions, createManualBiomarkerLog } from '../../lib/api/biomarkers';
-import { fetchProfile, updateProfile, type ConsentRecord } from '../../lib/api/profile';
+import { fetchProfile, updateProfile, type ConsentRecord, type Profile } from '../../lib/api/profile';
 import { fetchAdminAccess } from '../../lib/api/admin';
 import {
   clearPersistedSession,
@@ -68,6 +77,10 @@ type View =
   | 'settings'
   | 'integrations'
   | 'admin';
+
+type ProfileSnapshot = Profile & {
+  aiInterpretationApprovedAt?: string | null;
+};
 
 const REQUIRED_CONSENT_TYPES = ['TERMS_OF_SERVICE', 'PRIVACY_POLICY', 'MEDICAL_DISCLAIMER'] as const;
 
@@ -117,7 +130,14 @@ export default function AppContent() {
   const [longevityStacks, setLongevityStacks] = useState<LongevityStack[] | null>(null);
   const [longevityStacksLoading, setLongevityStacksLoading] = useState(false);
   const [longevityStacksError, setLongevityStacksError] = useState<string | null>(null);
+  const [cohortBenchmarks, setCohortBenchmarks] = useState<CohortBenchmark[] | null>(null);
+  const [cohortBenchmarksLoading, setCohortBenchmarksLoading] = useState(false);
+  const [cohortBenchmarksError, setCohortBenchmarksError] = useState<string | null>(null);
+  const [earlyWarnings, setEarlyWarnings] = useState<EarlyWarning[] | null>(null);
+  const [earlyWarningsLoading, setEarlyWarningsLoading] = useState(false);
+  const [earlyWarningsError, setEarlyWarningsError] = useState<string | null>(null);
   const [planRequesting, setPlanRequesting] = useState(false);
+  const [profileSnapshot, setProfileSnapshot] = useState<ProfileSnapshot | null>(null);
   const t = useTranslation();
   const [showActionsDialog, setShowActionsDialog] = useState(false);
   const [showInsightDialog, setShowInsightDialog] = useState(false);
@@ -142,6 +162,18 @@ export default function AppContent() {
   const parsedInsightBody = useMemo(
     () => parseDualEngineBody(dashboardSummary?.todaysInsight?.body ?? null),
     [dashboardSummary?.todaysInsight?.body]
+  );
+  const [commandIndexing, setCommandIndexing] = useState(false);
+  const runCommandIndexing = useCallback(
+    async (task: () => Promise<void> | void) => {
+      setCommandIndexing(true);
+      try {
+        await task();
+      } finally {
+        setCommandIndexing(false);
+      }
+    },
+    []
   );
   const isOnline = useNetworkStatus();
   useEffect(() => {
@@ -228,7 +260,6 @@ export default function AppContent() {
       const nextSession = createSessionFromAuthResponse(response);
       updateSession(nextSession);
       setAppState('authenticated');
-      setIsOnboardingRequired(response.user.status !== 'ACTIVE');
     },
     [updateSession]
   );
@@ -311,6 +342,7 @@ export default function AppContent() {
 
     const freshSession = await ensureFreshSession();
     const profile = await fetchProfile(freshSession.tokens.accessToken);
+    setProfileSnapshot(profile);
 
     if (!profile.baselineSurvey || Object.keys(profile.baselineSurvey).length === 0) {
       throw new Error('Save your health profile before completing onboarding.');
@@ -393,6 +425,7 @@ export default function AppContent() {
     try {
       await ensureOnboardingRequirements();
       await syncUserProfile({ requireActive: true, throwOnError: true });
+      setIsOnboardingRequired(false);
       toast.success('Onboarding complete. Your dashboard is unlocked.');
     } catch (error) {
       const message =
@@ -402,9 +435,9 @@ export default function AppContent() {
     }
   }, [ensureOnboardingRequirements, syncUserProfile]);
 
-  const loadDashboard = useCallback(async () => {
+  const loadDashboard = useCallback(async (): Promise<boolean> => {
     if (!session) {
-      return;
+      return false;
     }
 
     setDashboardLoading(true);
@@ -413,6 +446,8 @@ export default function AppContent() {
       const freshSession = await ensureFreshSession();
       const summary = await fetchDashboardSummary(freshSession.tokens.accessToken);
       setDashboardSummary(summary);
+      setIsOnboardingRequired(false);
+      return true;
     } catch (error) {
       setDashboardSummary(null);
       if (error instanceof ApiError) {
@@ -425,6 +460,7 @@ export default function AppContent() {
       } else {
         setDashboardError('Unable to load your dashboard right now.');
       }
+      return false;
     } finally {
       setDashboardLoading(false);
     }
@@ -477,6 +513,64 @@ export default function AppContent() {
     }
   }, [session, ensureFreshSession]);
 
+  const loadProfileSnapshot = useCallback(async () => {
+    if (!session) {
+      return;
+    }
+    try {
+      const freshSession = await ensureFreshSession();
+      const profile = await fetchProfile(freshSession.tokens.accessToken);
+      setProfileSnapshot(profile);
+    } catch (error) {
+      console.warn('Unable to load profile snapshot', error);
+    }
+  }, [session, ensureFreshSession]);
+
+  const handleAiInterpretationRequest = useCallback(
+    async (uploadId: string) => {
+      if (!session) {
+        throw new Error('Please sign in again to request interpretations.');
+      }
+      const freshSession = await ensureFreshSession();
+      return requestAiInterpretationApi(freshSession.tokens.accessToken, uploadId);
+    },
+    [session, ensureFreshSession]
+  );
+
+  const loadCohortBenchmarks = useCallback(async () => {
+    if (!session) {
+      return;
+    }
+    setCohortBenchmarksLoading(true);
+    setCohortBenchmarksError(null);
+    try {
+      const freshSession = await ensureFreshSession();
+      const benchmarks = await fetchCohortBenchmarks(freshSession.tokens.accessToken);
+      setCohortBenchmarks(benchmarks);
+    } catch (error) {
+      setCohortBenchmarksError(error instanceof Error ? error.message : 'Unable to load cohort benchmarks.');
+    } finally {
+      setCohortBenchmarksLoading(false);
+    }
+  }, [session, ensureFreshSession]);
+
+  const loadEarlyWarnings = useCallback(async () => {
+    if (!session) {
+      return;
+    }
+    setEarlyWarningsLoading(true);
+    setEarlyWarningsError(null);
+    try {
+      const freshSession = await ensureFreshSession();
+      const warnings = await fetchEarlyWarnings(freshSession.tokens.accessToken);
+      setEarlyWarnings(warnings);
+    } catch (error) {
+      setEarlyWarningsError(error instanceof Error ? error.message : 'Unable to load early-warning signals.');
+    } finally {
+      setEarlyWarningsLoading(false);
+    }
+  }, [session, ensureFreshSession]);
+
   const requestLongevityPlanGeneration = useCallback(async () => {
     if (!session) {
       return;
@@ -517,6 +611,38 @@ export default function AppContent() {
   const handleViewCalendar = useCallback(() => {
     setShowCalendarDialog(true);
   }, []);
+
+  const handleStartOnboarding = useCallback(() => {
+    if (!session) {
+      toast.error('Please sign in again to continue onboarding.');
+      setAppState('auth');
+      return;
+    }
+
+    if (showOnboarding) {
+      return;
+    }
+
+    if (!isOnboardingRequired) {
+      toast.info('Onboarding is complete. You can review or edit details anytime.');
+    }
+
+    setShowActionsDialog(false);
+    setShowInsightDialog(false);
+    setShowCalendarDialog(false);
+    setShowBiomarkerDialog(false);
+    setPendingAction(null);
+    setShowOnboarding(true);
+  }, [
+    session,
+    isOnboardingRequired,
+    showOnboarding,
+    setAppState,
+    setShowActionsDialog,
+    setShowInsightDialog,
+    setShowCalendarDialog,
+    setShowBiomarkerDialog
+  ]);
 
   const handleDashboardAction = useCallback(
     (action: DashboardActionItem) => {
@@ -585,8 +711,20 @@ export default function AppContent() {
       loadDashboard();
       loadLongevityPlans();
       loadLongevityStacks();
+      loadProfileSnapshot();
+      loadCohortBenchmarks();
+      loadEarlyWarnings();
     }
-  }, [session, appState, loadDashboard, loadLongevityPlans, loadLongevityStacks]);
+  }, [
+    session,
+    appState,
+    loadDashboard,
+    loadLongevityPlans,
+    loadLongevityStacks,
+    loadProfileSnapshot,
+    loadCohortBenchmarks,
+    loadEarlyWarnings
+  ]);
 
   useEffect(() => {
     if (!showBiomarkerDialog || !session) {
@@ -655,6 +793,25 @@ export default function AppContent() {
     setBiomarkerSubmitting(false);
   }, [showBiomarkerDialog, biomarkerDefinitions]);
 
+  useEffect(() => {
+    const handleNavigate = (event: Event) => {
+      const customEvent = event as CustomEvent<View | { view?: View }>;
+      const detail = typeof customEvent.detail === 'string' ? customEvent.detail : customEvent.detail?.view;
+      if (!detail) {
+        return;
+      }
+      const isAllowed = navigationItems.some((item) => item.id === detail);
+      if (isAllowed) {
+        setCurrentView(detail);
+      }
+    };
+
+    window.addEventListener('biohax:navigate', handleNavigate as EventListener);
+    return () => {
+      window.removeEventListener('biohax:navigate', handleNavigate as EventListener);
+    };
+  }, [navigationItems]);
+
   const handleLogout = useCallback(async () => {
     if (session) {
       try {
@@ -699,47 +856,6 @@ export default function AppContent() {
 
     return letters.slice(0, 2) || 'BH';
   }, [currentUser]);
-
-  const headerMetrics = useMemo<CommandBarMetric[]>(() => {
-    const formatScore = (value: number | null | undefined) =>
-      typeof value === 'number' && !Number.isNaN(value) ? `${Math.round(value)}` : '—';
-
-    const tiles = dashboardSummary?.tiles ?? [];
-    const tileLookup = new Map<string, (typeof tiles)[number]>();
-    tiles.forEach((tile) => tileLookup.set(tile.id, tile));
-
-    const formatDelta = (tileId: string) => tileLookup.get(tileId)?.delta ?? null;
-
-    const lastSyncLabel = dashboardSummary?.latestWhoopSyncAt
-      ? new Date(dashboardSummary.latestWhoopSyncAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-      : 'Not synced';
-
-    return [
-      {
-        id: 'readiness',
-        label: 'Readiness',
-        value: formatScore(dashboardSummary?.readinessScore),
-        helper: 'Overall score',
-        trend: formatDelta('readinessScore'),
-        icon: Zap
-      },
-      {
-        id: 'strain',
-        label: 'Strain',
-        value: formatScore(dashboardSummary?.strainScore),
-        helper: 'Last 24h',
-        trend: formatDelta('strainScore'),
-        icon: Heart
-      },
-      {
-        id: 'sync',
-        label: 'WHOOP sync',
-        value: lastSyncLabel,
-        helper: dashboardSummary?.latestWhoopSyncAt ? 'Last sync' : 'Link device',
-        icon: RefreshCcw
-      }
-    ];
-  }, [dashboardSummary]);
 
   const authValue = useMemo(
     () => ({
@@ -825,26 +941,47 @@ export default function AppContent() {
   }, [session, ensureFreshSession, loadDashboard]);
 
   // Landing/Auth Flow
-  const handleOpenNotifications = useCallback(() => {
+  const handleOpenNotifications = useCallback(async () => {
     if (!session) {
       setAppState('auth');
       return;
     }
 
-    setShowOnboarding(false);
-    setCurrentView('dashboard');
-    setShowActionsDialog(true);
-  }, [session, setAppState]);
+    try {
+      await runCommandIndexing(async () => {
+        const indexed = await loadDashboard();
+        if (!indexed) {
+          throw new Error('Unable to refresh notifications right now.');
+        }
+        setShowOnboarding(false);
+        setCurrentView('dashboard');
+        setShowActionsDialog(true);
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unable to open notifications right now.';
+      toast.error(message);
+    }
+  }, [session, setAppState, runCommandIndexing, loadDashboard, setShowOnboarding, setCurrentView, setShowActionsDialog]);
 
-  const handleOpenProfile = useCallback(() => {
+  const handleOpenProfile = useCallback(async () => {
     if (!session) {
       setAppState('auth');
       return;
     }
 
-    setShowOnboarding(false);
-    setCurrentView('settings');
-  }, [session, setAppState]);
+    try {
+      await runCommandIndexing(async () => {
+        await syncUserProfile({ throwOnError: true });
+        setShowOnboarding(false);
+        setCurrentView('settings');
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unable to open profile right now.';
+      toast.error(message);
+    }
+  }, [session, setAppState, runCommandIndexing, syncUserProfile, setShowOnboarding, setCurrentView]);
 
   const handleNavigate = useCallback(
     (nextView: string) => {
@@ -852,38 +989,6 @@ export default function AppContent() {
     },
     []
   );
-
-  const handleStartOnboarding = useCallback(() => {
-    if (!session) {
-      toast.error('Please sign in again to continue onboarding.');
-      setAppState('auth');
-      return;
-    }
-
-    if (showOnboarding) {
-      return;
-    }
-
-    if (!isOnboardingRequired) {
-      toast.info('Update your onboarding details anytime.');
-    }
-
-    setShowActionsDialog(false);
-    setShowInsightDialog(false);
-    setShowCalendarDialog(false);
-    setShowBiomarkerDialog(false);
-    setPendingAction(null);
-    setShowOnboarding(true);
-  }, [
-    session,
-    isOnboardingRequired,
-    showOnboarding,
-    setAppState,
-    setShowActionsDialog,
-    setShowInsightDialog,
-    setShowCalendarDialog,
-    setShowBiomarkerDialog
-  ]);
 
   const renderDashboard = () => (
     <Dashboard
@@ -902,6 +1007,14 @@ export default function AppContent() {
       stacksLoading={longevityStacksLoading}
       stacksError={longevityStacksError}
       onStackRetry={loadLongevityStacks}
+      cohortBenchmarks={cohortBenchmarks}
+      cohortBenchmarksLoading={cohortBenchmarksLoading}
+      cohortBenchmarksError={cohortBenchmarksError}
+      onBenchmarkRetry={loadCohortBenchmarks}
+      earlyWarnings={earlyWarnings}
+      earlyWarningsLoading={earlyWarningsLoading}
+      earlyWarningsError={earlyWarningsError}
+      onEarlyWarningRetry={loadEarlyWarnings}
       onViewActions={handleViewActions}
       onViewCalendar={handleViewCalendar}
       onViewInsight={handleViewInsight}
@@ -914,7 +1027,12 @@ export default function AppContent() {
       case 'dashboard':
         return renderDashboard();
       case 'labUpload':
-        return <LabUploadPage />;
+        return (
+          <LabUploadPage
+            aiInterpretationApproved={Boolean(profileSnapshot?.aiInterpretationApprovedAt)}
+            onRequestInterpretation={handleAiInterpretationRequest}
+          />
+        );
       case 'protocols':
         return <ProtocolsView />;
       case 'gym':
@@ -935,6 +1053,8 @@ export default function AppContent() {
         return renderDashboard();
     }
   };
+
+  const notificationCount = dashboardSummary?.actionItems?.length ?? 0;
 
   if (appState === 'landing') {
     return (
@@ -971,7 +1091,8 @@ export default function AppContent() {
             profileInitials={profileInitials}
             onSignOut={handleLogout}
             isAuthenticated={Boolean(session)}
-            metrics={headerMetrics}
+            isIndexing={commandIndexing}
+            notificationCount={notificationCount}
           />
 
           <main className="flex-1 w-full pb-28 pt-6">{renderView()}</main>

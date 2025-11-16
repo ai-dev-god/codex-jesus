@@ -112,10 +112,10 @@ router.post('/refresh', async (req, res, next) => {
         next(error);
     }
 });
-router.post('/logout', async (req, res, next) => {
+router.post('/logout', guards_1.requireAuth, async (req, res, next) => {
     try {
         const payload = validate(logoutSchema, req.body ?? {});
-        await identity_service_1.identityService.logout(req.user?.id ?? null, payload.refreshToken);
+        await identity_service_1.identityService.logout(req.user.id, payload.refreshToken);
         res.status(204).send();
     }
     catch (error) {
