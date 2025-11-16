@@ -1,9 +1,7 @@
 import { useState } from 'react';
-import { ArrowRightFromLine, Bell, Loader2, Sparkles, UserRound } from 'lucide-react';
+import { ArrowRightFromLine, Bell, Loader2, UserRound } from 'lucide-react';
 
 interface CommandBarProps {
-  onStartOnboarding?: () => Promise<void> | void;
-  onboardingActive?: boolean;
   onOpenNotifications?: () => Promise<void> | void;
   onOpenProfile?: () => Promise<void> | void;
   onSignOut?: () => Promise<void> | void;
@@ -14,8 +12,6 @@ interface CommandBarProps {
 }
 
 export default function CommandBar({
-  onStartOnboarding,
-  onboardingActive = false,
   onOpenNotifications,
   onOpenProfile,
   profileInitials,
@@ -61,13 +57,6 @@ export default function CommandBar({
   const displayCount =
     notificationCount > 99 ? '99+' : notificationCount.toString();
 
-  const handleStart = () => {
-    if (!onStartOnboarding || onboardingActive) {
-      return;
-    }
-    void onStartOnboarding();
-  };
-
   return (
     <div
       className="sticky top-0 z-40 w-full border-b border-white/30 bg-background/90 px-4 py-3 backdrop-blur-sm sm:px-6 lg:pl-28 lg:pr-10"
@@ -85,68 +74,48 @@ export default function CommandBar({
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={handleStart}
-            disabled={isIndexing || onboardingActive || signingOut || !onStartOnboarding}
-            aria-pressed={onboardingActive}
-            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-electric to-bio px-4 py-2 text-sm font-semibold text-void shadow-lg transition-transform hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {onboardingActive ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Opening…</span>
-              </>
-            ) : (
-              <>
-                <Sparkles className="h-4 w-4" />
-                <span>Get Started</span>
-              </>
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleOpenNotifications}
+              <button
+                type="button"
+                onClick={handleOpenNotifications}
             disabled={isIndexing || signingOut}
-            aria-label="Open notifications"
+                aria-label="Open notifications"
             className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-cloud/80 bg-white text-ink transition-colors hover:border-electric hover:text-electric disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Bell className="h-5 w-5" />
+              >
+                <Bell className="h-5 w-5" />
             {notificationCount > 0 && (
               <span className="absolute -right-1 -top-1 flex min-h-[18px] min-w-[18px] items-center justify-center rounded-full bg-pulse px-1 text-[11px] font-semibold text-white">
                 {displayCount}
               </span>
             )}
-          </button>
+              </button>
 
-          <button
-            type="button"
-            onClick={handleOpenProfile}
+              <button
+                type="button"
+                onClick={handleOpenProfile}
             disabled={isIndexing || signingOut}
             aria-label={profileLabel}
             title={profileLabel}
             className="flex h-11 w-11 items-center justify-center rounded-xl border border-cloud/80 bg-white text-ink transition-colors hover:border-electric hover:text-electric disabled:cursor-not-allowed disabled:opacity-50"
-          >
+              >
             <UserRound className="h-5 w-5" />
-          </button>
+              </button>
 
-          {isAuthenticated && (
-            <button
-              type="button"
-              onClick={handleSignOut}
-              disabled={signingOut}
-              aria-busy={signingOut}
+              {isAuthenticated && (
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  disabled={signingOut}
+                  aria-busy={signingOut}
               aria-label="Sign out"
               className="flex h-11 w-11 items-center justify-center rounded-xl border border-cloud/80 bg-white text-ink transition-colors hover:border-pulse hover:text-pulse disabled:cursor-not-allowed disabled:opacity-60"
-            >
+                >
               {signingOut ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <ArrowRightFromLine className="h-4 w-4" />
               )}
-            </button>
-          )}
+                </button>
+              )}
         </div>
       </div>
     </div>
