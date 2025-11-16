@@ -11,7 +11,7 @@ import type { WhoopOAuthClient } from './oauth-client';
 import { WhoopOAuthError, whoopOAuthClient } from './oauth-client';
 import { enqueueWhoopSyncTask } from './whoop-sync-queue';
 
-const DEFAULT_AUTHORIZE_URL = 'https://api.prod.whoop.com/oauth/oauth2/authorize';
+const DEFAULT_AUTHORIZE_URL = 'https://api.prod.whoop.com/oauth/oauth2/auth';
 const DEFAULT_SCOPES = ['offline_access', 'read:recovery', 'read:cycles', 'read:profile'];
 const DEFAULT_STATE_TTL_MS = 10 * 60 * 1000;
 
