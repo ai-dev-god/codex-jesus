@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.whoopOAuthClient = exports.LiveWhoopOAuthClient = exports.WhoopOAuthError = void 0;
 const env_1 = __importDefault(require("../../config/env"));
+const whoop_config_1 = require("./whoop-config");
 class WhoopOAuthError extends Error {
     constructor(message) {
         super(message);
@@ -12,7 +13,7 @@ class WhoopOAuthError extends Error {
     }
 }
 exports.WhoopOAuthError = WhoopOAuthError;
-const WHOOP_TOKEN_URL = 'https://api.prod.whoop.com/oauth/oauth2/token';
+const WHOOP_TOKEN_URL = whoop_config_1.whoopTokenUrl;
 const resolveScope = (raw) => {
     if (!raw) {
         return [];

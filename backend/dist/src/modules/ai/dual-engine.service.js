@@ -10,7 +10,7 @@ const http_error_1 = require("../observability-ops/http-error");
 const ENGINE_CONFIGS = [
     {
         id: 'OPENAI5',
-        label: 'OpenAI 5',
+        label: 'ChatGPT 5',
         model: env_1.default.OPENROUTER_OPENAI5_MODEL
     },
     {
@@ -19,6 +19,30 @@ const ENGINE_CONFIGS = [
         model: env_1.default.OPENROUTER_GEMINI25_PRO_MODEL
     }
 ];
+const dualEngineCostConfig = env_1.default;
+const ENGINE_COSTS = {
+    OPENAI5: {
+        costPer1K: dualEngineCostConfig.OPENROUTER_OPENAI5_COST_PER_1K ?? 0.018,
+        defaultTokens: 900
+    },
+    GEMINI: {
+        costPer1K: dualEngineCostConfig.OPENROUTER_GEMINI25_COST_PER_1K ?? 0.009,
+        defaultTokens: 850
+    }
+};
+const computeEngineCost = (engineId, tokens) => {
+    const billing = ENGINE_COSTS[engineId];
+    if (!billing || !Number.isFinite(tokens) || tokens <= 0) {
+        return 0;
+    }
+    return (tokens / 1000) * billing.costPer1K;
+};
+const resolveTokenUsage = (engineId, usage) => {
+    if (usage && typeof usage.totalTokens === 'number' && Number.isFinite(usage.totalTokens)) {
+        return usage.totalTokens;
+    }
+    return ENGINE_COSTS[engineId]?.defaultTokens ?? 800;
+};
 const normalizeText = (value) => value.trim().toLowerCase();
 const dedupeOrdered = (entries) => {
     const seen = new Set();
@@ -127,7 +151,10 @@ const buildConsensus = (executions) => {
             title: execution.payload.title,
             summary: execution.payload.summary,
             insights: dedupeOrdered(extractList(execution.payload, 'insights')),
-            recommendations: dedupeOrdered(extractList(execution.payload, 'recommendations'))
+            recommendations: dedupeOrdered(extractList(execution.payload, 'recommendations')),
+            usage: execution.usage,
+            latencyMs: Number.isFinite(execution.latencyMs) ? execution.latencyMs : null,
+            costUsd: execution.costUsd
         }))
     };
     return {
@@ -159,11 +186,18 @@ class DualEngineInsightOrchestrator {
                     maxTokens: input.maxTokens ?? 900
                 });
                 const payload = parseInsightContent(completion.content);
+                const usage = completion.usage;
+                const latencyMs = completion.latencyMs ?? 0;
+                const totalTokens = resolveTokenUsage(config.id, usage);
+                const costUsd = computeEngineCost(config.id, totalTokens);
                 executions.push({
                     config,
                     completionId: completion.id,
                     model: completion.model,
-                    payload
+                    payload,
+                    usage,
+                    latencyMs,
+                    costUsd
                 });
             }
             catch (error) {

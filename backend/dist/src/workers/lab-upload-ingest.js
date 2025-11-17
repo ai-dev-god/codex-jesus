@@ -4,24 +4,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.labUploadIngestionWorker = exports.createLabUploadWorker = void 0;
-const crypto_1 = require("crypto");
 const prisma_1 = __importDefault(require("../lib/prisma"));
 const logger_1 = require("../observability/logger");
-const storage_1 = require("../lib/storage");
 const env_1 = __importDefault(require("../config/env"));
 const panel_ingest_service_1 = require("../modules/ai/panel-ingest.service");
-const ingestion_supervisor_1 = require("../modules/lab-upload/ingestion-supervisor");
-const lab_upload_crypto_1 = require("../modules/lab-upload/lab-upload-crypto");
-const plan_link_service_1 = require("../modules/lab-upload/plan-link.service");
-const bufferToText = (buffer, contentType) => {
-    if (!contentType) {
-        return buffer.toString('utf8');
-    }
-    if (contentType.includes('json') || contentType.includes('csv') || contentType.startsWith('text/')) {
-        return buffer.toString('utf8');
-    }
-    return buffer.toString('latin1');
-};
+const ingestion_processor_1 = require("../modules/lab-upload/ingestion-processor");
 const parseTaskPayload = (payload) => {
     if (!payload || typeof payload !== 'object') {
         return null;
@@ -42,6 +29,7 @@ const createLabUploadWorker = (deps = {}) => {
             defaultFields: { worker: 'lab-upload-ingest' }
         });
     const now = deps.now ?? (() => new Date());
+    const panelIngestion = deps.panelIngestion ?? panel_ingest_service_1.panelIngestionService;
     return async (taskName) => {
         const metadata = await prisma.cloudTaskMetadata.findUnique({ where: { taskName } });
         if (!metadata) {
@@ -65,74 +53,17 @@ const createLabUploadWorker = (deps = {}) => {
             return;
         }
         try {
-            const upload = await prisma.panelUpload.findFirst({
-                where: { id: parsed.uploadId, userId: parsed.userId }
+            await (0, ingestion_processor_1.runLabUploadIngestion)(parsed.uploadId, parsed.userId, {
+                prisma,
+                logger,
+                now,
+                envConfig: env_1.default,
+                panelIngestion
             });
-            if (!upload) {
-                throw new Error(`Upload ${parsed.uploadId} not found for user ${parsed.userId}`);
-            }
-            const [buffer] = await storage_1.labUploadBucket.file(upload.storageKey).download();
-            const computedHash = (0, crypto_1.createHash)('sha256').update(buffer).digest('hex');
-            if (upload.sha256Hash && upload.sha256Hash !== computedHash) {
-                await panel_ingest_service_1.panelIngestionService.applyAutomatedIngestion(parsed.userId, parsed.uploadId, {
-                    measurements: [],
-                    normalizedPayload: {
-                        integrityFailure: true,
-                        expectedSha256: upload.sha256Hash,
-                        receivedSha256: computedHash
-                    },
-                    error: {
-                        code: 'INGESTION_INTEGRITY_MISMATCH',
-                        message: 'Uploaded file hash does not match expected value.'
-                    }
-                });
-                throw new Error('Integrity verification failed');
-            }
-            const sealed = (0, lab_upload_crypto_1.sealLabPayload)(buffer);
-            const sealedKey = `sealed/${upload.userId}/${upload.id}-${Date.now()}.sealed`;
-            const saveOptions = {
-                resumable: false,
-                contentType: 'application/octet-stream',
-                metadata: {
-                    'x-biohax-seal-iv': sealed.iv,
-                    'x-biohax-seal-tag': sealed.authTag,
-                    'x-biohax-seal-alg': sealed.algorithm
-                }
-            };
-            if (env_1.default.LAB_UPLOAD_KMS_KEY_NAME) {
-                saveOptions.kmsKeyName = env_1.default.LAB_UPLOAD_KMS_KEY_NAME;
-            }
-            await storage_1.labUploadBucket.file(sealedKey).save(sealed.ciphertext, saveOptions);
-            const textPayload = bufferToText(buffer, upload.contentType);
-            const ingestion = await ingestion_supervisor_1.labIngestionSupervisor.supervise(textPayload, {
-                rawMetadata: upload.rawMetadata,
-                contentType: upload.contentType
-            });
-            const normalizedPayload = {
-                source: 'AI_SUPERVISED_V1',
-                ingestionSummary: ingestion.summary,
-                supervisorNotes: ingestion.notes,
-                extractedMeasurements: ingestion.measurements.map((measurement) => ({
-                    markerName: measurement.markerName,
-                    biomarkerId: measurement.biomarkerId ?? null,
-                    value: measurement.value ?? null,
-                    unit: measurement.unit ?? null,
-                    confidence: measurement.confidence ?? null,
-                    flags: measurement.flags ?? null
-                }))
-            };
-            await panel_ingest_service_1.panelIngestionService.applyAutomatedIngestion(parsed.userId, parsed.uploadId, {
-                measurements: ingestion.measurements,
-                normalizedPayload,
-                sealedStorageKey: sealedKey,
-                sealedKeyVersion: 'lab-seal-v1',
-                error: null
-            });
-            await plan_link_service_1.labPlanLinkService.autoLink(parsed.uploadId, parsed.userId, ingestion.measurements);
             await prisma.cloudTaskMetadata.update({
                 where: { id: metadata.id },
                 data: {
-                    status: 'COMPLETED',
+                    status: 'SUCCEEDED',
                     errorMessage: null,
                     attemptCount: metadata.attemptCount + 1,
                     firstAttemptAt: metadata.firstAttemptAt ?? now(),

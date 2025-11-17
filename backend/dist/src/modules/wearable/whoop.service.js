@@ -12,22 +12,9 @@ const dashboard_service_1 = require("../dashboard/dashboard.service");
 const token_crypto_1 = require("./token-crypto");
 const oauth_client_1 = require("./oauth-client");
 const whoop_sync_queue_1 = require("./whoop-sync-queue");
-const DEFAULT_AUTHORIZE_URL = 'https://api.prod.whoop.com/oauth/oauth2/auth';
+const whoop_config_1 = require("./whoop-config");
 const DEFAULT_SCOPES = ['offline_access', 'read:recovery', 'read:cycles', 'read:profile'];
 const DEFAULT_STATE_TTL_MS = 10 * 60 * 1000;
-const normalizeAuthorizeUrl = (rawUrl) => {
-    try {
-        const url = new URL(rawUrl);
-        if (/\/oauth\/oauth2\/authorize\/?$/.test(url.pathname)) {
-            url.pathname = url.pathname.replace(/\/authorize\/?$/, '/auth');
-            return url.toString();
-        }
-        return url.toString();
-    }
-    catch {
-        return rawUrl;
-    }
-};
 class WhoopService {
     constructor(prisma, oauthClient, tokenCrypto, stateFactory = () => (0, node_crypto_1.randomUUID)(), now = () => new Date(), options = {}) {
         this.prisma = prisma;
@@ -36,13 +23,15 @@ class WhoopService {
         this.stateFactory = stateFactory;
         this.now = now;
         const scopes = options.scopes ?? DEFAULT_SCOPES;
-        const rawAuthorizeUrl = options.authorizeUrl ?? DEFAULT_AUTHORIZE_URL;
+        const resolvedAuthorizeUrl = options.authorizeUrl
+            ? (0, whoop_config_1.normalizeAuthorizeUrl)(options.authorizeUrl)
+            : whoop_config_1.whoopAuthorizeUrl;
         this.config = {
             clientId: options.clientId ?? env_1.default.WHOOP_CLIENT_ID ?? null,
             clientSecret: options.clientSecret ?? env_1.default.WHOOP_CLIENT_SECRET ?? null,
             redirectUri: options.redirectUri ?? env_1.default.WHOOP_REDIRECT_URI,
             scopes,
-            authorizeUrl: normalizeAuthorizeUrl(rawAuthorizeUrl),
+            authorizeUrl: resolvedAuthorizeUrl,
             stateTtlMs: options.stateTtlMs ?? DEFAULT_STATE_TTL_MS,
             tokenKeyId: options.tokenKeyId ?? env_1.default.WHOOP_TOKEN_KEY_ID
         };

@@ -352,6 +352,28 @@ const parseAuditMetadata = (metadata) => {
     }
     return metadata;
 };
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+const ACTIVE_ENGINE_IDS = ['CHATGPT_5', 'GEMINI_2_5_PRO'];
+const LLM_ENGINE_CONFIG = {
+    CHATGPT_5: {
+        label: 'ChatGPT 5',
+        model: env_1.default.OPENROUTER_OPENAI5_MODEL,
+        costPer1K: env_1.default.OPENROUTER_OPENAI5_COST_PER_1K ?? 0.018,
+        defaultTokens: 900
+    },
+    GEMINI_2_5_PRO: {
+        label: 'Gemini 2.5 Pro',
+        model: env_1.default.OPENROUTER_GEMINI25_PRO_MODEL,
+        costPer1K: env_1.default.OPENROUTER_GEMINI25_COST_PER_1K ?? 0.009,
+        defaultTokens: 850
+    }
+};
+const createEngineAccumulator = () => ({
+    requests: 0,
+    tokens: 0,
+    costUsd: 0,
+    latencies: []
+});
 const generateTemporaryPassword = () => (0, node_crypto_1.randomBytes)(18).toString('base64url');
 class AdminService {
     constructor(prisma, options = {}) {
@@ -610,6 +632,127 @@ class AdminService {
             queues: queueStats,
             sync: syncSummary,
             ai: aiSummary
+        };
+    }
+    async getLlmUsageMetrics(options = {}) {
+        const windowDays = clampWindowDays(options.windowDays);
+        const now = this.now();
+        const windowStart = startOfUtcDay(new Date(now.getTime() - (windowDays - 1) * DAY_IN_MS));
+        const [insights, jobs, audits] = await Promise.all([
+            this.prisma.insight.findMany({
+                where: {
+                    generatedAt: {
+                        gte: windowStart
+                    },
+                    status: 'DELIVERED'
+                },
+                select: {
+                    generatedAt: true,
+                    body: true
+                }
+            }),
+            this.prisma.insightGenerationJob.findMany({
+                where: {
+                    createdAt: {
+                        gte: windowStart
+                    }
+                },
+                select: {
+                    status: true,
+                    dispatchedAt: true,
+                    completedAt: true
+                }
+            }),
+            this.prisma.aiResponseAudit.findMany({
+                where: {
+                    createdAt: {
+                        gte: windowStart
+                    }
+                },
+                select: {
+                    role: true
+                }
+            })
+        ]);
+        const engineAccumulators = new Map();
+        const timelineBuckets = new Map();
+        for (const insight of insights) {
+            const traces = extractDualEngineTraces(insight.body);
+            if (traces.length === 0) {
+                continue;
+            }
+            const dateKey = toDateKey(insight.generatedAt);
+            for (const trace of traces) {
+                const engineId = normalizeEngineIdentifier(trace);
+                if (!engineId) {
+                    continue;
+                }
+                const accumulator = getOrCreateAccumulator(engineAccumulators, engineId);
+                accumulator.requests += 1;
+                const tokensUsed = resolveTokensFromTrace(engineId, trace.usage);
+                accumulator.tokens += tokensUsed;
+                const engineCost = typeof trace.costUsd === 'number' && Number.isFinite(trace.costUsd)
+                    ? trace.costUsd
+                    : computeCostFromTokens(engineId, tokensUsed);
+                accumulator.costUsd += engineCost;
+                if (typeof trace.latencyMs === 'number' && Number.isFinite(trace.latencyMs)) {
+                    accumulator.latencies.push(trace.latencyMs);
+                }
+                recordTimelineSample(timelineBuckets, dateKey, engineId, 1, engineCost);
+            }
+        }
+        const totalRequests = Array.from(engineAccumulators.values()).reduce((sum, acc) => sum + acc.requests, 0);
+        const totalTokens = Math.round(Array.from(engineAccumulators.values()).reduce((sum, acc) => sum + acc.tokens, 0));
+        const totalCostUsdRaw = Array.from(engineAccumulators.values()).reduce((sum, acc) => sum + acc.costUsd, 0);
+        const { successRate, avgLatencyMs } = computeJobSuccessMetrics(jobs);
+        const engines = ACTIVE_ENGINE_IDS.map((engineId) => {
+            const accumulator = engineAccumulators.get(engineId) ?? createEngineAccumulator();
+            const avgLatency = accumulator.latencies.length > 0
+                ? Number((accumulator.latencies.reduce((sum, value) => sum + value, 0) / accumulator.latencies.length).toFixed(2))
+                : null;
+            return {
+                id: engineId,
+                label: LLM_ENGINE_CONFIG[engineId].label,
+                model: LLM_ENGINE_CONFIG[engineId].model,
+                status: 'ACTIVE',
+                requests: accumulator.requests,
+                requestShare: totalRequests > 0 ? accumulator.requests / totalRequests : 0,
+                tokens: Math.round(accumulator.tokens),
+                costUsd: roundCurrency(accumulator.costUsd, 4),
+                avgLatencyMs: avgLatency,
+                successRate
+            };
+        });
+        engines.push({
+            id: 'OPENBIO_LLM',
+            label: 'OpenBioLLM (Legacy)',
+            model: null,
+            status: 'DECOMMISSIONED',
+            requests: 0,
+            requestShare: 0,
+            tokens: 0,
+            costUsd: 0,
+            avgLatencyMs: null,
+            successRate: 0
+        });
+        const timeline = {
+            usage: buildTimelineSeries(windowDays, now, timelineBuckets, 'requests'),
+            cost: buildTimelineSeries(windowDays, now, timelineBuckets, 'costUsd')
+        };
+        const featureUsage = computeFeatureUsageMetrics(insights.length, audits);
+        return {
+            generatedAt: now.toISOString(),
+            windowDays,
+            summary: {
+                totalRequests,
+                totalTokens,
+                totalCostUsd: roundCurrency(totalCostUsdRaw, 4),
+                avgLatencyMs,
+                successRate
+            },
+            engines,
+            timeline,
+            featureUsage
         };
     }
     async listManagedUsers(options) {
@@ -1555,4 +1698,195 @@ class AdminService {
     }
 }
 exports.AdminService = AdminService;
+const clampWindowDays = (value) => {
+    if (value === undefined || value === null) {
+        return 7;
+    }
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) {
+        return 7;
+    }
+    return Math.min(30, Math.max(3, Math.floor(parsed)));
+};
+const startOfUtcDay = (input) => new Date(Date.UTC(input.getUTCFullYear(), input.getUTCMonth(), input.getUTCDate()));
+const toDateKey = (date) => date.toISOString().slice(0, 10);
+const parseStoredUsage = (value) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return null;
+    }
+    const record = value;
+    const promptTokens = typeof record.promptTokens === 'number' && Number.isFinite(record.promptTokens) ? record.promptTokens : undefined;
+    const completionTokens = typeof record.completionTokens === 'number' && Number.isFinite(record.completionTokens)
+        ? record.completionTokens
+        : undefined;
+    const totalTokens = typeof record.totalTokens === 'number' && Number.isFinite(record.totalTokens)
+        ? record.totalTokens
+        : typeof promptTokens === 'number' && typeof completionTokens === 'number'
+            ? promptTokens + completionTokens
+            : undefined;
+    if (promptTokens === undefined && completionTokens === undefined && totalTokens === undefined) {
+        return null;
+    }
+    return { promptTokens, completionTokens, totalTokens };
+};
+const extractDualEngineTraces = (body) => {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+        return [];
+    }
+    const record = body;
+    const metadata = record.metadata;
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+        return [];
+    }
+    const engines = metadata.engines;
+    if (!Array.isArray(engines)) {
+        return [];
+    }
+    const traces = [];
+    for (const engine of engines) {
+        if (!engine || typeof engine !== 'object') {
+            continue;
+        }
+        const entry = engine;
+        traces.push({
+            id: typeof entry.id === 'string' ? entry.id : undefined,
+            label: typeof entry.label === 'string' ? entry.label : undefined,
+            model: typeof entry.model === 'string' ? entry.model : undefined,
+            latencyMs: typeof entry.latencyMs === 'number' && Number.isFinite(entry.latencyMs) ? entry.latencyMs : null,
+            costUsd: typeof entry.costUsd === 'number' && Number.isFinite(entry.costUsd) ? entry.costUsd : null,
+            usage: parseStoredUsage(entry.usage)
+        });
+    }
+    return traces;
+};
+const normalizeEngineIdentifier = (trace) => {
+    const candidates = [trace.id, trace.label];
+    for (const candidate of candidates) {
+        const normalized = normalizeEngineToken(candidate);
+        if (normalized) {
+            return normalized;
+        }
+    }
+    if (typeof trace.model === 'string') {
+        const model = trace.model.toLowerCase();
+        if (model.includes('gpt-5')) {
+            return 'CHATGPT_5';
+        }
+        if (model.includes('gemini')) {
+            return 'GEMINI_2_5_PRO';
+        }
+    }
+    return null;
+};
+const normalizeEngineToken = (value) => {
+    if (!value) {
+        return null;
+    }
+    const compact = value.replace(/[^a-z0-9]/gi, '').toLowerCase();
+    if (compact.includes('openai5') || compact.includes('chatgpt5') || compact.includes('gpt5')) {
+        return 'CHATGPT_5';
+    }
+    if (compact.includes('gemini25') || (compact.includes('gemini') && !compact.includes('gemini1'))) {
+        return 'GEMINI_2_5_PRO';
+    }
+    return null;
+};
+const resolveTokensFromTrace = (engineId, usage) => {
+    if (usage && typeof usage.totalTokens === 'number' && Number.isFinite(usage.totalTokens)) {
+        return usage.totalTokens;
+    }
+    return LLM_ENGINE_CONFIG[engineId].defaultTokens;
+};
+const computeCostFromTokens = (engineId, tokens) => {
+    const config = LLM_ENGINE_CONFIG[engineId];
+    if (!config || !Number.isFinite(tokens) || tokens <= 0) {
+        return 0;
+    }
+    return (tokens / 1000) * config.costPer1K;
+};
+const getOrCreateAccumulator = (map, engineId) => {
+    const existing = map.get(engineId);
+    if (existing) {
+        return existing;
+    }
+    const created = createEngineAccumulator();
+    map.set(engineId, created);
+    return created;
+};
+const recordTimelineSample = (buckets, dateKey, engineId, requestsIncrement, costIncrement) => {
+    const bucket = buckets.get(dateKey) ?? {};
+    const entry = bucket[engineId] ?? { requests: 0, costUsd: 0 };
+    entry.requests += requestsIncrement;
+    entry.costUsd += costIncrement;
+    bucket[engineId] = entry;
+    buckets.set(dateKey, bucket);
+};
+const roundCurrency = (value, precision = 4) => Number(value.toFixed(precision));
+const getBucketValue = (entry, field) => {
+    if (!entry) {
+        return 0;
+    }
+    return field === 'requests' ? entry.requests : roundCurrency(entry.costUsd, 4);
+};
+const buildTimelineSeries = (windowDays, now, buckets, field) => {
+    const series = [];
+    for (let offset = windowDays - 1; offset >= 0; offset -= 1) {
+        const date = startOfUtcDay(new Date(now.getTime() - offset * DAY_IN_MS));
+        const key = toDateKey(date);
+        const bucket = buckets.get(key);
+        series.push({
+            date: key,
+            engines: {
+                CHATGPT_5: getBucketValue(bucket?.CHATGPT_5, field),
+                GEMINI_2_5_PRO: getBucketValue(bucket?.GEMINI_2_5_PRO, field)
+            }
+        });
+    }
+    return series;
+};
+const computeFeatureUsageMetrics = (dualEngineInsightCount, audits) => {
+    const roleCounts = audits.reduce((acc, audit) => {
+        if (!audit.role) {
+            return acc;
+        }
+        acc[audit.role] = (acc[audit.role] ?? 0) + 1;
+        return acc;
+    }, {});
+    const features = [
+        { id: 'dual_insights', label: 'Dual-engine Insights', count: dualEngineInsightCount },
+        { id: 'planner', label: 'Protocol Generation', count: roleCounts.planner ?? 0 },
+        { id: 'reasoning', label: 'Biomarker Analysis', count: roleCounts.reasoning ?? 0 },
+        { id: 'safety', label: 'Safety Guardrails', count: roleCounts.safety ?? 0 }
+    ];
+    const total = features.reduce((sum, feature) => sum + feature.count, 0);
+    if (total === 0) {
+        return features.map((feature) => ({
+            id: feature.id,
+            label: feature.label,
+            requestCount: 0,
+            percentage: 0
+        }));
+    }
+    return features.map((feature) => ({
+        id: feature.id,
+        label: feature.label,
+        requestCount: feature.count,
+        percentage: Number(((feature.count / total) * 100).toFixed(1))
+    }));
+};
+const computeJobSuccessMetrics = (jobs) => {
+    const totalJobs = jobs.length;
+    const succeeded = jobs.filter((job) => job.status === 'SUCCEEDED').length;
+    const successRate = totalJobs > 0 ? succeeded / totalJobs : 1;
+    const latencies = jobs
+        .map((job) => job.dispatchedAt && job.completedAt
+        ? job.completedAt.getTime() - job.dispatchedAt.getTime()
+        : null)
+        .filter((value) => typeof value === 'number' && Number.isFinite(value));
+    const avgLatency = latencies.length > 0 ? latencies.reduce((sum, value) => sum + value, 0) / latencies.length : null;
+    return {
+        successRate: Math.max(0, Math.min(1, Number(successRate.toFixed(4)))),
+        avgLatencyMs: avgLatency !== null ? Number(avgLatency.toFixed(2)) : null
+    };
+};
 exports.adminService = new AdminService(prisma_1.default);

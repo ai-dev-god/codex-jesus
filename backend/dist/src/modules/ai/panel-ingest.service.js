@@ -12,6 +12,7 @@ const storage_1 = require("../../lib/storage");
 const env_1 = __importDefault(require("../../config/env"));
 const logger_1 = require("../../observability/logger");
 const ingestion_queue_1 = require("../lab-upload/ingestion-queue");
+const inline_trigger_1 = require("../lab-upload/inline-trigger");
 const toDecimal = (value) => {
     if (value === null || value === undefined) {
         return null;
@@ -144,6 +145,16 @@ class PanelIngestionService {
                 });
                 throw new http_error_1.HttpError(503, 'Unable to schedule lab ingestion.', 'PANEL_UPLOAD_QUEUE_FAILED');
             }
+            void (0, inline_trigger_1.maybeProcessLabUploadInline)(withMeasurements.id, userId, {
+                panelIngestion: this,
+                prisma: this.prisma
+            }).catch((error) => {
+                this.logger.debug('Inline lab ingestion skipped', {
+                    uploadId: withMeasurements.id,
+                    userId,
+                    error: error instanceof Error ? error.message : error
+                });
+            });
             return withMeasurements;
         }
         catch (error) {

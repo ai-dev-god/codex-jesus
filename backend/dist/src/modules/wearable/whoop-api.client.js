@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WhoopApiClient = exports.WhoopApiError = void 0;
+const whoop_config_1 = require("./whoop-config");
 class WhoopApiError extends Error {
     constructor(message, status) {
         super(message);
@@ -9,7 +10,7 @@ class WhoopApiError extends Error {
     }
 }
 exports.WhoopApiError = WhoopApiError;
-const DEFAULT_BASE_URL = 'https://api.prod.whoop.com/developer/v1';
+const DEFAULT_BASE_URL = whoop_config_1.whoopApiBaseUrl;
 class WhoopApiClient {
     constructor(baseUrl = DEFAULT_BASE_URL) {
         this.baseUrl = baseUrl;
