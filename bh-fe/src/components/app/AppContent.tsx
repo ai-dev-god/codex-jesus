@@ -1,9 +1,28 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Activity, Users, Zap, Settings, Link2, Home, Dumbbell, Apple, Beaker, Shield } from 'lucide-react';
+import {
+  Activity,
+  Users,
+  Zap,
+  Settings,
+  Link2,
+  Home,
+  Dumbbell,
+  Apple,
+  Beaker,
+  Shield,
+  ListChecks,
+  CalendarClock,
+  RefreshCcw,
+  Sparkles,
+  Droplet,
+  Bell,
+  UserRound,
+  ArrowRightFromLine
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 import VerticalNav from '../layout/VerticalNav';
-import CommandBar from '../layout/CommandBar';
+import CommandBar, { type CommandActionDescriptor, type CommandGroupDescriptor } from '../layout/CommandBar';
 import LandingPage from '../landing/LandingPage';
 import AuthScreen from '../auth/AuthScreen';
 import Dashboard from '../dashboard/Dashboard';
@@ -606,6 +625,230 @@ export default function AppContent() {
     setShowCalendarDialog(true);
   }, []);
 
+  const handleCommandRefresh = useCallback(() => {
+    return runCommandIndexing(async () => {
+      await Promise.all([
+        loadDashboard(),
+        loadLongevityPlans(),
+        loadLongevityStacks(),
+        loadCohortBenchmarks(),
+        loadEarlyWarnings()
+      ]);
+    });
+  }, [
+    runCommandIndexing,
+    loadDashboard,
+    loadLongevityPlans,
+    loadLongevityStacks,
+    loadCohortBenchmarks,
+    loadEarlyWarnings
+  ]);
+
+  const notificationCount = dashboardSummary?.actionItems?.length ?? 0;
+
+  const commandGroups = useMemo<CommandGroupDescriptor[]>(() => {
+    const groups: CommandGroupDescriptor[] = [];
+
+    const quickCommands: CommandActionDescriptor[] = [
+      {
+        id: 'refresh-data',
+        label: 'Refresh BioHax data',
+        description: 'Sync dashboard, plans, stacks, and warnings',
+        icon: RefreshCcw,
+        disabled: commandIndexing,
+        onSelect: handleCommandRefresh
+      },
+      {
+        id: 'open-actions',
+        label: 'Open daily actions',
+        description:
+          notificationCount === 0
+            ? 'No pending recommendations'
+            : `${notificationCount} pending recommendation${notificationCount === 1 ? '' : 's'}`,
+        icon: ListChecks,
+        disabled: notificationCount === 0,
+        onSelect: handleViewActions
+      },
+      {
+        id: 'todays-insight',
+        label: "Review today's insight",
+        description: dashboardSummary?.todaysInsight?.title ?? 'AI insight summary',
+        icon: Sparkles,
+        disabled: !dashboardSummary?.todaysInsight,
+        onSelect: handleViewInsight
+      },
+      {
+        id: 'plan-calendar',
+        label: 'Open plan calendar',
+        description: 'View upcoming interventions',
+        icon: CalendarClock,
+        onSelect: handleViewCalendar
+      },
+      {
+        id: 'request-plan',
+        label: 'Request new longevity plan',
+        description: 'Queue AI regimen using latest biomarkers',
+        icon: Sparkles,
+        disabled: planRequesting,
+        onSelect: requestLongevityPlanGeneration
+      },
+      {
+        id: 'log-biomarker',
+        label: 'Log biomarker manually',
+        description: selectedBiomarker ? `Last selected: ${selectedBiomarker.name}` : 'Track a new measurement',
+        icon: Droplet,
+        onSelect: () => openBiomarkerLog(selectedBiomarker)
+      },
+      {
+        id: 'open-notifications',
+        label: 'Open notifications',
+        description: 'Show latest alerts and tasks',
+        icon: Bell,
+        onSelect: handleOpenNotifications
+      },
+      {
+        id: 'open-profile',
+        label: 'Open profile & settings',
+        description: 'Manage account preferences',
+        icon: UserRound,
+        onSelect: handleOpenProfile
+      }
+    ];
+
+    if (session) {
+      quickCommands.push({
+        id: 'sign-out',
+        label: 'Sign out',
+        description: 'Log out of BioHax',
+        icon: ArrowRightFromLine,
+        onSelect: handleLogout
+      });
+    }
+
+    if (quickCommands.length > 0) {
+      groups.push({
+        id: 'quick-actions',
+        title: 'Quick actions',
+        commands: quickCommands
+      });
+    }
+
+    const navigationCommands: CommandActionDescriptor[] = navigationItems.map((item) => ({
+      id: `nav-${item.id}`,
+      label: item.label,
+      description: item.id === currentView ? 'Currently viewing' : 'Jump to this view',
+      icon: item.icon,
+      disabled: currentView === item.id,
+      onSelect: () => handleNavigate(item.id)
+    }));
+
+    if (navigationCommands.length > 0) {
+      groups.push({
+        id: 'navigation',
+        title: 'Navigate',
+        commands: navigationCommands
+      });
+    }
+
+    const actionTypeLabels: Record<DashboardActionItem['ctaType'], string> = {
+      LOG_BIOMARKER: 'Log biomarker',
+      REVIEW_INSIGHT: 'Review insight',
+      JOIN_FEED_DISCUSSION: 'Community'
+    };
+
+    const actionIcons: Record<DashboardActionItem['ctaType'], CommandActionDescriptor['icon']> = {
+      LOG_BIOMARKER: Droplet,
+      REVIEW_INSIGHT: Sparkles,
+      JOIN_FEED_DISCUSSION: Users
+    };
+
+    const actionItemCommands: CommandActionDescriptor[] =
+      (dashboardSummary?.actionItems ?? []).map((action) => ({
+        id: `action-${action.id}`,
+        label: action.title,
+        description: action.description,
+        icon: actionIcons[action.ctaType],
+        badge: actionTypeLabels[action.ctaType],
+        onSelect: () => handleDashboardAction(action)
+      })) ?? [];
+
+    if (actionItemCommands.length > 0) {
+      groups.push({
+        id: 'action-items',
+        title: 'Action items',
+        commands: actionItemCommands
+      });
+    }
+
+    const biomarkerCommands: CommandActionDescriptor[] =
+      (biomarkerDefinitions ?? [])
+        .slice(0, 8)
+        .map((definition) => ({
+          id: `biomarker-${definition.id}`,
+          label: `Log ${definition.name}`,
+          description: definition.unit ? `Unit: ${definition.unit}` : undefined,
+          icon: Droplet,
+          onSelect: () => openBiomarkerLog(definition)
+        })) ?? [];
+
+    if (biomarkerCommands.length > 0) {
+      groups.push({
+        id: 'biomarkers',
+        title: 'Biomarkers',
+        commands: biomarkerCommands
+      });
+    }
+
+    const planCommands: CommandActionDescriptor[] =
+      (longevityPlans ?? []).map((plan) => ({
+        id: `plan-${plan.id}`,
+        label: plan.title,
+        description:
+          plan.status === 'READY'
+            ? 'Ready for review'
+            : plan.status === 'PROCESSING'
+              ? 'Processing'
+              : plan.status === 'FAILED'
+                ? 'Failed — retry soon'
+                : 'Draft plan',
+        icon: Sparkles,
+        badge: plan.status,
+        onSelect: () => handleNavigate('protocols')
+      })) ?? [];
+
+    if (planCommands.length > 0) {
+      groups.push({
+        id: 'plans',
+        title: 'Longevity plans',
+        commands: planCommands
+      });
+    }
+
+    return groups;
+  }, [
+    commandIndexing,
+    handleCommandRefresh,
+    handleViewActions,
+    dashboardSummary,
+    handleViewInsight,
+    handleViewCalendar,
+    planRequesting,
+    requestLongevityPlanGeneration,
+    selectedBiomarker,
+    openBiomarkerLog,
+    handleOpenNotifications,
+    handleOpenProfile,
+    session,
+    handleLogout,
+    navigationItems,
+    currentView,
+    handleNavigate,
+    biomarkerDefinitions,
+    handleDashboardAction,
+    longevityPlans,
+    notificationCount
+  ]);
+
   const handleDashboardAction = useCallback(
     (action: DashboardActionItem) => {
       setShowActionsDialog(false);
@@ -623,6 +866,21 @@ export default function AppContent() {
       }
     },
     [setCurrentView]
+  );
+
+  const openBiomarkerLog = useCallback(
+    (definition?: BiomarkerDefinition | null) => {
+      setPendingAction(null);
+      setBiomarkerFormError(null);
+      setBiomarkerForm((previous) => ({
+        ...previous,
+        biomarkerId: definition?.id ?? previous.biomarkerId,
+        value: '',
+        notes: ''
+      }));
+      setShowBiomarkerDialog(true);
+    },
+    [setBiomarkerForm, setBiomarkerFormError, setPendingAction, setShowBiomarkerDialog]
   );
 
   const handleSubmitBiomarkerLog = useCallback(async () => {
@@ -1016,8 +1274,6 @@ export default function AppContent() {
     }
   };
 
-  const notificationCount = dashboardSummary?.actionItems?.length ?? 0;
-
   if (appState === 'landing') {
     return (
       <>
@@ -1053,6 +1309,9 @@ export default function AppContent() {
             isAuthenticated={Boolean(session)}
             isIndexing={commandIndexing}
             notificationCount={notificationCount}
+            commandGroups={commandGroups}
+            lastIndexedAt={dashboardSummary?.generatedAt ?? null}
+            isOnline={isOnline}
           />
 
           <main className="flex-1 w-full pb-28 pt-6">{renderView()}</main>

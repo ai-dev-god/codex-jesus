@@ -24,9 +24,14 @@ const envSchema = z.object({
     .default('openrouter/deepseek/deepseek-r1-distill-qwen-32b'),
   OPENROUTER_OPENAI5_MODEL: z.string().default('openrouter/openai/gpt-5'),
   OPENROUTER_GEMINI25_PRO_MODEL: z.string().default('openrouter/google/gemini-2.5-pro'),
+  OPENROUTER_OPENAI5_COST_PER_1K: z.coerce.number().min(0).optional(),
+  OPENROUTER_GEMINI25_COST_PER_1K: z.coerce.number().min(0).optional(),
   WHOOP_CLIENT_ID: z.string().optional(),
   WHOOP_CLIENT_SECRET: z.string().optional(),
   WHOOP_REDIRECT_URI: z.string().url().default('http://localhost:5173/oauth/whoop/callback'),
+  WHOOP_AUTHORIZE_URL: z.string().url().default('https://api.prod.whoop.com/oauth/oauth2/auth'),
+  WHOOP_TOKEN_URL: z.string().url().default('https://api.prod.whoop.com/oauth/oauth2/token'),
+  WHOOP_API_BASE_URL: z.string().url().default('https://api.prod.whoop.com/developer/v1'),
   WHOOP_TOKEN_ENCRYPTION_KEY: z.string().min(16).default('dev-whoop-token-secret'),
   WHOOP_TOKEN_KEY_ID: z.string().default('whoop-token-key-v1'),
   WHOOP_WEBHOOK_SECRET: z.string().min(16).default('dev-whoop-webhook-secret'),
@@ -52,6 +57,9 @@ const envSchema = z.object({
   LAB_UPLOAD_MAX_SIZE_MB: z.coerce.number().int().min(1).max(100).default(25),
   LAB_UPLOAD_SEALING_KEY: z.string().min(44).default(Buffer.alloc(32).toString('base64')),
   LAB_UPLOAD_DOWNLOAD_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(300),
+  LAB_UPLOAD_INLINE_INGEST: z
+    .coerce.boolean()
+    .default(process.env.NODE_ENV === 'production' ? false : true),
   AI_LONGEVITY_PLAN_ENABLED: z.coerce.boolean().default(false),
   ALLOW_EMAIL_SIGNUPS: z.coerce.boolean().default(false)
 });
@@ -128,7 +136,9 @@ const parseCorsOrigins = (value: string): string[] => {
 
 const corsOrigins = parseCorsOrigins(parsed.CORS_ORIGIN);
 
-const env = {
+type ParsedEnv = z.infer<typeof envSchema>;
+
+const env: ParsedEnv & { corsOrigins: string[] } = {
   ...parsed,
   corsOrigins
 };

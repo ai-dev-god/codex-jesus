@@ -1,4 +1,5 @@
 import env from '../../config/env';
+import { whoopTokenUrl } from './whoop-config';
 
 export interface WhoopTokenExchangeInput {
   code: string;
@@ -24,7 +25,7 @@ export class WhoopOAuthError extends Error {
   }
 }
 
-const WHOOP_TOKEN_URL = 'https://api.prod.whoop.com/oauth/oauth2/token';
+const WHOOP_TOKEN_URL = whoopTokenUrl;
 
 const resolveScope = (raw: unknown): string[] => {
   if (!raw) {

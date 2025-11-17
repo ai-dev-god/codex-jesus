@@ -18,6 +18,7 @@ import { labUploadBucket } from '../../lib/storage';
 import env from '../../config/env';
 import { baseLogger } from '../../observability/logger';
 import { labUploadQueue } from '../lab-upload/ingestion-queue';
+import { maybeProcessLabUploadInline } from '../lab-upload/inline-trigger';
 
 export type PanelMeasurementInput = {
   biomarkerId?: string | null;
@@ -219,6 +220,17 @@ export class PanelIngestionService {
         });
         throw new HttpError(503, 'Unable to schedule lab ingestion.', 'PANEL_UPLOAD_QUEUE_FAILED');
       }
+
+      void maybeProcessLabUploadInline(withMeasurements.id, userId, {
+        panelIngestion: this,
+        prisma: this.prisma
+      }).catch((error) => {
+        this.logger.debug('Inline lab ingestion skipped', {
+          uploadId: withMeasurements.id,
+          userId,
+          error: error instanceof Error ? error.message : error
+        });
+      });
 
       return withMeasurements;
     } catch (error) {

@@ -10,23 +10,10 @@ import { whoopTokenCrypto } from './token-crypto';
 import type { WhoopOAuthClient } from './oauth-client';
 import { WhoopOAuthError, whoopOAuthClient } from './oauth-client';
 import { enqueueWhoopSyncTask } from './whoop-sync-queue';
+import { normalizeAuthorizeUrl, whoopAuthorizeUrl } from './whoop-config';
 
-const DEFAULT_AUTHORIZE_URL = 'https://api.prod.whoop.com/oauth/oauth2/auth';
 const DEFAULT_SCOPES = ['offline_access', 'read:recovery', 'read:cycles', 'read:profile'];
 const DEFAULT_STATE_TTL_MS = 10 * 60 * 1000;
-
-const normalizeAuthorizeUrl = (rawUrl: string): string => {
-  try {
-    const url = new URL(rawUrl);
-    if (/\/oauth\/oauth2\/authorize\/?$/.test(url.pathname)) {
-      url.pathname = url.pathname.replace(/\/authorize\/?$/, '/auth');
-      return url.toString();
-    }
-    return url.toString();
-  } catch {
-    return rawUrl;
-  }
-};
 
 type WhoopLinkStatus = {
   linked: boolean;
@@ -69,13 +56,15 @@ export class WhoopService {
     options: WhoopServiceOptions = {}
   ) {
     const scopes = options.scopes ?? DEFAULT_SCOPES;
-    const rawAuthorizeUrl = options.authorizeUrl ?? DEFAULT_AUTHORIZE_URL;
+    const resolvedAuthorizeUrl = options.authorizeUrl
+      ? normalizeAuthorizeUrl(options.authorizeUrl)
+      : whoopAuthorizeUrl;
     this.config = {
       clientId: options.clientId ?? env.WHOOP_CLIENT_ID ?? null,
       clientSecret: options.clientSecret ?? env.WHOOP_CLIENT_SECRET ?? null,
       redirectUri: options.redirectUri ?? env.WHOOP_REDIRECT_URI,
       scopes,
-      authorizeUrl: normalizeAuthorizeUrl(rawAuthorizeUrl),
+      authorizeUrl: resolvedAuthorizeUrl,
       stateTtlMs: options.stateTtlMs ?? DEFAULT_STATE_TTL_MS,
       tokenKeyId: options.tokenKeyId ?? env.WHOOP_TOKEN_KEY_ID
     };

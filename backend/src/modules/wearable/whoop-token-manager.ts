@@ -2,8 +2,9 @@ import type { PrismaClient, WhoopIntegration } from '@prisma/client';
 
 import env from '../../config/env';
 import type { TokenCrypto } from './token-crypto';
+import { whoopTokenUrl } from './whoop-config';
 
-const WHOOP_TOKEN_URL = 'https://api.prod.whoop.com/oauth/oauth2/token';
+const WHOOP_TOKEN_URL = whoopTokenUrl;
 const DEFAULT_REFRESH_THRESHOLD_MS = Number(process.env.WHOOP_REFRESH_THRESHOLD_MS ?? 5 * 60 * 1000);
 
 const toStringArray = (value: unknown): string[] => {

@@ -153,7 +153,14 @@ const createConsensusResult = (): DualEngineInsightResult => ({
           title: 'Sleep Recovery Focus',
           summary: 'OpenAI 5 emphasized longer recovery.',
           insights: ['OpenAI 5: emphasize breathwork'],
-          recommendations: ['Magnesium + earlier shutdown']
+          recommendations: ['Magnesium + earlier shutdown'],
+          latencyMs: 1200,
+          costUsd: 0.018,
+          usage: {
+            promptTokens: 700,
+            completionTokens: 200,
+            totalTokens: 900
+          }
         },
         {
           id: 'GEMINI',
@@ -163,7 +170,14 @@ const createConsensusResult = (): DualEngineInsightResult => ({
           title: 'Sleep Recovery Focus',
           summary: 'Gemini highlighted parasympathetic tone.',
           insights: ['Gemini: HRV stable, focus on heat/cold alternation'],
-          recommendations: ['Add 5-min nasal breathing at 9pm']
+          recommendations: ['Add 5-min nasal breathing at 9pm'],
+          latencyMs: 1350,
+          costUsd: 0.012,
+          usage: {
+            promptTokens: 600,
+            completionTokens: 180,
+            totalTokens: 780
+          }
         }
       ]
     }

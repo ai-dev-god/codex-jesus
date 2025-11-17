@@ -338,6 +338,19 @@ router.get('/database/status', async (_req, res, next) => {
   }
 });
 
+router.get('/llm/metrics', async (req, res, next) => {
+  try {
+    const windowDays =
+      typeof req.query.windowDays === 'string' && req.query.windowDays.trim().length > 0
+        ? Number(req.query.windowDays)
+        : undefined;
+    const metrics = await adminService.getLlmUsageMetrics({ windowDays });
+    res.status(200).json(metrics);
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/backups', async (_req, res, next) => {
   try {
     const data = await adminService.listBackupJobs();

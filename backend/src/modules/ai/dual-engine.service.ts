@@ -1,5 +1,5 @@
 import env from '../../config/env';
-import { openRouterClient, type OpenRouterChatClient } from '../../lib/openrouter';
+import { openRouterClient, type OpenRouterChatClient, type ChatCompletionUsage } from '../../lib/openrouter';
 import { HttpError } from '../observability-ops/http-error';
 
 type EngineId = 'OPENAI5' | 'GEMINI';
@@ -27,6 +27,9 @@ type EngineExecution = {
   completionId: string;
   model: string;
   payload: RawInsightPayload;
+  usage: ChatCompletionUsage;
+  latencyMs: number;
+  costUsd: number;
 };
 
 export type InsightConsensusMetadata = {
@@ -45,6 +48,9 @@ export type InsightConsensusMetadata = {
     summary: string;
     insights: InsightList;
     recommendations: InsightList;
+    usage: ChatCompletionUsage;
+    latencyMs: number | null;
+    costUsd: number;
   }>;
 };
 
@@ -68,7 +74,7 @@ export type DualEngineInsightInput = {
 const ENGINE_CONFIGS: EngineConfig[] = [
   {
     id: 'OPENAI5',
-    label: 'OpenAI 5',
+    label: 'ChatGPT 5',
     model: env.OPENROUTER_OPENAI5_MODEL
   },
   {
@@ -77,6 +83,37 @@ const ENGINE_CONFIGS: EngineConfig[] = [
     model: env.OPENROUTER_GEMINI25_PRO_MODEL
   }
 ];
+
+const dualEngineCostConfig = env as typeof env & {
+  OPENROUTER_OPENAI5_COST_PER_1K?: number;
+  OPENROUTER_GEMINI25_COST_PER_1K?: number;
+};
+
+const ENGINE_COSTS: Record<EngineId, { costPer1K: number; defaultTokens: number }> = {
+  OPENAI5: {
+    costPer1K: dualEngineCostConfig.OPENROUTER_OPENAI5_COST_PER_1K ?? 0.018,
+    defaultTokens: 900
+  },
+  GEMINI: {
+    costPer1K: dualEngineCostConfig.OPENROUTER_GEMINI25_COST_PER_1K ?? 0.009,
+    defaultTokens: 850
+  }
+};
+
+const computeEngineCost = (engineId: EngineId, tokens: number): number => {
+  const billing = ENGINE_COSTS[engineId];
+  if (!billing || !Number.isFinite(tokens) || tokens <= 0) {
+    return 0;
+  }
+  return (tokens / 1000) * billing.costPer1K;
+};
+
+const resolveTokenUsage = (engineId: EngineId, usage: ChatCompletionUsage): number => {
+  if (usage && typeof usage.totalTokens === 'number' && Number.isFinite(usage.totalTokens)) {
+    return usage.totalTokens;
+  }
+  return ENGINE_COSTS[engineId]?.defaultTokens ?? 800;
+};
 
 const normalizeText = (value: string): string => value.trim().toLowerCase();
 
@@ -207,7 +244,10 @@ const buildConsensus = (executions: EngineExecution[]): DualEngineInsightResult 
       title: execution.payload.title,
       summary: execution.payload.summary,
       insights: dedupeOrdered(extractList(execution.payload, 'insights')),
-      recommendations: dedupeOrdered(extractList(execution.payload, 'recommendations'))
+      recommendations: dedupeOrdered(extractList(execution.payload, 'recommendations')),
+      usage: execution.usage,
+      latencyMs: Number.isFinite(execution.latencyMs) ? execution.latencyMs : null,
+      costUsd: execution.costUsd
     }))
   };
 
@@ -242,12 +282,19 @@ export class DualEngineInsightOrchestrator {
         });
 
         const payload = parseInsightContent(completion.content);
+        const usage = completion.usage;
+        const latencyMs = completion.latencyMs ?? 0;
+        const totalTokens = resolveTokenUsage(config.id, usage);
+        const costUsd = computeEngineCost(config.id, totalTokens);
 
         executions.push({
           config,
           completionId: completion.id,
           model: completion.model,
-          payload
+          payload,
+          usage,
+          latencyMs,
+          costUsd
         });
       } catch (error) {
         errors.push({ engine: config, error });

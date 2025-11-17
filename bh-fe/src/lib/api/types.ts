@@ -99,6 +99,12 @@ export interface InsightSummary {
   promptMetadata: Record<string, unknown> | null;
 }
 
+export interface TokenUsage {
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+}
+
 export interface DualEngineInsightEngineTrace {
   id?: string;
   label?: string;
@@ -106,6 +112,9 @@ export interface DualEngineInsightEngineTrace {
   completionId?: string;
   title?: string;
   summary?: string;
+  usage?: TokenUsage | null;
+  latencyMs?: number | null;
+  costUsd?: number | null;
 }
 
 export interface DualEngineInsightMetadata {

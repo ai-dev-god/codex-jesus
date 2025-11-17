@@ -173,6 +173,51 @@ export type AdminDsarJobsResponse<T> = {
   };
 };
 
+export type LlmEngineMetricId = 'CHATGPT_5' | 'GEMINI_2_5_PRO' | 'OPENBIO_LLM';
+
+export type LlmEngineMetric = {
+  id: LlmEngineMetricId;
+  label: string;
+  model: string | null;
+  status: 'ACTIVE' | 'DECOMMISSIONED';
+  requests: number;
+  requestShare: number;
+  tokens: number;
+  costUsd: number;
+  avgLatencyMs: number | null;
+  successRate: number;
+};
+
+export type LlmUsageTimelinePoint = {
+  date: string;
+  engines: Record<'CHATGPT_5' | 'GEMINI_2_5_PRO', number>;
+};
+
+export type LlmFeatureUsageMetric = {
+  id: string;
+  label: string;
+  requestCount: number;
+  percentage: number;
+};
+
+export type LlmUsageMetricsResponse = {
+  generatedAt: string;
+  windowDays: number;
+  summary: {
+    totalRequests: number;
+    totalTokens: number;
+    totalCostUsd: number;
+    avgLatencyMs: number | null;
+    successRate: number;
+  };
+  engines: LlmEngineMetric[];
+  timeline: {
+    usage: LlmUsageTimelinePoint[];
+    cost: LlmUsageTimelinePoint[];
+  };
+  featureUsage: LlmFeatureUsageMetric[];
+};
+
 export type CreateApiKeyPayload = {
   name: string;
   scope?: ApiKey['scope'];
@@ -390,4 +435,15 @@ export const fetchAdminAccess = (accessToken: string): Promise<AdminAccessSummar
     method: 'GET',
     authToken: accessToken
   });
+
+export const fetchLlmUsageMetrics = (
+  token: string,
+  windowDays?: number
+): Promise<LlmUsageMetricsResponse> => {
+  const query = windowDays ? `?windowDays=${windowDays}` : '';
+  return apiFetch<LlmUsageMetricsResponse>(`/admin/llm/metrics${query}`, {
+    method: 'GET',
+    authToken: token
+  });
+};
 

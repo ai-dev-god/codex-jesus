@@ -181,6 +181,23 @@ describe('WhoopService', () => {
     expect(result.linkUrl).toContain('https://auth.example.com/oauth/oauth2/auth');
   });
 
+  it('falls back to the default Whoop authorize URL when override is invalid', async () => {
+    const prisma = createMockPrisma();
+    const { service } = createService(prisma, {
+      authorizeUrl: 'notaurl'
+    });
+    const session = createSessionRecord();
+
+    prisma.whoopIntegration.findUnique.mockResolvedValueOnce(null);
+    prisma.whoopLinkSession.create.mockResolvedValue(session);
+    prisma.whoopIntegration.findUnique.mockResolvedValueOnce(null);
+    prisma.whoopLinkSession.findFirst.mockResolvedValueOnce(session);
+
+    const result = await service.initiateLink('user-1');
+
+    expect(result.linkUrl).toContain('https://api.prod.whoop.com/oauth/oauth2/auth');
+  });
+
   it('throws when attempting to link while an active integration exists', async () => {
     const prisma = createMockPrisma();
     const { service } = createService(prisma);

@@ -60,14 +60,46 @@ const normalizeDualEngineMetadata = (metadata: unknown): DualEngineInsightMetada
       insights: toStringArray(record.disagreements.insights),
       recommendations: toStringArray(record.disagreements.recommendations)
     },
-    engines: record.engines.map((engine) => ({
-      id: engine.id,
-      label: engine.label,
-      model: engine.model,
-      completionId: engine.completionId,
-      title: engine.title,
-      summary: engine.summary
-    }))
+    engines: record.engines.map((engine) => {
+      const rawLatency = (engine as { latencyMs?: unknown }).latencyMs;
+      const rawCost = (engine as { costUsd?: unknown }).costUsd;
+      return {
+        id: engine.id,
+        label: engine.label,
+        model: engine.model,
+        completionId: engine.completionId,
+        title: engine.title,
+        summary: engine.summary,
+        usage: parseUsage(engine.usage),
+        latencyMs: typeof rawLatency === 'number' ? rawLatency : null,
+        costUsd: typeof rawCost === 'number' ? rawCost : null
+      };
+    })
   };
+};
+
+const parseUsage = (value: unknown): DualEngineInsightMetadata['engines'][number]['usage'] => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const record = value as Record<string, unknown>;
+  const promptTokens =
+    typeof record.promptTokens === 'number' && Number.isFinite(record.promptTokens) ? record.promptTokens : undefined;
+  const completionTokens =
+    typeof record.completionTokens === 'number' && Number.isFinite(record.completionTokens)
+      ? record.completionTokens
+      : undefined;
+  const totalTokens =
+    typeof record.totalTokens === 'number' && Number.isFinite(record.totalTokens)
+      ? record.totalTokens
+      : typeof promptTokens === 'number' && typeof completionTokens === 'number'
+        ? promptTokens + completionTokens
+        : undefined;
+
+  if (promptTokens === undefined && completionTokens === undefined && totalTokens === undefined) {
+    return null;
+  }
+
+  return { promptTokens, completionTokens, totalTokens };
 };
 

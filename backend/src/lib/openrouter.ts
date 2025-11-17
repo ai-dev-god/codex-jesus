@@ -8,6 +8,12 @@ export type ChatMessage = {
   content: string;
 };
 
+export type ChatCompletionUsage = {
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+} | null;
+
 export type ChatCompletionInput = {
   model: string;
   messages: ChatMessage[];
@@ -19,7 +25,15 @@ export type ChatCompletionResult = {
   id: string;
   model: string;
   content: string;
+  usage: ChatCompletionUsage;
+  latencyMs: number;
 };
+
+type OpenRouterUsagePayload = {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+} | null;
 
 type OpenRouterResponse = {
   id?: string;
@@ -29,6 +43,7 @@ type OpenRouterResponse = {
       content?: string;
     };
   }>;
+  usage?: OpenRouterUsagePayload;
 };
 
 type RateLimitConfig = {
@@ -53,6 +68,33 @@ const DEFAULT_MAX_TOKENS = 800;
 
 const toHttpError = (status: number, message: string, details?: unknown) =>
   new HttpError(status, message, 'INSIGHT_PROVIDER_FAILURE', details);
+
+const normalizeUsage = (payload: OpenRouterUsagePayload): ChatCompletionUsage => {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+
+  const promptTokens =
+    typeof payload.prompt_tokens === 'number' && Number.isFinite(payload.prompt_tokens)
+      ? payload.prompt_tokens
+      : undefined;
+  const completionTokens =
+    typeof payload.completion_tokens === 'number' && Number.isFinite(payload.completion_tokens)
+      ? payload.completion_tokens
+      : undefined;
+  const totalTokens =
+    typeof payload.total_tokens === 'number' && Number.isFinite(payload.total_tokens)
+      ? payload.total_tokens
+      : typeof promptTokens === 'number' && typeof completionTokens === 'number'
+        ? promptTokens + completionTokens
+        : undefined;
+
+  if (promptTokens === undefined && completionTokens === undefined && totalTokens === undefined) {
+    return null;
+  }
+
+  return { promptTokens, completionTokens, totalTokens };
+};
 
 export type OpenRouterChatClient = {
   createChatCompletion(input: ChatCompletionInput): Promise<ChatCompletionResult>;
@@ -97,6 +139,7 @@ export const createOpenRouterClient = (options: CreateClientOptions = {}): OpenR
 
       assertRateLimit();
 
+      const startedAt = now();
       const response = await fetchImpl(`${env.OPENROUTER_BASE_URL}/chat/completions`, {
         method: 'POST',
         headers: {
@@ -110,6 +153,7 @@ export const createOpenRouterClient = (options: CreateClientOptions = {}): OpenR
           max_tokens: input.maxTokens ?? maxTokensDefault
         })
       });
+      const latencyMs = Math.max(0, now() - startedAt);
 
       if (!response.ok) {
         let errorDetails: unknown = null;
@@ -136,7 +180,9 @@ export const createOpenRouterClient = (options: CreateClientOptions = {}): OpenR
       return {
         id: payload.id ?? 'openrouter-completion',
         model: payload.model ?? input.model,
-        content: choice
+        content: choice,
+        usage: normalizeUsage(payload.usage ?? null),
+        latencyMs
       };
     }
   };

@@ -69,6 +69,12 @@ type MockPrisma = {
   insightGenerationJob: {
     findMany: jest.Mock;
   };
+  insight: {
+    findMany: jest.Mock;
+  };
+  aiResponseAudit: {
+    findMany: jest.Mock;
+  };
   $queryRaw: jest.Mock;
   $transaction: jest.Mock;
 };
@@ -127,6 +133,12 @@ const createMockPrisma = (): MockPrisma => {
       findMany: jest.fn()
     },
     insightGenerationJob: {
+      findMany: jest.fn()
+    },
+    insight: {
+      findMany: jest.fn()
+    },
+    aiResponseAudit: {
       findMany: jest.fn()
     },
     $queryRaw: jest.fn(),
@@ -604,6 +616,78 @@ describe('AdminService', () => {
         retriesLast24h: 3
       })
     });
+  });
+
+  it('aggregates llm usage metrics from insights, jobs, and audits', async () => {
+    const prisma = createMockPrisma();
+    const now = new Date('2025-11-17T12:00:00.000Z');
+    const service = new AdminService(prisma as unknown as PrismaClient, {
+      now: () => now
+    });
+
+    prisma.insight.findMany.mockResolvedValue([
+      {
+        generatedAt: new Date('2025-11-16T10:00:00.000Z'),
+        body: {
+          metadata: {
+            engines: [
+              {
+                id: 'OPENAI5',
+                label: 'ChatGPT 5',
+                model: 'openrouter/openai/gpt-5',
+                latencyMs: 220,
+                costUsd: 0.018,
+                usage: {
+                  totalTokens: 800
+                }
+              },
+              {
+                id: 'GEMINI',
+                label: 'Gemini 2.5 Pro',
+                model: 'openrouter/google/gemini-2.5-pro',
+                latencyMs: 360,
+                usage: {
+                  totalTokens: 700
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]);
+
+    prisma.insightGenerationJob.findMany.mockResolvedValue([
+      {
+        status: 'SUCCEEDED',
+        dispatchedAt: new Date('2025-11-16T09:00:00.000Z'),
+        completedAt: new Date('2025-11-16T09:01:00.000Z')
+      }
+    ]);
+
+    prisma.aiResponseAudit.findMany.mockResolvedValue([{ role: 'planner' }, { role: 'safety' }]);
+
+    const metrics = await service.getLlmUsageMetrics({ windowDays: 7 });
+
+    expect(prisma.insight.findMany).toHaveBeenCalled();
+    expect(prisma.aiResponseAudit.findMany).toHaveBeenCalled();
+    expect(metrics.summary.totalRequests).toBe(2);
+    expect(metrics.summary.totalTokens).toBe(1500);
+
+    const chatgpt = metrics.engines.find((engine) => engine.id === 'CHATGPT_5');
+    const gemini = metrics.engines.find((engine) => engine.id === 'GEMINI_2_5_PRO');
+    expect(chatgpt).toMatchObject({
+      label: 'ChatGPT 5',
+      requests: 1,
+      status: 'ACTIVE'
+    });
+    expect(gemini?.requests).toBe(1);
+
+    const dualInsightsFeature = metrics.featureUsage.find((feature) => feature.id === 'dual_insights');
+    expect(dualInsightsFeature?.requestCount).toBe(1);
+
+    const targetUsagePoint = metrics.timeline.usage.find((point) => point.date === '2025-11-16');
+    expect(targetUsagePoint?.engines.CHATGPT_5).toBe(1);
+    expect(targetUsagePoint?.engines.GEMINI_2_5_PRO).toBe(1);
   });
 
   it('creates managed users with onboarding defaults and audit entry', async () => {

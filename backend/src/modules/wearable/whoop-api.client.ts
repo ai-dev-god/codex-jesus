@@ -1,3 +1,5 @@
+import { whoopApiBaseUrl } from './whoop-config';
+
 export type WhoopWorkoutScore = {
   strain?: number;
   average_heart_rate?: number;
@@ -42,7 +44,7 @@ export class WhoopApiError extends Error {
   }
 }
 
-const DEFAULT_BASE_URL = 'https://api.prod.whoop.com/developer/v1';
+const DEFAULT_BASE_URL = whoopApiBaseUrl;
 
 export class WhoopApiClient {
   constructor(private readonly baseUrl: string = DEFAULT_BASE_URL) {}

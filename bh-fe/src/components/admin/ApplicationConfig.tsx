@@ -75,40 +75,70 @@ export default function ApplicationConfig() {
         {/* AI Engines */}
         <TabsContent value="ai" className="space-y-6">
           <div className="neo-card bg-white p-6">
-            <h3 className="mb-4">OpenBioLLM Configuration</h3>
-            <div className="space-y-4">
+            <h3 className="mb-1">ChatGPT 5 (OpenRouter)</h3>
+            <p className="text-sm text-steel mb-4">Primary creative engine routed through the shared OpenRouter credential.</p>
+            <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <Label>API Endpoint</Label>
-                <Input defaultValue="https://api.openbio.ai/v1" className="mt-2" />
+                <Label>OpenRouter Endpoint</Label>
+                <Input defaultValue="https://openrouter.ai/api/v1" className="mt-2" />
               </div>
               <div>
-                <Label>API Key</Label>
+                <Label>Model ID</Label>
+                <Input defaultValue="openrouter/openai/gpt-5" className="mt-2" />
+              </div>
+              <div>
+                <Label>API Key (GOOGLE_APPLICATION_CREDENTIALS)</Label>
                 <Input type="password" placeholder="••••••••••••••••" className="mt-2" />
               </div>
-              <div className="neo-card bg-pearl p-4 flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-ink">Enable OpenBioLLM</p>
-                  <p className="text-sm text-steel">Primary AI engine</p>
-                </div>
-                <Switch defaultChecked />
+              <div>
+                <Label>Routing weight</Label>
+                <Input defaultValue="60%" className="mt-2" />
               </div>
+            </div>
+            <div className="neo-card bg-pearl p-4 flex items-center justify-between mt-4">
+              <div>
+                <p className="font-medium text-ink">Enable ChatGPT 5</p>
+                <p className="text-sm text-steel">Primary dual-engine channel</p>
+              </div>
+              <Switch defaultChecked />
             </div>
           </div>
 
           <div className="neo-card bg-white p-6">
-            <h3 className="mb-4">Google Gemini Configuration</h3>
-            <div className="space-y-4">
+            <h3 className="mb-1">Gemini 2.5 Pro (OpenRouter)</h3>
+            <p className="text-sm text-steel mb-4">Secondary reasoning engine for numeric and safety workloads.</p>
+            <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <Label>API Key</Label>
-                <Input type="password" placeholder="••••••••••••••••" className="mt-2" />
+                <Label>Model ID</Label>
+                <Input defaultValue="openrouter/google/gemini-2.5-pro" className="mt-2" />
               </div>
-              <div className="neo-card bg-pearl p-4 flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-ink">Enable Google Gemini</p>
-                  <p className="text-sm text-steel">Secondary AI engine</p>
-                </div>
-                <Switch defaultChecked />
+              <div>
+                <Label>Routing weight</Label>
+                <Input defaultValue="40%" className="mt-2" />
               </div>
+              <div className="md:col-span-2">
+                <Label>Shared OpenRouter Key</Label>
+                <Input type="password" placeholder="Managed via secrets" disabled className="mt-2 cursor-not-allowed" />
+              </div>
+            </div>
+            <div className="neo-card bg-pearl p-4 flex items-center justify-between mt-4">
+              <div>
+                <p className="font-medium text-ink">Enable Gemini 2.5 Pro</p>
+                <p className="text-sm text-steel">Secondary verification channel</p>
+              </div>
+              <Switch defaultChecked />
+            </div>
+          </div>
+
+          <div className="neo-card bg-cloud p-6 border border-dashed border-steel/30 text-steel">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="mb-1 text-steel">OpenBioLLM (Legacy)</h3>
+                <p className="text-sm">
+                  Legacy biomedical model is greyed out while dual-engine traffic is handled exclusively by ChatGPT 5 and Gemini 2.5 Pro.
+                </p>
+              </div>
+              <Switch checked={false} disabled className="opacity-50" />
             </div>
           </div>
         </TabsContent>
