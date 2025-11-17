@@ -790,6 +790,32 @@ export default function AppContent() {
     }
   }, [session, setAppState, runCommandIndexing, syncUserProfile, setShowOnboarding, setCurrentView]);
 
+  const handleLogout = useCallback(async () => {
+    if (session) {
+      try {
+        const freshSession = await ensureFreshSession().catch(() => null);
+        const accessToken = freshSession?.tokens.accessToken ?? session.tokens.accessToken;
+        await logoutUser(accessToken, session.tokens.refreshToken);
+      } catch (error) {
+        console.warn('Failed to log out cleanly', error);
+      }
+    }
+
+    updateSession(null);
+    setDashboardSummary(null);
+    setLongevityPlans(null);
+    setAppState('landing');
+    setCurrentView('dashboard');
+    setShowOnboarding(false);
+  }, [session, ensureFreshSession, updateSession]);
+
+  const handleNavigate = useCallback(
+    (nextView: string) => {
+      setCurrentView(nextView as View);
+    },
+    []
+  );
+
   const commandGroups = useMemo<CommandGroupDescriptor[]>(() => {
     const groups: CommandGroupDescriptor[] = [];
 
@@ -1142,25 +1168,6 @@ export default function AppContent() {
     };
   }, [navigationItems]);
 
-  const handleLogout = useCallback(async () => {
-    if (session) {
-      try {
-        const freshSession = await ensureFreshSession().catch(() => null);
-        const accessToken = freshSession?.tokens.accessToken ?? session.tokens.accessToken;
-        await logoutUser(accessToken, session.tokens.refreshToken);
-      } catch (error) {
-        console.warn('Failed to log out cleanly', error);
-      }
-    }
-
-    updateSession(null);
-    setDashboardSummary(null);
-    setLongevityPlans(null);
-    setAppState('landing');
-    setCurrentView('dashboard');
-    setShowOnboarding(false);
-  }, [session, ensureFreshSession, updateSession]);
-
   const welcomeName = useMemo(() => {
     if (!currentUser) {
       return 'Biohacker';
@@ -1277,13 +1284,6 @@ export default function AppContent() {
   }, [session, ensureFreshSession, loadDashboard]);
 
   // Landing/Auth Flow
-  const handleNavigate = useCallback(
-    (nextView: string) => {
-      setCurrentView(nextView as View);
-    },
-    []
-  );
-
   const handleDismissOAuthError = useCallback(() => {
     setOauthError(null);
     setCurrentView('integrations');

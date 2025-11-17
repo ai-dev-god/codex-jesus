@@ -22,7 +22,6 @@ import { ApiError } from '../../lib/api/error';
 import {
   fetchLlmUsageMetrics,
   type LlmEngineMetric,
-  type LlmFeatureUsageMetric,
   type LlmUsageMetricsResponse
 } from '../../lib/api/admin';
 import { Badge } from '../ui/badge';
@@ -100,7 +99,6 @@ export default function LlmUsageTracking() {
 
   const totalRequests = metrics.summary.totalRequests;
   const totalCost = metrics.summary.totalCostUsd;
-  const totalTokens = metrics.summary.totalTokens;
   const successRate = metrics.summary.successRate;
   const avgLatency = metrics.summary.avgLatencyMs;
   const costPerRequest = totalRequests > 0 ? totalCost / totalRequests : 0;
@@ -484,7 +482,7 @@ function OverviewCard({
   helper,
   gradient
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   label: string;
   value: string;
   helper: string;
@@ -519,7 +517,7 @@ function RecommendationCard({
   title,
   description
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   title: string;
   description: string;
 }) {
