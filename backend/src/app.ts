@@ -34,8 +34,27 @@ const captureRawBody = (req: Request, _res: Response, buf: Buffer): void => {
 
 const app = express();
 const allowedOrigins = env.corsOrigins.length > 0 ? env.corsOrigins : ['http://localhost:5173'];
-const normalizeOrigin = (origin: string) => origin.replace(/\/$/, '').toLowerCase();
-const normalizedAllowedOrigins = allowedOrigins.map(normalizeOrigin);
+const normalizeOrigin = (origin: string): string => {
+  const trimmed = origin.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    const protocol = parsed.protocol.toLowerCase();
+    const hostname = parsed.hostname.toLowerCase();
+    const port = parsed.port;
+    const isDefaultPort =
+      (protocol === 'https:' && (port === '' || port === '443')) ||
+      (protocol === 'http:' && (port === '' || port === '80'));
+
+    return `${protocol}//${hostname}${isDefaultPort ? '' : `:${port}`}`;
+  } catch {
+    return trimmed.replace(/\/$/, '').toLowerCase();
+  }
+};
+const normalizedAllowedOrigins = allowedOrigins.map(normalizeOrigin).filter(Boolean);
 const isAllowedOrigin = (origin?: string): origin is string => {
   if (!origin) {
     return false;

@@ -58,28 +58,28 @@ async function seed() {
         ],
         recommendations: [
             'Gemini 2.5 Pro: Extend Zone 2 cardio to 30 minutes and keep HRV logging daily.',
-            'OpenAI 5: Add a magnesium glycinate dose 60 minutes before bed to reinforce parasympathetic tone.'
+            'OpenChat 5: Add a magnesium glycinate dose 60 minutes before bed to reinforce parasympathetic tone.'
         ],
         metadata: {
             confidenceScore: 0.84,
             agreementRatio: 0.78,
             disagreements: {
                 insights: [
-                    'OpenAI 5: Emphasized magnesium intake as primary driver.',
+                    'OpenChat 5: Emphasized magnesium intake as primary driver.',
                     'Gemini 2.5 Pro: Prioritized additional breathwork sessions.'
                 ],
                 recommendations: [
-                    'Gemini 2.5 Pro: Suggested one extra mobility block; OpenAI 5 skipped it.'
+                    'Gemini 2.5 Pro: Suggested one extra mobility block; OpenChat 5 skipped it.'
                 ]
             },
             engines: [
                 {
-                    id: 'OPENAI5',
-                    label: 'OpenAI 5',
-                    model: 'openrouter/openai/gpt-5',
-                    completionId: 'seed-openai5-completion',
+                    id: 'OPENCHAT5',
+                    label: 'OpenChat 5',
+                    model: 'openrouter/openchat/openchat-5',
+                    completionId: 'seed-openchat5-completion',
                     title: 'HRV trending up',
-                    summary: 'OpenAI 5 highlighted stronger recovery capacity tied to HRV gains.'
+                    summary: 'OpenChat 5 highlighted stronger recovery capacity tied to HRV gains.'
                 },
                 {
                     id: 'GEMINI',
@@ -98,7 +98,7 @@ async function seed() {
             biomarkerWindowDays: 7,
             includeManualLogs: true
         },
-        engines: ['OPENAI5', 'GEMINI']
+        engines: ['OPENCHAT5', 'GEMINI']
     };
     const user = await prisma.user.upsert({
         where: { email: memberEmail },

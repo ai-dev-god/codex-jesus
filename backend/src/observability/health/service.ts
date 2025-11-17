@@ -33,6 +33,7 @@ export type ReadinessSnapshot = {
       totalPending: number;
       details: QueueDetails[];
     };
+    integrations: IntegrationsComponent;
     metrics: MetricsSnapshot;
   };
 };
@@ -49,6 +50,134 @@ type HealthServiceOptions = {
   redisProbe?: () => Promise<void>;
   redisUrl?: string;
   now?: () => Date;
+  integrationEnv?: Partial<IntegrationEnv>;
+};
+
+type IntegrationStatus = 'pass' | 'degraded' | 'fail';
+
+type IntegrationResult = {
+  id: IntegrationId;
+  name: string;
+  status: IntegrationStatus;
+  missingEnv: string[];
+  docs?: string;
+};
+
+type IntegrationsComponent = {
+  status: IntegrationStatus;
+  checkedAt: string;
+  results: IntegrationResult[];
+};
+
+type IntegrationEnv = Pick<
+  typeof env,
+  | 'NODE_ENV'
+  | 'STRAVA_CLIENT_ID'
+  | 'STRAVA_CLIENT_SECRET'
+  | 'STRAVA_REDIRECT_URI'
+  | 'WHOOP_CLIENT_ID'
+  | 'WHOOP_CLIENT_SECRET'
+  | 'WHOOP_REDIRECT_URI'
+  | 'RESEND_API_KEY'
+  | 'GOOGLE_CLIENT_ID'
+  | 'GOOGLE_CLIENT_SECRET'
+>;
+
+type IntegrationId = 'strava' | 'whoop' | 'google-oauth' | 'resend';
+
+type IntegrationRequirement = {
+  key: Exclude<keyof IntegrationEnv, 'NODE_ENV'>;
+  label?: string;
+  disallowLocalhostInProduction?: boolean;
+};
+
+type IntegrationDefinition = {
+  id: IntegrationId;
+  name: string;
+  required: IntegrationRequirement[];
+  docs?: string;
+  critical?: boolean;
+};
+
+const defaultIntegrationEnv: IntegrationEnv = {
+  NODE_ENV: env.NODE_ENV,
+  STRAVA_CLIENT_ID: env.STRAVA_CLIENT_ID,
+  STRAVA_CLIENT_SECRET: env.STRAVA_CLIENT_SECRET,
+  STRAVA_REDIRECT_URI: env.STRAVA_REDIRECT_URI,
+  WHOOP_CLIENT_ID: env.WHOOP_CLIENT_ID,
+  WHOOP_CLIENT_SECRET: env.WHOOP_CLIENT_SECRET,
+  WHOOP_REDIRECT_URI: env.WHOOP_REDIRECT_URI,
+  RESEND_API_KEY: env.RESEND_API_KEY,
+  GOOGLE_CLIENT_ID: env.GOOGLE_CLIENT_ID,
+  GOOGLE_CLIENT_SECRET: env.GOOGLE_CLIENT_SECRET
+};
+
+const buildIntegrationEnv = (overrides?: Partial<IntegrationEnv>): IntegrationEnv => ({
+  ...defaultIntegrationEnv,
+  ...overrides
+});
+
+const INTEGRATION_DEFINITIONS: IntegrationDefinition[] = [
+  {
+    id: 'strava',
+    name: 'Strava OAuth',
+    required: [
+      { key: 'STRAVA_CLIENT_ID' },
+      { key: 'STRAVA_CLIENT_SECRET' },
+      { key: 'STRAVA_REDIRECT_URI', disallowLocalhostInProduction: true }
+    ],
+    docs: 'docs/gcp-access-and-deployment.md#link--integration-preflight',
+    critical: true
+  },
+  {
+    id: 'whoop',
+    name: 'Whoop OAuth',
+    required: [
+      { key: 'WHOOP_CLIENT_ID' },
+      { key: 'WHOOP_CLIENT_SECRET' },
+      { key: 'WHOOP_REDIRECT_URI', disallowLocalhostInProduction: true }
+    ],
+    docs: 'docs/gcp-access-and-deployment.md#link--integration-preflight',
+    critical: true
+  },
+  {
+    id: 'google-oauth',
+    name: 'Google OAuth',
+    required: [
+      { key: 'GOOGLE_CLIENT_ID' },
+      { key: 'GOOGLE_CLIENT_SECRET' }
+    ],
+    docs: 'docs/gcp-access-and-deployment.md#link--integration-preflight',
+    critical: true
+  },
+  {
+    id: 'resend',
+    name: 'Resend Email',
+    required: [{ key: 'RESEND_API_KEY' }],
+    docs: 'docs/gcp-access-and-deployment.md#link--integration-preflight',
+    critical: false
+  }
+];
+
+const integrationStatusFromResults = (results: IntegrationResult[]): IntegrationStatus => {
+  if (results.some((result) => result.status === 'fail')) {
+    return 'fail';
+  }
+  if (results.some((result) => result.status === 'degraded')) {
+    return 'degraded';
+  }
+  return 'pass';
+};
+
+const valueIsPresent = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0;
+
+const isLocalhostUrl = (value: string): boolean => {
+  try {
+    const parsed = new URL(value);
+    return ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
 };
 
 const QUEUE_ACTIVE_STATUSES: CloudTaskStatus[] = ['PENDING', 'DISPATCHED'];
@@ -76,12 +205,14 @@ export class HealthService {
   private readonly redisProbe?: () => Promise<void>;
   private readonly redisUrl?: string;
   private readonly now: () => Date;
+  private readonly integrationEnv: IntegrationEnv;
 
   constructor(options: HealthServiceOptions = {}) {
     this.prisma = options.prisma ?? prismaClient;
     this.redisProbe = options.redisProbe;
     this.redisUrl = options.redisUrl ?? env.REDIS_URL;
     this.now = options.now ?? (() => new Date());
+    this.integrationEnv = buildIntegrationEnv(options.integrationEnv);
   }
 
   async liveness(): Promise<LivenessSnapshot> {
@@ -98,13 +229,14 @@ export class HealthService {
   async readiness(): Promise<ReadinessSnapshot> {
     const now = this.now();
 
-    const [database, redis, queues] = await Promise.all([
+    const [database, redis, queues, integrations] = await Promise.all([
       this.checkDatabase(now),
       this.checkRedis(now),
-      this.checkQueues(now)
+      this.checkQueues(now),
+      this.checkIntegrations(now)
     ]);
 
-    const status = this.overallStatus(database, redis, queues.status);
+    const status = this.overallStatus(database, redis, queues.status, integrations.status);
 
     return {
       status,
@@ -113,6 +245,7 @@ export class HealthService {
         database,
         redis,
         queues,
+        integrations,
         metrics: getMetricsSnapshot()
       }
     };
@@ -121,13 +254,19 @@ export class HealthService {
   private overallStatus(
     database: ComponentStatus,
     redis: ComponentStatus,
-    queueStatus: 'pass' | 'degraded'
+    queueStatus: 'pass' | 'degraded',
+    integrationStatus: IntegrationsComponent['status']
   ): ReadinessSnapshot['status'] {
-    if (database.status === 'fail' || redis.status === 'fail') {
+    if (database.status === 'fail' || redis.status === 'fail' || integrationStatus === 'fail') {
       return 'fail';
     }
 
-    if (database.status === 'degraded' || redis.status === 'degraded' || queueStatus === 'degraded') {
+    if (
+      database.status === 'degraded' ||
+      redis.status === 'degraded' ||
+      queueStatus === 'degraded' ||
+      integrationStatus === 'degraded'
+    ) {
       return 'degraded';
     }
 
@@ -291,6 +430,52 @@ export class HealthService {
         // degrade if query fails to avoid masking issues
       };
     }
+  }
+
+  private async checkIntegrations(now: Date): Promise<IntegrationsComponent> {
+    const evaluatedAt = now.toISOString();
+    const results: IntegrationResult[] = INTEGRATION_DEFINITIONS.map((definition) => {
+      const missing: string[] = [];
+
+      for (const requirement of definition.required) {
+        const rawValue = this.integrationEnv[requirement.key];
+        const label = requirement.label ?? requirement.key;
+        if (!valueIsPresent(rawValue)) {
+          missing.push(label);
+          continue;
+        }
+
+        if (
+          requirement.disallowLocalhostInProduction &&
+          this.integrationEnv.NODE_ENV === 'production' &&
+          isLocalhostUrl(rawValue)
+        ) {
+          missing.push(`${label} (localhost is not allowed in production)`);
+        }
+      }
+
+      const hasMissing = missing.length > 0;
+      const status: IntegrationStatus =
+        !hasMissing
+          ? 'pass'
+          : definition.critical && this.integrationEnv.NODE_ENV === 'production'
+          ? 'fail'
+          : 'degraded';
+
+      return {
+        id: definition.id,
+        name: definition.name,
+        status,
+        missingEnv: missing,
+        docs: definition.docs
+      };
+    });
+
+    return {
+      status: integrationStatusFromResults(results),
+      checkedAt: evaluatedAt,
+      results
+    };
   }
 }
 

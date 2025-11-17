@@ -41,8 +41,8 @@ const DEFAULT_DAILY_LIMIT = 3;
 
 const DEFAULT_PIPELINE: ModelConfig[] = [
   {
-    id: 'openai-5',
-    model: env.OPENROUTER_OPENAI5_MODEL,
+    id: 'openchat-5',
+    model: env.OPENROUTER_OPENCHAT5_MODEL,
     temperature: 0.2,
     maxTokens: 900,
     systemPrompt:

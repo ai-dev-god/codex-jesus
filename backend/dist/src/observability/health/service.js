@@ -9,6 +9,82 @@ const env_1 = __importDefault(require("../../config/env"));
 const prisma_1 = __importDefault(require("../../lib/prisma"));
 const metrics_1 = require("../metrics");
 const logger_1 = require("../logger");
+const defaultIntegrationEnv = {
+    NODE_ENV: env_1.default.NODE_ENV,
+    STRAVA_CLIENT_ID: env_1.default.STRAVA_CLIENT_ID,
+    STRAVA_CLIENT_SECRET: env_1.default.STRAVA_CLIENT_SECRET,
+    STRAVA_REDIRECT_URI: env_1.default.STRAVA_REDIRECT_URI,
+    WHOOP_CLIENT_ID: env_1.default.WHOOP_CLIENT_ID,
+    WHOOP_CLIENT_SECRET: env_1.default.WHOOP_CLIENT_SECRET,
+    WHOOP_REDIRECT_URI: env_1.default.WHOOP_REDIRECT_URI,
+    RESEND_API_KEY: env_1.default.RESEND_API_KEY,
+    GOOGLE_CLIENT_ID: env_1.default.GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET: env_1.default.GOOGLE_CLIENT_SECRET
+};
+const buildIntegrationEnv = (overrides) => ({
+    ...defaultIntegrationEnv,
+    ...overrides
+});
+const INTEGRATION_DEFINITIONS = [
+    {
+        id: 'strava',
+        name: 'Strava OAuth',
+        required: [
+            { key: 'STRAVA_CLIENT_ID' },
+            { key: 'STRAVA_CLIENT_SECRET' },
+            { key: 'STRAVA_REDIRECT_URI', disallowLocalhostInProduction: true }
+        ],
+        docs: 'docs/gcp-access-and-deployment.md#link--integration-preflight',
+        critical: true
+    },
+    {
+        id: 'whoop',
+        name: 'Whoop OAuth',
+        required: [
+            { key: 'WHOOP_CLIENT_ID' },
+            { key: 'WHOOP_CLIENT_SECRET' },
+            { key: 'WHOOP_REDIRECT_URI', disallowLocalhostInProduction: true }
+        ],
+        docs: 'docs/gcp-access-and-deployment.md#link--integration-preflight',
+        critical: true
+    },
+    {
+        id: 'google-oauth',
+        name: 'Google OAuth',
+        required: [
+            { key: 'GOOGLE_CLIENT_ID' },
+            { key: 'GOOGLE_CLIENT_SECRET' }
+        ],
+        docs: 'docs/gcp-access-and-deployment.md#link--integration-preflight',
+        critical: true
+    },
+    {
+        id: 'resend',
+        name: 'Resend Email',
+        required: [{ key: 'RESEND_API_KEY' }],
+        docs: 'docs/gcp-access-and-deployment.md#link--integration-preflight',
+        critical: false
+    }
+];
+const integrationStatusFromResults = (results) => {
+    if (results.some((result) => result.status === 'fail')) {
+        return 'fail';
+    }
+    if (results.some((result) => result.status === 'degraded')) {
+        return 'degraded';
+    }
+    return 'pass';
+};
+const valueIsPresent = (value) => typeof value === 'string' && value.trim().length > 0;
+const isLocalhostUrl = (value) => {
+    try {
+        const parsed = new URL(value);
+        return ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname.toLowerCase());
+    }
+    catch {
+        return false;
+    }
+};
 const QUEUE_ACTIVE_STATUSES = ['PENDING', 'DISPATCHED'];
 const computeLagSeconds = (now, ...timestamps) => {
     const reference = timestamps.filter((value) => value instanceof Date).reduce((earliest, current) => {
@@ -30,6 +106,7 @@ class HealthService {
         this.redisProbe = options.redisProbe;
         this.redisUrl = options.redisUrl ?? env_1.default.REDIS_URL;
         this.now = options.now ?? (() => new Date());
+        this.integrationEnv = buildIntegrationEnv(options.integrationEnv);
     }
     async liveness() {
         const now = this.now();
@@ -42,12 +119,13 @@ class HealthService {
     }
     async readiness() {
         const now = this.now();
-        const [database, redis, queues] = await Promise.all([
+        const [database, redis, queues, integrations] = await Promise.all([
             this.checkDatabase(now),
             this.checkRedis(now),
-            this.checkQueues(now)
+            this.checkQueues(now),
+            this.checkIntegrations(now)
         ]);
-        const status = this.overallStatus(database, redis, queues.status);
+        const status = this.overallStatus(database, redis, queues.status, integrations.status);
         return {
             status,
             checkedAt: now.toISOString(),
@@ -55,15 +133,19 @@ class HealthService {
                 database,
                 redis,
                 queues,
+                integrations,
                 metrics: (0, metrics_1.getMetricsSnapshot)()
             }
         };
     }
-    overallStatus(database, redis, queueStatus) {
-        if (database.status === 'fail' || redis.status === 'fail') {
+    overallStatus(database, redis, queueStatus, integrationStatus) {
+        if (database.status === 'fail' || redis.status === 'fail' || integrationStatus === 'fail') {
             return 'fail';
         }
-        if (database.status === 'degraded' || redis.status === 'degraded' || queueStatus === 'degraded') {
+        if (database.status === 'degraded' ||
+            redis.status === 'degraded' ||
+            queueStatus === 'degraded' ||
+            integrationStatus === 'degraded') {
             return 'degraded';
         }
         return 'ok';
@@ -217,6 +299,43 @@ class HealthService {
                 // degrade if query fails to avoid masking issues
             };
         }
+    }
+    async checkIntegrations(now) {
+        const evaluatedAt = now.toISOString();
+        const results = INTEGRATION_DEFINITIONS.map((definition) => {
+            const missing = [];
+            for (const requirement of definition.required) {
+                const rawValue = this.integrationEnv[requirement.key];
+                const label = requirement.label ?? requirement.key;
+                if (!valueIsPresent(rawValue)) {
+                    missing.push(label);
+                    continue;
+                }
+                if (requirement.disallowLocalhostInProduction &&
+                    this.integrationEnv.NODE_ENV === 'production' &&
+                    isLocalhostUrl(rawValue)) {
+                    missing.push(`${label} (localhost is not allowed in production)`);
+                }
+            }
+            const hasMissing = missing.length > 0;
+            const status = !hasMissing
+                ? 'pass'
+                : definition.critical && this.integrationEnv.NODE_ENV === 'production'
+                    ? 'fail'
+                    : 'degraded';
+            return {
+                id: definition.id,
+                name: definition.name,
+                status,
+                missingEnv: missing,
+                docs: definition.docs
+            };
+        });
+        return {
+            status: integrationStatusFromResults(results),
+            checkedAt: evaluatedAt,
+            results
+        };
     }
 }
 exports.HealthService = HealthService;

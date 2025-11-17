@@ -146,7 +146,7 @@ const createConsensusResult = (): DualEngineInsightResult => ({
       },
       engines: [
         {
-          id: 'OPENAI5',
+          id: 'OPENCHAT5',
           label: 'OpenAI 5',
           model: 'openrouter/openai/gpt-5',
           completionId: 'openai5-seed',

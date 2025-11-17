@@ -61,8 +61,13 @@ instructions as mandatory to prevent a repeat.
      --config bh-fe/cloudbuild.yaml \
      --substitutions=_IMAGE_NAME=gcr.io/${GCP_PROJECT:-biohax-777}/bh-fe-final:latest,_CLOUD_RUN_SERVICE=${CLOUD_RUN_SERVICE:-bh-fe-final},_REGION=${GCP_REGION:-europe-west1},_VITE_API_BASE_URL=${VITE_API_BASE_URL:-https://api.biohax.pro}
    ```
-   3. If the backend changed in the same release, run `./devops/deploy-backend.sh` first so API QA completes before shipping the UI.
-   4. Wait for Cloud Build + Cloud Run to finish and note the revision URL.
+3. Before announcing the release, run the shared link checker so we catch missing Strava/Whoop secrets or dead URLs _before_ customers do:
+   ```bash
+   node devops/link-checker.mjs --config /Users/aurel/codex-jesus/devops/link-checks.json
+   ```
+   This hits `https://biohax.pro`, `https://api.biohax.pro/healthz`, and validates that the backend readiness endpoint reports every required integration as `pass`.
+4. If the backend changed in the same release, run `./devops/deploy-backend.sh` first so API QA completes before shipping the UI.
+5. Wait for Cloud Build + Cloud Run to finish and note the revision URL.
 
 ## 6. Post-Deploy Validation
 1. Hit the Cloud Run URL (and the production domain once DNS is updated)

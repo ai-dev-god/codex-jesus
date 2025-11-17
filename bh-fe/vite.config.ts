@@ -1,13 +1,14 @@
 
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react-swc';
-import { VitePWA } from 'vite-plugin-pwa';
-import path from 'path';
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react-swc'
+import { VitePWA } from 'vite-plugin-pwa'
+import path from 'path'
 
-export default defineConfig({
-  plugins: [
-    react(),
-    VitePWA({
+const isPlaywright = process.env.PLAYWRIGHT_TEST === '1'
+const enablePwa = process.env.VITE_ENABLE_PWA !== 'false' && !isPlaywright
+process.env.VITE_ENABLE_PWA = enablePwa ? 'true' : 'false'
+
+const pwaPlugin = VitePWA({
       registerType: 'autoUpdate',
       base: '/',
       includeAssets: [
@@ -114,8 +115,31 @@ export default defineConfig({
         enabled: true,
         suppressWarnings: true,
       },
-    }),
-  ],
+    })
+
+const plugins = [react()]
+if (enablePwa) {
+  plugins.push(pwaPlugin)
+} else {
+  plugins.push({
+    name: 'pwa-stub',
+    resolveId(id) {
+      if (id === 'virtual:pwa-register') {
+        return id
+      }
+      return null
+    },
+    load(id) {
+      if (id === 'virtual:pwa-register') {
+        return 'export const registerSW = () => undefined'
+      }
+      return null
+    },
+  })
+}
+
+export default defineConfig({
+  plugins,
     resolve: {
       extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
       alias: {

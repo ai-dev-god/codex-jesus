@@ -75,7 +75,7 @@ export default function ApplicationConfig() {
         {/* AI Engines */}
         <TabsContent value="ai" className="space-y-6">
           <div className="neo-card bg-white p-6">
-            <h3 className="mb-1">ChatGPT 5 (OpenRouter)</h3>
+            <h3 className="mb-1">OpenChat 5 (OpenRouter)</h3>
             <p className="text-sm text-steel mb-4">Primary creative engine routed through the shared OpenRouter credential.</p>
             <div className="grid md:grid-cols-2 gap-4">
               <div>
@@ -84,7 +84,7 @@ export default function ApplicationConfig() {
               </div>
               <div>
                 <Label>Model ID</Label>
-                <Input defaultValue="openrouter/openai/gpt-5" className="mt-2" />
+                <Input defaultValue="openrouter/openchat/openchat-5" className="mt-2" />
               </div>
               <div>
                 <Label>API Key (GOOGLE_APPLICATION_CREDENTIALS)</Label>
@@ -97,7 +97,7 @@ export default function ApplicationConfig() {
             </div>
             <div className="neo-card bg-pearl p-4 flex items-center justify-between mt-4">
               <div>
-                <p className="font-medium text-ink">Enable ChatGPT 5</p>
+                <p className="font-medium text-ink">Enable OpenChat 5</p>
                 <p className="text-sm text-steel">Primary dual-engine channel</p>
               </div>
               <Switch defaultChecked />
@@ -135,7 +135,7 @@ export default function ApplicationConfig() {
               <div>
                 <h3 className="mb-1 text-steel">OpenBioLLM (Legacy)</h3>
                 <p className="text-sm">
-                  Legacy biomedical model is greyed out while dual-engine traffic is handled exclusively by ChatGPT 5 and Gemini 2.5 Pro.
+                  Legacy biomedical model is greyed out while dual-engine traffic is handled exclusively by OpenChat 5 and Gemini 2.5 Pro.
                 </p>
               </div>
               <Switch checked={false} disabled className="opacity-50" />

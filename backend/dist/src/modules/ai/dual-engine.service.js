@@ -9,9 +9,9 @@ const openrouter_1 = require("../../lib/openrouter");
 const http_error_1 = require("../observability-ops/http-error");
 const ENGINE_CONFIGS = [
     {
-        id: 'OPENAI5',
-        label: 'ChatGPT 5',
-        model: env_1.default.OPENROUTER_OPENAI5_MODEL
+        id: 'OPENCHAT5',
+        label: 'OpenChat 5',
+        model: env_1.default.OPENROUTER_OPENCHAT5_MODEL
     },
     {
         id: 'GEMINI',
@@ -21,8 +21,8 @@ const ENGINE_CONFIGS = [
 ];
 const dualEngineCostConfig = env_1.default;
 const ENGINE_COSTS = {
-    OPENAI5: {
-        costPer1K: dualEngineCostConfig.OPENROUTER_OPENAI5_COST_PER_1K ?? 0.018,
+    OPENCHAT5: {
+        costPer1K: dualEngineCostConfig.OPENROUTER_OPENCHAT5_COST_PER_1K ?? 0.012,
         defaultTokens: 900
     },
     GEMINI: {

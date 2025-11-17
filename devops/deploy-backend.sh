@@ -27,6 +27,8 @@ parsed = urllib.parse.urlparse(url)
 print(parsed.port or 6543)
 PY
 )
+LINK_CHECK_CONFIG=${LINK_CHECK_CONFIG:-"${ROOT_DIR}/devops/link-checks.json"}
+SKIP_LINK_CHECKS=${SKIP_LINK_CHECKS:-0}
 
 DEFAULT_GCP_CREDENTIALS="/Users/aurel/codex-jesus/.secrets/biohax-777.json"
 if [[ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" ]]; then
@@ -95,6 +97,21 @@ run_qa() {
   npm run build --prefix "${ROOT_DIR}/backend"
 }
 
+run_link_checks() {
+  if [[ "${SKIP_LINK_CHECKS}" == "1" ]]; then
+    log "Skipping link availability checks (SKIP_LINK_CHECKS=1)"
+    return
+  fi
+
+  if [[ ! -f "${LINK_CHECK_CONFIG}" ]]; then
+    log "No link check config found at ${LINK_CHECK_CONFIG}; skipping link availability checks."
+    return
+  fi
+
+  log "Running link availability checks using ${LINK_CHECK_CONFIG}"
+  node "${ROOT_DIR}/devops/link-checker.mjs" --config "${LINK_CHECK_CONFIG}"
+}
+
 release() {
   log "Submitting Cloud Build deployment"
   gcloud builds submit "${ROOT_DIR}" \
@@ -103,5 +120,6 @@ release() {
 }
 
 run_qa
+run_link_checks
 release
 

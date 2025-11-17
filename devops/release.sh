@@ -160,6 +160,17 @@ run_step() {
   return 0
 }
 
+run_preflight_guardrails() {
+  local env_file="$1"
+  local guard_mode="$2"
+  local timeout_seconds="${3:-600}"
+  local cmd=(npm run qa:preflight --prefix backend -- --mode "${guard_mode}")
+  if [[ -n "${env_file}" ]]; then
+    cmd+=(--env-file "${env_file}")
+  fi
+  run_step "guardrails:preflight" "${timeout_seconds}" "${cmd[@]}"
+}
+
 wait_for_port() {
   local host="$1"
   local port="$2"
@@ -453,6 +464,12 @@ run_docker_pipeline() {
   BUILT_BACKEND_IMAGE="${backend_image_ref}"
   BUILT_FRONTEND_IMAGE="${frontend_image_ref}"
 
+  if [[ -f "${compose_env_file}" ]]; then
+    run_preflight_guardrails "${compose_env_file}" "strict" 900
+  else
+    log_warn "compose env file (${compose_env_file}) missing; skipping strict guardrails."
+  fi
+
   run_step "docker:build-backend" 1800 docker build -f "${ROOT_DIR}/backend/Dockerfile" -t "${backend_image_ref}" "${ROOT_DIR}/backend"
   run_step "docker:build-frontend" 1800 docker build \
     --build-arg VITE_GOOGLE_CLIENT_ID="$(resolve_frontend_google_client_id)" \
@@ -632,6 +649,8 @@ if [[ ${SKIP_BUILD} -eq 0 ]]; then
 else
   log_warn "Skipping npm install/build steps (--skip-build provided)."
 fi
+
+run_preflight_guardrails "" "relaxed" 600
 
 BUILT_BACKEND_IMAGE="embedded-local"
 BUILT_FRONTEND_IMAGE="embedded-local"

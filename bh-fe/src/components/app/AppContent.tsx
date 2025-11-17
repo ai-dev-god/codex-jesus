@@ -101,6 +101,21 @@ type ProfileSnapshot = Profile & {
   aiInterpretationApprovedAt?: string | null;
 };
 
+type OAuthProvider = 'whoop' | 'strava';
+type OAuthErrorNotice = {
+  provider: OAuthProvider;
+  code: string;
+  description?: string | null;
+  hint?: string | null;
+  state?: string | null;
+  timestamp: string;
+};
+
+const OAUTH_PROVIDER_LABELS: Record<OAuthProvider, string> = {
+  whoop: 'Whoop',
+  strava: 'Strava'
+} as const;
+
 const REQUIRED_CONSENT_TYPES = ['TERMS_OF_SERVICE', 'PRIVACY_POLICY', 'MEDICAL_DISCLAIMER'] as const;
 
 const getLocalTimezone = (): string => {
@@ -173,6 +188,7 @@ export default function AppContent() {
     notes: ''
   });
   const [biomarkerSubmitting, setBiomarkerSubmitting] = useState(false);
+  const [oauthError, setOauthError] = useState<OAuthErrorNotice | null>(null);
   const selectedBiomarker = useMemo(
     () => biomarkerDefinitions?.find((definition) => definition.id === biomarkerForm.biomarkerId) ?? null,
     [biomarkerDefinitions, biomarkerForm.biomarkerId]
@@ -182,6 +198,27 @@ export default function AppContent() {
     [dashboardSummary?.todaysInsight?.body]
   );
   const [commandIndexing, setCommandIndexing] = useState(false);
+  const oauthErrorSupportHref = useMemo(() => {
+    if (!oauthError) {
+      return 'mailto:support@biohax.pro';
+    }
+    const providerLabel = OAUTH_PROVIDER_LABELS[oauthError.provider];
+    const subject = encodeURIComponent(`${providerLabel} OAuth error (${oauthError.code})`);
+    const detailLines = [
+      `Provider: ${providerLabel}`,
+      `Error code: ${oauthError.code}`,
+      oauthError.description ? `Description: ${oauthError.description}` : null,
+      oauthError.hint ? `Hint: ${oauthError.hint}` : null,
+      oauthError.state ? `State: ${oauthError.state}` : null,
+      `Timestamp: ${oauthError.timestamp}`
+    ]
+      .filter(Boolean)
+      .join('\n');
+    const body = encodeURIComponent(
+      `Hi BioHax support,\n\nI ran into this OAuth error while connecting ${providerLabel}:\n\n${detailLines}\n\n`
+    );
+    return `mailto:support@biohax.pro?subject=${subject}&body=${body}`;
+  }, [oauthError]);
   const runCommandIndexing = useCallback(
     async (task: () => Promise<void> | void) => {
       setCommandIndexing(true);
@@ -206,6 +243,37 @@ export default function AppContent() {
       });
     }
   }, [isOnline]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const url = new URL(window.location.href);
+    const providerMatch = [
+      { path: '/oauth/whoop/callback', provider: 'whoop' as const },
+      { path: '/oauth/strava/callback', provider: 'strava' as const }
+    ].find((entry) => url.pathname === entry.path);
+
+    if (!providerMatch) {
+      return;
+    }
+
+    const errorCode = url.searchParams.get('error');
+    if (!errorCode) {
+      return;
+    }
+
+    setCurrentView('integrations');
+    setOauthError({
+      provider: providerMatch.provider,
+      code: errorCode,
+      description: url.searchParams.get('error_description'),
+      hint: url.searchParams.get('error_hint'),
+      state: url.searchParams.get('state'),
+      timestamp: new Date().toISOString()
+    });
+    window.history.replaceState({}, '', '/integrations');
+  }, []);
   const calendarEntries = useMemo(() => {
     if (!longevityPlans || longevityPlans.length === 0) {
       return [];
@@ -646,6 +714,82 @@ export default function AppContent() {
 
   const notificationCount = dashboardSummary?.actionItems?.length ?? 0;
 
+  const handleDashboardAction = useCallback(
+    (action: DashboardActionItem) => {
+      setShowActionsDialog(false);
+      switch (action.ctaType) {
+        case 'LOG_BIOMARKER':
+          setPendingAction(action);
+          setShowBiomarkerDialog(true);
+          break;
+        case 'REVIEW_INSIGHT':
+          setShowInsightDialog(true);
+          break;
+        case 'JOIN_FEED_DISCUSSION':
+          setCurrentView('community');
+          break;
+      }
+    },
+    [setCurrentView]
+  );
+
+  const openBiomarkerLog = useCallback(
+    (definition?: BiomarkerDefinition | null) => {
+      setPendingAction(null);
+      setBiomarkerFormError(null);
+      setBiomarkerForm((previous) => ({
+        ...previous,
+        biomarkerId: definition?.id ?? previous.biomarkerId,
+        value: '',
+        notes: ''
+      }));
+      setShowBiomarkerDialog(true);
+    },
+    [setBiomarkerForm, setBiomarkerFormError, setPendingAction, setShowBiomarkerDialog]
+  );
+
+  const handleOpenNotifications = useCallback(async () => {
+    if (!session) {
+      setAppState('auth');
+      return;
+    }
+
+    try {
+      await runCommandIndexing(async () => {
+        const indexed = await loadDashboard();
+        if (!indexed) {
+          throw new Error('Unable to refresh notifications right now.');
+        }
+        setShowOnboarding(false);
+        setCurrentView('dashboard');
+        setShowActionsDialog(true);
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unable to open notifications right now.';
+      toast.error(message);
+    }
+  }, [session, setAppState, runCommandIndexing, loadDashboard, setShowOnboarding, setCurrentView, setShowActionsDialog]);
+
+  const handleOpenProfile = useCallback(async () => {
+    if (!session) {
+      setAppState('auth');
+      return;
+    }
+
+    try {
+      await runCommandIndexing(async () => {
+        await syncUserProfile({ throwOnError: true });
+        setShowOnboarding(false);
+        setCurrentView('settings');
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unable to open profile right now.';
+      toast.error(message);
+    }
+  }, [session, setAppState, runCommandIndexing, syncUserProfile, setShowOnboarding, setCurrentView]);
+
   const commandGroups = useMemo<CommandGroupDescriptor[]>(() => {
     const groups: CommandGroupDescriptor[] = [];
 
@@ -848,40 +992,6 @@ export default function AppContent() {
     longevityPlans,
     notificationCount
   ]);
-
-  const handleDashboardAction = useCallback(
-    (action: DashboardActionItem) => {
-      setShowActionsDialog(false);
-      switch (action.ctaType) {
-        case 'LOG_BIOMARKER':
-          setPendingAction(action);
-          setShowBiomarkerDialog(true);
-          break;
-        case 'REVIEW_INSIGHT':
-          setShowInsightDialog(true);
-          break;
-        case 'JOIN_FEED_DISCUSSION':
-          setCurrentView('community');
-          break;
-      }
-    },
-    [setCurrentView]
-  );
-
-  const openBiomarkerLog = useCallback(
-    (definition?: BiomarkerDefinition | null) => {
-      setPendingAction(null);
-      setBiomarkerFormError(null);
-      setBiomarkerForm((previous) => ({
-        ...previous,
-        biomarkerId: definition?.id ?? previous.biomarkerId,
-        value: '',
-        notes: ''
-      }));
-      setShowBiomarkerDialog(true);
-    },
-    [setBiomarkerForm, setBiomarkerFormError, setPendingAction, setShowBiomarkerDialog]
-  );
 
   const handleSubmitBiomarkerLog = useCallback(async () => {
     if (!session) {
@@ -1100,6 +1210,9 @@ export default function AppContent() {
     if (url.pathname !== '/oauth/whoop/callback') {
       return;
     }
+    if (url.searchParams.get('error')) {
+      return;
+    }
     const code = url.searchParams.get('code');
     const state = url.searchParams.get('state');
     if (!code || !state) {
@@ -1134,6 +1247,9 @@ export default function AppContent() {
     if (url.pathname !== '/oauth/strava/callback') {
       return;
     }
+    if (url.searchParams.get('error')) {
+      return;
+    }
     const code = url.searchParams.get('code');
     const state = url.searchParams.get('state');
     if (!code || !state) {
@@ -1161,54 +1277,20 @@ export default function AppContent() {
   }, [session, ensureFreshSession, loadDashboard]);
 
   // Landing/Auth Flow
-  const handleOpenNotifications = useCallback(async () => {
-    if (!session) {
-      setAppState('auth');
-      return;
-    }
-
-    try {
-      await runCommandIndexing(async () => {
-        const indexed = await loadDashboard();
-        if (!indexed) {
-          throw new Error('Unable to refresh notifications right now.');
-        }
-    setShowOnboarding(false);
-    setCurrentView('dashboard');
-    setShowActionsDialog(true);
-      });
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Unable to open notifications right now.';
-      toast.error(message);
-    }
-  }, [session, setAppState, runCommandIndexing, loadDashboard, setShowOnboarding, setCurrentView, setShowActionsDialog]);
-
-  const handleOpenProfile = useCallback(async () => {
-    if (!session) {
-      setAppState('auth');
-      return;
-    }
-
-    try {
-      await runCommandIndexing(async () => {
-        await syncUserProfile({ throwOnError: true });
-    setShowOnboarding(false);
-    setCurrentView('settings');
-      });
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Unable to open profile right now.';
-      toast.error(message);
-    }
-  }, [session, setAppState, runCommandIndexing, syncUserProfile, setShowOnboarding, setCurrentView]);
-
   const handleNavigate = useCallback(
     (nextView: string) => {
       setCurrentView(nextView as View);
     },
     []
   );
+
+  const handleDismissOAuthError = useCallback(() => {
+    setOauthError(null);
+    setCurrentView('integrations');
+    if (typeof window !== 'undefined') {
+      window.history.replaceState({}, '', '/integrations');
+    }
+  }, [setCurrentView]);
 
   const renderDashboard = () => (
     <Dashboard
@@ -1511,6 +1593,57 @@ export default function AppContent() {
               </Button>
               <Button onClick={handleSubmitBiomarkerLog} disabled={biomarkerSubmitting || biomarkerDefinitionsLoading}>
                 {biomarkerSubmitting ? 'Logging…' : 'Log biomarker'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={Boolean(oauthError)} onOpenChange={(open) => (!open ? handleDismissOAuthError() : undefined)}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>
+                {oauthError ? `${OAUTH_PROVIDER_LABELS[oauthError.provider]} connection failed` : 'OAuth failed'}
+              </DialogTitle>
+              <DialogDescription>
+                We couldn't finish the secure redirect. The provider sent back the details below.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="rounded-xl border border-pulse/30 bg-pulse/5 px-4 py-3">
+                <p className="text-sm font-semibold text-pulse">
+                  {oauthError?.description ?? 'The provider returned an unspecified error.'}
+                </p>
+                {oauthError?.hint && <p className="mt-2 text-xs text-steel">{oauthError.hint}</p>}
+                <div className="mt-3 space-y-1 text-xs text-steel">
+                  {oauthError && (
+                    <>
+                      <div>
+                        Error code:{' '}
+                        <span className="font-mono text-ink">{oauthError.code}</span>
+                      </div>
+                      {oauthError.state && (
+                        <div className="break-all">
+                          Session state: <span className="font-mono text-ink">{oauthError.state}</span>
+                        </div>
+                      )}
+                      <div>Timestamp: {new Date(oauthError.timestamp).toLocaleString()}</div>
+                    </>
+                  )}
+                </div>
+              </div>
+              <p className="text-sm text-steel">
+                Retry from the Integrations tab. If this keeps happening, share the error details with BioHax support so we
+                can escalate it with {oauthError ? OAUTH_PROVIDER_LABELS[oauthError.provider] : 'the provider'}.
+              </p>
+            </div>
+            <DialogFooter className="flex flex-col gap-3 sm:flex-row">
+              <Button variant="outline" onClick={handleDismissOAuthError}>
+                Back to Integrations
+              </Button>
+              <Button asChild variant="ghost">
+                <a href={oauthErrorSupportHref} target="_blank" rel="noreferrer">
+                  Email support
+                </a>
               </Button>
             </DialogFooter>
           </DialogContent>

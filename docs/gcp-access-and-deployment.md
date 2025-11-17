@@ -59,7 +59,28 @@ Make each script executable (`chmod +x devops-biohax/*.sh`) if git does not pres
 
 > ⚠️ **Frontend releases must follow** [`docs/frontend-deploy-checklist.md`](frontend-deploy-checklist.md) **before running any deploy command.** That checklist covers Figma parity QA, local build verification, and the exact Cloud Run arguments for `bh-fe`.
 
-## 5. Deploying BioHax to Cloud Run
+## 5. Preflight Guardrails
+Before running any deploy (local dry-run or Cloud Build), execute the backend preflight to
+verify database connectivity, OpenRouter credentials, and external integration wiring:
+
+```bash
+npm run qa:preflight --prefix backend -- --env-file devops/release.env --mode strict
+```
+
+- **Strict mode** (default for production) fails if required secrets are blank, placeholder
+  values (`demo`, `change-me`, etc.), or if OpenRouter does not return both
+  `openrouter/openchat/openchat-5` and `openrouter/google/gemini-2.5-pro`.
+- The script pings the configured Postgres instance via Prisma, confirms the
+  service-account JSON referenced by `GOOGLE_APPLICATION_CREDENTIALS` exists, and validates
+  redirect URLs (`WHOOP_REDIRECT_URI`, `PANEL_UPLOAD_DOWNLOAD_BASE_URL`) use HTTPS.
+- Local engineers can opt into relaxed mode (`--mode relaxed`) when working with the demo
+  stack, but **production deployments must run strict mode and fix failures** before
+  continuing.
+
+The guardrail step automatically runs inside `devops/release.sh` (local and docker modes),
+so manual invocation is only necessary when iterating on secrets outside that script.
+
+## 6. Deploying BioHax to Cloud Run
 1. Authenticate: `source .env && ./devops-biohax/gcp-auth.sh`.  
 2. Ensure secrets exist (`jwt-secret`, `database-url`, `google-client-id`, etc.) via `gcloud secrets describe`.  
 3. Confirm the storage bucket exists and is configured:
@@ -85,7 +106,25 @@ Make each script executable (`chmod +x devops-biohax/*.sh`) if git does not pres
      --format='value(status.url,status.traffic.statuses.status)'
    ```
 
-## 6. Production Application Context
+### Link & Integration Preflight (Required)
+
+Broken OAuth integrations were slipping into production because nothing validated the live URLs before a deploy. The new `devops/link-checker.mjs` script probes both the public frontend and the backend health endpoints and asserts that every required integration is fully configured.
+
+1. Review `devops/link-checks.json` and update the URLs if a different environment (e.g. staging) is targeted.  
+2. Extend the `requireIntegrations` array with any additional integration IDs (`strava`, `whoop`, `google-oauth`, `resend`).  
+3. Run the checker manually before any release if you are not using `deploy-backend.sh`:
+   ```bash
+   node devops/link-checker.mjs --config /Users/aurel/codex-jesus/devops/link-checks.json
+   ```
+4. `./devops/deploy-backend.sh` now runs the checker automatically after the QA suites and before it submits the Cloud Build job. Use `SKIP_LINK_CHECKS=1` only when working on environments that are expected to fail (e.g. temporary sandboxes).
+
+The command fails fast if:
+- Any configured link returns a non-2xx/3xx status, times out, or cannot be resolved.
+- The backend readiness endpoint reports missing secrets for required integrations (for example, `STRAVA_CLIENT_ID`/`STRAVA_CLIENT_SECRET` absent or redirect URIs still pointing to `localhost`).
+
+Fix the reported configuration before proceeding; this is the guardrail that prevents another `"Strava integration is not configured for this environment."` regression.
+
+## 7. Production Application Context
 - Live app: <https://biohax.pro> (served by Cloud Run service `bh-fe-final`).  
 - Cloud Run default CORS origin in scripts includes `https://biohax.pro`.  
 - Cloud Run service account defaults to `codexjesus@biohax-777.iam.gserviceaccount.com`; ensure it has:
@@ -95,7 +134,7 @@ Make each script executable (`chmod +x devops-biohax/*.sh`) if git does not pres
   - `roles/storage.objectAdmin` on the artifact bucket and `gs://galeata-hax`,
   - `roles/secretmanager.secretAccessor` for each required secret.
 
-## 7. Background Worker Runner
+## 8. Background Worker Runner
 Longevity plan generation (queue `longevity-plan-generate`) now ships beside the existing queues (`insights-generate`, `whoop-sync`, `notifications-dispatch`). Keep a worker process online anywhere the backend stack runs:
 
 - **Local / Docker Compose:** `docker compose -f docker-compose.release.yml up -d workers` brings up a container that executes `node dist/src/workers/runner.js` with the backend image. Set `WORKER_QUEUES` (comma-separated) if you need to scope queues; otherwise it listens to all registered queues by default. Optional tuning vars:
@@ -106,7 +145,7 @@ Longevity plan generation (queue `longevity-plan-generate`) now ships beside the
 
 Ensure the worker has network access to Cloud SQL, Memorystore (if used), and OpenRouter. Monitor Cloud Tasks via `gcloud tasks queues describe` or the Admin dashboard to confirm `longevity-plan-generate` stays near-zero backlog.
 
-## 8. One-Off Prisma Operations Against Cloud SQL
+## 9. One-Off Prisma Operations Against Cloud SQL
 When you need to run Prisma commands (migrations, `db:seed`, manual SQL) directly against the production Cloud SQL instance, follow this repeatable sequence:
 
 ```bash
@@ -140,7 +179,7 @@ pkill -f cloud_sql_proxy
 
 This ensures migrations/seeds run against the managed instance via Secret Manager and the Cloud SQL connector without exposing credentials in local files. Future DevOps automation can wrap the above into `devops/run-prisma-with-proxy.sh` to reduce boilerplate.
 
-## 9. Recommended Next Checks
+## 10. Recommended Next Checks
 - Confirm IAM bindings for Saffloders and DevOps using the command in §2; capture evidence (timestamped command output) for audit. A full IAM export gathered on 2025-11-07T14:36:34+02:00 is stored at `docs/biohax-777-iam-policy.json`.  
 - Rotate the `biohax-sa.json` key regularly and update the stored file path.  
 - Consider placing the key in Secret Manager or Workload Identity Federation instead of distributing JSON keys where possible.  

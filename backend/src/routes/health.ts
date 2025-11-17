@@ -10,25 +10,31 @@ export const createHealthRouter = (options: HealthRouterOptions = {}): Router =>
   const service = options.service ?? healthService;
   const router = Router();
 
-  router.get('/', async (req, res, next) => {
-    try {
-      const snapshot = await service.liveness();
-      req.log?.debug('Liveness check successful', { snapshot });
-      res.status(200).json(snapshot);
-    } catch (error) {
-      next(error);
-    }
+  const livenessPaths: Array<'/' | ''> = ['/', ''];
+  livenessPaths.forEach((path) => {
+    router.get(path, async (req, res, next) => {
+      try {
+        const snapshot = await service.liveness();
+        req.log?.debug('Liveness check successful', { snapshot });
+        res.status(200).json(snapshot);
+      } catch (error) {
+        next(error);
+      }
+    });
   });
 
-  router.get('/readiness', async (req, res, next) => {
-    try {
-      const snapshot = await service.readiness();
-      req.log?.info('Readiness check completed', { status: snapshot.status });
-      const status = snapshot.status === 'fail' ? 503 : 200;
-      res.status(status).json(snapshot);
-    } catch (error) {
-      next(error);
-    }
+  const readinessPaths: Array<'/readiness' | '/readiness/'> = ['/readiness', '/readiness/'];
+  readinessPaths.forEach((path) => {
+    router.get(path, async (req, res, next) => {
+      try {
+        const snapshot = await service.readiness();
+        req.log?.info('Readiness check completed', { status: snapshot.status });
+        const status = snapshot.status === 'fail' ? 503 : 200;
+        res.status(status).json(snapshot);
+      } catch (error) {
+        next(error);
+      }
+    });
   });
 
   return router;

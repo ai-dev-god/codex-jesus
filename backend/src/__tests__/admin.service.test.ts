@@ -632,9 +632,9 @@ describe('AdminService', () => {
           metadata: {
             engines: [
               {
-                id: 'OPENAI5',
-                label: 'ChatGPT 5',
-                model: 'openrouter/openai/gpt-5',
+                id: 'OPENCHAT5',
+                label: 'OpenChat 5',
+                model: 'openrouter/openchat/openchat-5',
                 latencyMs: 220,
                 costUsd: 0.018,
                 usage: {
@@ -673,10 +673,10 @@ describe('AdminService', () => {
     expect(metrics.summary.totalRequests).toBe(2);
     expect(metrics.summary.totalTokens).toBe(1500);
 
-    const chatgpt = metrics.engines.find((engine) => engine.id === 'CHATGPT_5');
+    const openchat = metrics.engines.find((engine) => engine.id === 'OPENCHAT_5');
     const gemini = metrics.engines.find((engine) => engine.id === 'GEMINI_2_5_PRO');
-    expect(chatgpt).toMatchObject({
-      label: 'ChatGPT 5',
+    expect(openchat).toMatchObject({
+      label: 'OpenChat 5',
       requests: 1,
       status: 'ACTIVE'
     });
@@ -686,7 +686,7 @@ describe('AdminService', () => {
     expect(dualInsightsFeature?.requestCount).toBe(1);
 
     const targetUsagePoint = metrics.timeline.usage.find((point) => point.date === '2025-11-16');
-    expect(targetUsagePoint?.engines.CHATGPT_5).toBe(1);
+    expect(targetUsagePoint?.engines.OPENCHAT_5).toBe(1);
     expect(targetUsagePoint?.engines.GEMINI_2_5_PRO).toBe(1);
   });
 

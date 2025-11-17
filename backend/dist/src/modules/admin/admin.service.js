@@ -353,12 +353,12 @@ const parseAuditMetadata = (metadata) => {
     return metadata;
 };
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
-const ACTIVE_ENGINE_IDS = ['CHATGPT_5', 'GEMINI_2_5_PRO'];
+const ACTIVE_ENGINE_IDS = ['OPENCHAT_5', 'GEMINI_2_5_PRO'];
 const LLM_ENGINE_CONFIG = {
-    CHATGPT_5: {
-        label: 'ChatGPT 5',
-        model: env_1.default.OPENROUTER_OPENAI5_MODEL,
-        costPer1K: env_1.default.OPENROUTER_OPENAI5_COST_PER_1K ?? 0.018,
+    OPENCHAT_5: {
+        label: 'OpenChat 5',
+        model: env_1.default.OPENROUTER_OPENCHAT5_MODEL,
+        costPer1K: env_1.default.OPENROUTER_OPENCHAT5_COST_PER_1K ?? 0.012,
         defaultTokens: 900
     },
     GEMINI_2_5_PRO: {
@@ -1769,8 +1769,8 @@ const normalizeEngineIdentifier = (trace) => {
     }
     if (typeof trace.model === 'string') {
         const model = trace.model.toLowerCase();
-        if (model.includes('gpt-5')) {
-            return 'CHATGPT_5';
+        if (model.includes('openchat') || model.includes('gpt-5')) {
+            return 'OPENCHAT_5';
         }
         if (model.includes('gemini')) {
             return 'GEMINI_2_5_PRO';
@@ -1783,8 +1783,12 @@ const normalizeEngineToken = (value) => {
         return null;
     }
     const compact = value.replace(/[^a-z0-9]/gi, '').toLowerCase();
-    if (compact.includes('openai5') || compact.includes('chatgpt5') || compact.includes('gpt5')) {
-        return 'CHATGPT_5';
+    if (compact.includes('openchat5') ||
+        compact.includes('openchat') ||
+        compact.includes('openai5') ||
+        compact.includes('chatgpt5') ||
+        compact.includes('gpt5')) {
+        return 'OPENCHAT_5';
     }
     if (compact.includes('gemini25') || (compact.includes('gemini') && !compact.includes('gemini1'))) {
         return 'GEMINI_2_5_PRO';
@@ -1837,7 +1841,7 @@ const buildTimelineSeries = (windowDays, now, buckets, field) => {
         series.push({
             date: key,
             engines: {
-                CHATGPT_5: getBucketValue(bucket?.CHATGPT_5, field),
+                OPENCHAT_5: getBucketValue(bucket?.OPENCHAT_5, field),
                 GEMINI_2_5_PRO: getBucketValue(bucket?.GEMINI_2_5_PRO, field)
             }
         });

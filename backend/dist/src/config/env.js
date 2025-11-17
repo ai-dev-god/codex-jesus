@@ -25,9 +25,9 @@ const envSchema = zod_1.z.object({
     OPENROUTER_NUMERIC_MODEL: zod_1.z
         .string()
         .default('openrouter/deepseek/deepseek-r1-distill-qwen-32b'),
-    OPENROUTER_OPENAI5_MODEL: zod_1.z.string().default('openrouter/openai/gpt-5'),
+    OPENROUTER_OPENCHAT5_MODEL: zod_1.z.string().default('openrouter/openchat/openchat-5'),
     OPENROUTER_GEMINI25_PRO_MODEL: zod_1.z.string().default('openrouter/google/gemini-2.5-pro'),
-    OPENROUTER_OPENAI5_COST_PER_1K: zod_1.z.coerce.number().min(0).optional(),
+    OPENROUTER_OPENCHAT5_COST_PER_1K: zod_1.z.coerce.number().min(0).optional(),
     OPENROUTER_GEMINI25_COST_PER_1K: zod_1.z.coerce.number().min(0).optional(),
     WHOOP_CLIENT_ID: zod_1.z.string().optional(),
     WHOOP_CLIENT_SECRET: zod_1.z.string().optional(),

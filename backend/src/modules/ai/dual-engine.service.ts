@@ -2,7 +2,7 @@ import env from '../../config/env';
 import { openRouterClient, type OpenRouterChatClient, type ChatCompletionUsage } from '../../lib/openrouter';
 import { HttpError } from '../observability-ops/http-error';
 
-type EngineId = 'OPENAI5' | 'GEMINI';
+type EngineId = 'OPENCHAT5' | 'GEMINI';
 
 type EngineConfig = {
   id: EngineId;
@@ -73,9 +73,9 @@ export type DualEngineInsightInput = {
 
 const ENGINE_CONFIGS: EngineConfig[] = [
   {
-    id: 'OPENAI5',
-    label: 'ChatGPT 5',
-    model: env.OPENROUTER_OPENAI5_MODEL
+    id: 'OPENCHAT5',
+    label: 'OpenChat 5',
+    model: env.OPENROUTER_OPENCHAT5_MODEL
   },
   {
     id: 'GEMINI',
@@ -85,13 +85,13 @@ const ENGINE_CONFIGS: EngineConfig[] = [
 ];
 
 const dualEngineCostConfig = env as typeof env & {
-  OPENROUTER_OPENAI5_COST_PER_1K?: number;
+  OPENROUTER_OPENCHAT5_COST_PER_1K?: number;
   OPENROUTER_GEMINI25_COST_PER_1K?: number;
 };
 
 const ENGINE_COSTS: Record<EngineId, { costPer1K: number; defaultTokens: number }> = {
-  OPENAI5: {
-    costPer1K: dualEngineCostConfig.OPENROUTER_OPENAI5_COST_PER_1K ?? 0.018,
+  OPENCHAT5: {
+    costPer1K: dualEngineCostConfig.OPENROUTER_OPENCHAT5_COST_PER_1K ?? 0.012,
     defaultTokens: 900
   },
   GEMINI: {

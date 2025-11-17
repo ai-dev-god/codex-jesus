@@ -11,8 +11,8 @@ const insights_queue_1 = require("./insights-queue");
 const DEFAULT_DAILY_LIMIT = 3;
 const DEFAULT_PIPELINE = [
     {
-        id: 'openai-5',
-        model: env_1.default.OPENROUTER_OPENAI5_MODEL,
+        id: 'openchat-5',
+        model: env_1.default.OPENROUTER_OPENCHAT5_MODEL,
         temperature: 0.2,
         maxTokens: 900,
         systemPrompt: 'You are BioHax Coach, a concise wellness analyst. Focus on progressive, actionable guidance grounded in biomarker trends. ' +

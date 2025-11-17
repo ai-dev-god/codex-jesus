@@ -1,0 +1,21 @@
+{
+  "apiBase": "https://api.biohax.pro",
+  "frontendBase": "https://biohax.pro",
+  "requireIntegrations": ["whoop", "google-oauth"],
+  "links": [
+    {
+      "name": "Frontend offline fallback",
+      "url": "https://biohax.pro/offline.html",
+      "expectStatus": [200],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "PWA manifest",
+      "url": "https://biohax.pro/manifest.webmanifest",
+      "expectStatus": [200],
+      "timeoutMs": 10000
+    }
+  ],
+  "sleepBetweenMs": 150
+}
+

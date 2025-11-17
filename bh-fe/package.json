@@ -65,7 +65,7 @@
             "build": "vite build",
             "typecheck": "tsc --noEmit",
             "lint": "npm run typecheck",
-            "test:e2e": "playwright install chromium && playwright test",
-            "test:e2e:headed": "PLAYWRIGHT_HEADLESS=0 playwright install chromium && PLAYWRIGHT_HEADLESS=0 playwright test --headed"
+            "test:e2e": "PLAYWRIGHT_TEST=1 playwright install chromium && PLAYWRIGHT_TEST=1 playwright test",
+            "test:e2e:headed": "PLAYWRIGHT_HEADLESS=0 PLAYWRIGHT_TEST=1 playwright install chromium && PLAYWRIGHT_HEADLESS=0 PLAYWRIGHT_TEST=1 playwright test --headed"
       }
 }

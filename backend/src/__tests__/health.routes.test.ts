@@ -45,6 +45,11 @@ describe('health router', () => {
         database: { status: 'fail' as const, checkedAt: new Date().toISOString() },
         redis: { status: 'degraded' as const, checkedAt: new Date().toISOString() },
         queues: { status: 'degraded' as const, totalPending: 3, details: [] },
+        integrations: {
+          status: 'fail' as const,
+          checkedAt: new Date().toISOString(),
+          results: []
+        },
         metrics: { generatedAt: new Date().toISOString(), http: [] }
       }
     };

@@ -173,7 +173,7 @@ export type AdminDsarJobsResponse<T> = {
   };
 };
 
-export type LlmEngineMetricId = 'CHATGPT_5' | 'GEMINI_2_5_PRO' | 'OPENBIO_LLM';
+export type LlmEngineMetricId = 'OPENCHAT_5' | 'GEMINI_2_5_PRO' | 'OPENBIO_LLM';
 
 export type LlmEngineMetric = {
   id: LlmEngineMetricId;
@@ -190,7 +190,7 @@ export type LlmEngineMetric = {
 
 export type LlmUsageTimelinePoint = {
   date: string;
-  engines: Record<'CHATGPT_5' | 'GEMINI_2_5_PRO', number>;
+  engines: Record<'OPENCHAT_5' | 'GEMINI_2_5_PRO', number>;
 };
 
 export type LlmFeatureUsageMetric = {
