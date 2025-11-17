@@ -58,6 +58,8 @@ const createProfileRecord = (overrides: Partial<Profile> = {}): Profile => {
     baselineSurvey: null,
     consents: toJsonValue([]),
     onboardingCompletedAt: null,
+    aiInterpretationApprovedAt: null,
+    aiInterpretationApprovedBy: null,
     deleteRequested: false,
     deletedAt: null,
     createdAt: now,

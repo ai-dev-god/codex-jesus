@@ -134,7 +134,7 @@ describe('Backend integration contract suite', () => {
   });
 
   it('GET /healthz matches liveness contract', async () => {
-    const validator = await getResponseValidator('/health/ping', 'get', '200');
+    const validator = await getResponseValidator('/healthz', 'get', '200');
     const response = await request(app).get('/healthz').expect(200);
 
     expectContract(validator, response.body);

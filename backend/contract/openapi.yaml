@@ -333,6 +333,8 @@ paths:
                 format: binary
         '404':
           description: Upload not found for user
+  /healthz:
+    get:
       summary: Service liveness probe
       responses:
         '200':

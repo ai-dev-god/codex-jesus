@@ -27,8 +27,7 @@ jest.mock('../config/env', () => ({
   }
 }));
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { labUploadBucket, _signedUrlMock } = require('../lib/storage');
+const { _signedUrlMock } = jest.requireMock('../lib/storage') as { _signedUrlMock: jest.Mock };
 
 describe('LabUploadSessionService', () => {
   const prisma = {

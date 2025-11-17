@@ -1,4 +1,4 @@
-import type { PanelUpload, PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import PDFDocument from 'pdfkit';
 
 import prismaClient from '../../lib/prisma';

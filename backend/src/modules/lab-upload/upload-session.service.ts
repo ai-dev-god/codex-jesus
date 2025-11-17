@@ -1,5 +1,4 @@
 import { randomUUID } from 'crypto';
-
 import type { PrismaClient } from '@prisma/client';
 
 import env from '../../config/env';
