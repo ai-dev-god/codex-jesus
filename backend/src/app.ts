@@ -63,9 +63,44 @@ const isAllowedOrigin = (origin?: string): origin is string => {
   return normalizedAllowedOrigins.includes(normalizeOrigin(origin));
 };
 
+const singleAllowedOrigin = normalizedAllowedOrigins.length === 1 ? normalizedAllowedOrigins[0] : null;
+const resolveAllowedOrigin = (origin?: string): string | null => {
+  if (origin && isAllowedOrigin(origin)) {
+    return normalizeOrigin(origin);
+  }
+
+  if (!origin && singleAllowedOrigin) {
+    return singleAllowedOrigin;
+  }
+
+  return null;
+};
+
+const DEFAULT_ALLOWED_HEADERS = ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Correlation-ID', 'Accept'];
+const DEFAULT_ALLOWED_METHODS = 'GET,POST,PUT,PATCH,DELETE,OPTIONS';
+const PREFLIGHT_MAX_AGE_SECONDS = '600';
+
+const buildAllowedHeaders = (requested?: string | string[]): string => {
+  const requestedValue = Array.isArray(requested) ? requested.join(',') : requested ?? '';
+  const merged = new Set<string>();
+  const append = (value: string) => {
+    value
+      .split(',')
+      .map((header) => header.trim())
+      .filter(Boolean)
+      .forEach((header) => merged.add(header));
+  };
+
+  if (requestedValue) {
+    append(requestedValue);
+  }
+  append(DEFAULT_ALLOWED_HEADERS.join(','));
+  return Array.from(merged).join(', ');
+};
+
 const applyCorsHeaders = (req: Request, res: Response, next: NextFunction) => {
-  const origin = req.headers.origin;
-  if (isAllowedOrigin(origin)) {
+  const origin = resolveAllowedOrigin(req.headers.origin);
+  if (origin) {
     res.header('Access-Control-Allow-Origin', origin);
     res.header('Access-Control-Allow-Credentials', 'true');
     res.header('Vary', 'Origin');
@@ -76,12 +111,14 @@ const applyCorsHeaders = (req: Request, res: Response, next: NextFunction) => {
 app.use(applyCorsHeaders);
 app.use((req, res, next) => {
   if (req.method === 'OPTIONS') {
-    const origin = req.headers.origin;
-    if (isAllowedOrigin(origin)) {
+    const origin = resolveAllowedOrigin(req.headers.origin);
+    if (origin) {
       res.header('Access-Control-Allow-Origin', origin);
       res.header('Access-Control-Allow-Credentials', 'true');
-      res.header('Access-Control-Allow-Headers', req.headers['access-control-request-headers'] ?? 'Content-Type, Authorization');
-      res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+      res.header('Access-Control-Allow-Headers', buildAllowedHeaders(req.headers['access-control-request-headers']));
+      res.header('Access-Control-Allow-Methods', DEFAULT_ALLOWED_METHODS);
+      res.header('Access-Control-Max-Age', PREFLIGHT_MAX_AGE_SECONDS);
+      res.header('Vary', 'Origin');
     }
 
     res.sendStatus(204);
