@@ -35,6 +35,7 @@ const envSchema = z.object({
   WHOOP_TOKEN_ENCRYPTION_KEY: z.string().min(16).default('dev-whoop-token-secret'),
   WHOOP_TOKEN_KEY_ID: z.string().default('whoop-token-key-v1'),
   WHOOP_WEBHOOK_SECRET: z.string().min(16).default('dev-whoop-webhook-secret'),
+  WHOOP_SCOPES: z.string().optional(),
   STRAVA_CLIENT_ID: z.string().optional(),
   STRAVA_CLIENT_SECRET: z.string().optional(),
   STRAVA_REDIRECT_URI: z.string().url().default('http://localhost:5173/oauth/strava/callback'),

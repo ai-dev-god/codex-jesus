@@ -13,8 +13,18 @@ const token_crypto_1 = require("./token-crypto");
 const oauth_client_1 = require("./oauth-client");
 const whoop_sync_queue_1 = require("./whoop-sync-queue");
 const whoop_config_1 = require("./whoop-config");
-const DEFAULT_SCOPES = ['offline_access', 'read:recovery', 'read:cycles', 'read:profile'];
+const DEFAULT_SCOPES = ['read:recovery', 'read:cycles', 'read:profile'];
 const DEFAULT_STATE_TTL_MS = 10 * 60 * 1000;
+const parseScopeList = (raw) => {
+    if (!raw) {
+        return null;
+    }
+    const scopes = raw
+        .split(/[\s,]+/)
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+    return scopes.length > 0 ? scopes : null;
+};
 class WhoopService {
     constructor(prisma, oauthClient, tokenCrypto, stateFactory = () => (0, node_crypto_1.randomUUID)(), now = () => new Date(), options = {}) {
         this.prisma = prisma;
@@ -22,7 +32,8 @@ class WhoopService {
         this.tokenCrypto = tokenCrypto;
         this.stateFactory = stateFactory;
         this.now = now;
-        const scopes = options.scopes ?? DEFAULT_SCOPES;
+        const envScopes = parseScopeList(env_1.default.WHOOP_SCOPES ?? null);
+        const scopes = options.scopes ?? envScopes ?? DEFAULT_SCOPES;
         const resolvedAuthorizeUrl = options.authorizeUrl
             ? (0, whoop_config_1.normalizeAuthorizeUrl)(options.authorizeUrl)
             : whoop_config_1.whoopAuthorizeUrl;

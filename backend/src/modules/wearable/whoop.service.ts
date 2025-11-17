@@ -12,8 +12,21 @@ import { WhoopOAuthError, whoopOAuthClient } from './oauth-client';
 import { enqueueWhoopSyncTask } from './whoop-sync-queue';
 import { normalizeAuthorizeUrl, whoopAuthorizeUrl } from './whoop-config';
 
-const DEFAULT_SCOPES = ['offline_access', 'read:recovery', 'read:cycles', 'read:profile'];
+const DEFAULT_SCOPES = ['read:recovery', 'read:cycles', 'read:profile'];
 const DEFAULT_STATE_TTL_MS = 10 * 60 * 1000;
+
+const parseScopeList = (raw?: string | null): string[] | null => {
+  if (!raw) {
+    return null;
+  }
+
+  const scopes = raw
+    .split(/[\s,]+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  return scopes.length > 0 ? scopes : null;
+};
 
 type WhoopLinkStatus = {
   linked: boolean;
@@ -55,7 +68,8 @@ export class WhoopService {
     private readonly now: () => Date = () => new Date(),
     options: WhoopServiceOptions = {}
   ) {
-    const scopes = options.scopes ?? DEFAULT_SCOPES;
+    const envScopes = parseScopeList(env.WHOOP_SCOPES ?? null);
+    const scopes = options.scopes ?? envScopes ?? DEFAULT_SCOPES;
     const resolvedAuthorizeUrl = options.authorizeUrl
       ? normalizeAuthorizeUrl(options.authorizeUrl)
       : whoopAuthorizeUrl;
