@@ -67,7 +67,14 @@ class LiveWhoopOAuthClient {
         });
         if (!response.ok) {
             const text = await response.text().catch(() => null);
-            throw new WhoopOAuthError(`Whoop token exchange failed with status ${response.status}${text ? `: ${text}` : ''}`);
+            const errorDetail = text ? `: ${text}` : '';
+            console.error('[Whoop] Token exchange HTTP error:', {
+                status: response.status,
+                statusText: response.statusText,
+                url: WHOOP_TOKEN_URL,
+                errorBody: text?.substring(0, 500)
+            });
+            throw new WhoopOAuthError(`Whoop token exchange failed with status ${response.status}${errorDetail}`);
         }
         const payload = (await response.json());
         const accessToken = typeof payload.access_token === 'string' ? payload.access_token : null;

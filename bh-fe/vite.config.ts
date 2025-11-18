@@ -85,10 +85,11 @@ const pwaPlugin = VitePWA({
           },
           {
             urlPattern: ({ request }) => ['style', 'script', 'worker'].includes(request.destination),
-            handler: 'StaleWhileRevalidate',
+            handler: 'NetworkFirst',
             options: {
               cacheName: 'biohax-static',
-              expiration: { maxEntries: 64, maxAgeSeconds: 60 * 60 * 24 },
+              networkTimeoutSeconds: 3,
+              expiration: { maxEntries: 64, maxAgeSeconds: 60 * 60 },
             },
           },
           {

@@ -1,16 +1,14 @@
 import { ApiError } from './error';
 
-const CLOUD_RUN_API_URL = 'https://bh-backend-final-714223448245.europe-west1.run.app';
-
 const resolveApiBaseUrl = (): string => {
-  // Runtime override: always use Cloud Run URL on production domain to avoid CORS issues
+  // Use production API URL on production domain
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
     if (host === 'biohax.pro' || host.endsWith('.biohax.pro')) {
-      return CLOUD_RUN_API_URL;
+      return 'https://api.biohax.pro';
     }
     if (host.endsWith('.run.app') || host.endsWith('.a.run.app')) {
-      return CLOUD_RUN_API_URL;
+      return 'https://api.biohax.pro';
     }
   }
 

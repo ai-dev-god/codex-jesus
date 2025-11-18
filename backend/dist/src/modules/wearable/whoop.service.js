@@ -114,7 +114,13 @@ class WhoopService {
         }
         catch (error) {
             if (error instanceof oauth_client_1.WhoopOAuthError) {
-                throw new http_error_1.HttpError(502, 'Unable to complete Whoop OAuth exchange.', 'WHOOP_LINK_FAILED');
+                const errorMessage = error.message || 'Unknown Whoop OAuth error';
+                console.error('[Whoop] Token exchange failed:', errorMessage, {
+                    codeLength: input.code?.length,
+                    redirectUri: session.redirectUri,
+                    state: input.state
+                });
+                throw new http_error_1.HttpError(502, `Unable to complete Whoop OAuth exchange: ${errorMessage}`, 'WHOOP_LINK_FAILED');
             }
             throw error;
         }

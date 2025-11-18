@@ -1237,7 +1237,13 @@ export default function AppContent() {
         await loadDashboard();
       } catch (error) {
         console.error('Failed to complete Whoop link', error);
-        toast.error('Unable to complete Whoop linking. Please try again.');
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        // Provide more helpful error message if it's a 502
+        if (errorMessage.includes('502') || errorMessage.includes('OAuth exchange')) {
+          toast.error('Whoop OAuth exchange failed. The authorization code may have expired. Please try linking again.');
+        } else {
+          toast.error(`Unable to complete Whoop linking: ${errorMessage}`);
+        }
       } finally {
         window.history.replaceState({}, '', '/');
       }
