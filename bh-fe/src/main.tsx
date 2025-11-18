@@ -25,10 +25,13 @@ if (pwaEnabled) {
           console.info('BioHax PWA: offline cache is ready.')
         },
         onRegistered(registration) {
-          // Check for updates every 5 minutes
-          setInterval(() => {
-            registration?.update()
-          }, 5 * 60 * 1000)
+          // Check for updates immediately and then every 2 minutes
+          if (registration) {
+            registration.update()
+            setInterval(() => {
+              registration.update()
+            }, 2 * 60 * 1000)
+          }
         },
       })
     )
@@ -37,4 +40,34 @@ if (pwaEnabled) {
     })
 } else if (import.meta.env.DEV) {
   console.info('BioHax PWA: service worker disabled for this environment.')
+}
+
+// Force cache clear for old bundles - check if we're using a known old bundle hash
+if (typeof window !== 'undefined') {
+  const scripts = Array.from(document.querySelectorAll('script[src]'))
+  const oldBundleHashes = ['Bw_tlKFb', 'ClBEMkN_', 'XyjXqsre']
+  const hasOldBundle = scripts.some(script => {
+    const src = script.getAttribute('src') || ''
+    return oldBundleHashes.some(hash => src.includes(hash))
+  })
+  
+  if (hasOldBundle) {
+    console.warn('[BioHax] Detected old bundle, forcing cache clear and reload...')
+    // Clear all caches
+    if ('caches' in window) {
+      caches.keys().then(names => {
+        names.forEach(name => caches.delete(name))
+      })
+    }
+    // Unregister service worker if present
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(registrations => {
+        registrations.forEach(reg => reg.unregister())
+      })
+    }
+    // Force reload after a short delay
+    setTimeout(() => {
+      window.location.reload()
+    }, 1000)
+  }
 }
