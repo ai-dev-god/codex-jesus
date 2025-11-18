@@ -1,6 +1,19 @@
 import { ApiError } from './error';
 
+const CLOUD_RUN_API_URL = 'https://bh-backend-final-714223448245.europe-west1.run.app';
+
 const resolveApiBaseUrl = (): string => {
+  // Runtime override: always use Cloud Run URL on production domain to avoid CORS issues
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host === 'biohax.pro' || host.endsWith('.biohax.pro')) {
+      return CLOUD_RUN_API_URL;
+    }
+    if (host.endsWith('.run.app') || host.endsWith('.a.run.app')) {
+      return CLOUD_RUN_API_URL;
+    }
+  }
+
   const envBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
 
   if (envBaseUrl) {
@@ -16,16 +29,6 @@ const resolveApiBaseUrl = (): string => {
     const host = window.location.hostname;
     if (host === 'localhost' || host === '127.0.0.1') {
       return envBaseUrl;
-    }
-  }
-
-  if (typeof window !== 'undefined') {
-    const host = window.location.hostname;
-    if (host === 'biohax.pro' || host.endsWith('.biohax.pro')) {
-      return 'https://api.biohax.pro';
-    }
-    if (host.endsWith('.run.app') || host.endsWith('.a.run.app')) {
-      return 'https://api.biohax.pro';
     }
   }
 
@@ -73,7 +76,9 @@ const buildRequest = async (
   }
 
   const baseUrl = resolveApiBaseUrl();
-  return fetch(`${baseUrl}${path}`, {
+  const fullUrl = `${baseUrl}${path}`;
+  
+  return fetch(fullUrl, {
     ...rest,
     body,
     headers: requestHeaders

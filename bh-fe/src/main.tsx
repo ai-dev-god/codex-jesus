@@ -17,10 +17,18 @@ if (pwaEnabled) {
       registerSW({
         immediate: true,
         onNeedRefresh() {
-          console.info('BioHax PWA: new content available, reload to update.')
+          console.info('BioHax PWA: new content available, reloading to update.')
+          // Force reload to get latest bundle with CORS fixes
+          window.location.reload()
         },
         onOfflineReady() {
           console.info('BioHax PWA: offline cache is ready.')
+        },
+        onRegistered(registration) {
+          // Check for updates every 5 minutes
+          setInterval(() => {
+            registration?.update()
+          }, 5 * 60 * 1000)
         },
       })
     )

@@ -12,7 +12,7 @@ steps:
         set -euo pipefail
         docker build \
           --build-arg VITE_GOOGLE_CLIENT_ID="$$VITE_GOOGLE_CLIENT_ID" \
-          --build-arg VITE_API_BASE_URL=https://api.biohax.pro \
+          --build-arg VITE_API_BASE_URL=https://bh-backend-final-714223448245.europe-west1.run.app \
           -t gcr.io/$PROJECT_ID/bh-fe-final:latest \
           -f Dockerfile \
           .
