@@ -49,6 +49,49 @@ const DEFAULT_BASE_URL = whoopApiBaseUrl;
 export class WhoopApiClient {
   constructor(private readonly baseUrl: string = DEFAULT_BASE_URL) {}
 
+  async getUserProfile(accessToken: string): Promise<{ id: string | number; [key: string]: unknown } | null> {
+    try {
+      const url = new URL(this.buildUrl('/user/profile/basic'));
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        // Try alternative endpoint
+        const altUrl = new URL(this.buildUrl('/user'));
+        const altResponse = await fetch(altUrl, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: 'application/json'
+          }
+        });
+
+        if (!altResponse.ok) {
+          return null;
+        }
+
+        const altPayload = (await altResponse.json().catch(() => null)) as Record<string, unknown> | null;
+        if (altPayload && (typeof altPayload.id === 'string' || typeof altPayload.id === 'number')) {
+          return { id: altPayload.id, ...altPayload };
+        }
+        return null;
+      }
+
+      const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+      if (payload && (typeof payload.id === 'string' || typeof payload.id === 'number')) {
+        return { id: payload.id, ...payload };
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
   async listWorkouts(accessToken: string, params: WhoopWorkoutListParams = {}): Promise<WhoopWorkoutListResponse> {
     const url = new URL(this.buildUrl('/workouts'));
     if (params.start) {

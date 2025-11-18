@@ -9,6 +9,7 @@ import type { TokenCrypto } from './token-crypto';
 import { whoopTokenCrypto } from './token-crypto';
 import type { WhoopOAuthClient } from './oauth-client';
 import { WhoopOAuthError, whoopOAuthClient } from './oauth-client';
+import { WhoopApiClient } from './whoop-api.client';
 import { enqueueWhoopSyncTask } from './whoop-sync-queue';
 import { normalizeAuthorizeUrl, whoopAuthorizeUrl } from './whoop-config';
 
@@ -174,6 +175,38 @@ export class WhoopService {
       throw error;
     }
 
+    // If user ID is not in token response, fetch it from the API
+    let whoopUserId = exchange.whoopUserId;
+    if (!whoopUserId) {
+      try {
+        const apiClient = new WhoopApiClient();
+        const userProfile = await apiClient.getUserProfile(exchange.accessToken);
+        if (userProfile && userProfile.id) {
+          whoopUserId = String(userProfile.id);
+          console.log('[Whoop] Fetched user ID from API:', whoopUserId);
+        } else {
+          // Try to get it from workouts as fallback
+          const workouts = await apiClient.listWorkouts(exchange.accessToken, { limit: 1 });
+          if (workouts.records.length > 0 && workouts.records[0].user_id) {
+            whoopUserId = String(workouts.records[0].user_id);
+            console.log('[Whoop] Fetched user ID from workouts:', whoopUserId);
+          }
+        }
+      } catch (apiError) {
+        console.warn('[Whoop] Failed to fetch user ID from API, will proceed without it:', {
+          error: apiError instanceof Error ? apiError.message : String(apiError)
+        });
+      }
+
+      if (!whoopUserId) {
+        throw new HttpError(
+          502,
+          'Unable to retrieve Whoop user ID. Token exchange succeeded but user ID could not be determined.',
+          'WHOOP_USER_ID_MISSING'
+        );
+      }
+    }
+
     const now = this.now();
     const expiresAt = new Date(now.getTime() + exchange.expiresIn * 1000);
     const encryptedAccess = this.tokenCrypto.encrypt(exchange.accessToken);
@@ -202,7 +235,7 @@ export class WhoopService {
       await tx.whoopIntegration.upsert({
         where: { userId: session.userId },
         update: {
-          whoopUserId: exchange.whoopUserId,
+          whoopUserId: whoopUserId,
           accessToken: encryptedAccess,
           refreshToken: encryptedRefresh,
           expiresAt,
@@ -215,7 +248,7 @@ export class WhoopService {
         },
         create: {
           userId: session.userId,
-          whoopUserId: exchange.whoopUserId,
+          whoopUserId: whoopUserId,
           accessToken: encryptedAccess,
           refreshToken: encryptedRefresh,
           expiresAt,
@@ -230,14 +263,14 @@ export class WhoopService {
       await tx.user.update({
         where: { id: session.userId },
         data: {
-          whoopMemberId: exchange.whoopUserId
+          whoopMemberId: whoopUserId
         }
       });
     });
 
     await this.scheduleInitialSync({
       userId: input.userId,
-      whoopUserId: exchange.whoopUserId
+      whoopUserId: whoopUserId
     });
 
     await this.invalidateDashboard(input.userId);
