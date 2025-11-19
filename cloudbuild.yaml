@@ -1,0 +1,195 @@
+options:
+  substitutionOption: ALLOW_LOOSE
+
+substitutions:
+  _SERVICE: backend
+  _REGION: europe-west1
+  _BACKEND_SERVICE: bh-backend-final
+  _BACKEND_IMAGE: ""
+  _BACKEND_SQL_INSTANCE: ""
+  _FRONTEND_SERVICE: bh-fe-final
+  _FRONTEND_IMAGE: ""
+  _FRONTEND_API_BASE_URL: https://bh-backend-final-714223448245.europe-west1.run.app
+
+steps:
+  - id: Validate target service
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        case "$_SERVICE" in
+          backend|bh-fe)
+            printf 'Using root cloudbuild.yaml with _SERVICE=%s\n' "$_SERVICE"
+            ;;
+          *)
+            printf 'Unsupported _SERVICE="%s". Use "backend" or "bh-fe".\n' "$_SERVICE" >&2
+            exit 1
+            ;;
+        esac
+
+  - id: Build backend image
+    name: gcr.io/cloud-builders/docker
+    entrypoint: bash
+    env:
+      - DOCKER_BUILDKIT=1
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        if [[ "$_SERVICE" != "backend" ]]; then
+          echo "Skipping backend build for service $_SERVICE"
+          exit 0
+        fi
+
+        IMAGE="${_BACKEND_IMAGE}"
+        if [[ -z "${IMAGE}" ]]; then
+          IMAGE="europe-west1-docker.pkg.dev/${PROJECT_ID}/production/bh-backend-final:latest"
+        fi
+
+        docker build \
+          -t "${IMAGE}" \
+          -f backend/Dockerfile \
+          backend
+
+  - id: Push backend image
+    name: gcr.io/cloud-builders/docker
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        if [[ "$_SERVICE" != "backend" ]]; then
+          echo "Skipping backend push for service $_SERVICE"
+          exit 0
+        fi
+
+        IMAGE="${_BACKEND_IMAGE}"
+        if [[ -z "${IMAGE}" ]]; then
+          IMAGE="europe-west1-docker.pkg.dev/${PROJECT_ID}/production/bh-backend-final:latest"
+        fi
+
+        docker push "${IMAGE}"
+
+  - id: Deploy backend to Cloud Run
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        if [[ "$_SERVICE" != "backend" ]]; then
+          echo "Skipping backend deploy for service $_SERVICE"
+          exit 0
+        fi
+
+        IMAGE="${_BACKEND_IMAGE}"
+        if [[ -z "${IMAGE}" ]]; then
+          IMAGE="europe-west1-docker.pkg.dev/${PROJECT_ID}/production/bh-backend-final:latest"
+        fi
+
+        SERVICE="${_BACKEND_SERVICE:-bh-backend-final}"
+        REGION="${_REGION:-europe-west1}"
+        CLOUDSQL_INSTANCE="${_BACKEND_SQL_INSTANCE}"
+        if [[ -z "${CLOUDSQL_INSTANCE}" ]]; then
+          CLOUDSQL_INSTANCE="${PROJECT_ID}:europe-west1:biohax-main-postgres"
+        fi
+
+        BACKEND_ENV_VARS="NODE_ENV=production,GCP_PROJECT_ID=${PROJECT_ID},CORS_ORIGIN=https://biohax.pro https://staging.biohax.pro http://localhost:5173 http://localhost:3000 http://127.0.0.1:5173 http://127.0.0.1:3000,WHOOP_REDIRECT_URI=https://biohax.pro/oauth/whoop/callback,WHOOP_TOKEN_KEY_ID=whoop-token-key-v1,AUTH_ACCESS_TOKEN_TTL_SECONDS=900,AUTH_REFRESH_TOKEN_TTL_SECONDS=2592000,DASHBOARD_CACHE_TTL_SECONDS=300,DASHBOARD_SNAPSHOT_TTL_SECONDS=900,SECRET_REFRESH=1763211958,WHOOP_WEBHOOK_SECRET=f8072c6f57878988bb47970e1ceb25ba7265bc6856e7b293070d808df4abb381414d183378efc3e5d767a45ce34d1b9f25955d4afaced9c60b9cf83726446c22,WHOOP_AUTHORIZE_URL=https://api.prod.whoop.com/oauth/oauth2/auth,LAB_UPLOAD_KMS_KEY_NAME=projects/biohax-777/locations/europe-west1/keyRings/lab-upload/cryptoKeys/lab-upload-data"
+        BACKEND_SECRETS="DATABASE_URL=database-url:latest,JWT_SECRET=jwt-secret:latest,AUTH_REFRESH_ENCRYPTION_KEY=auth-refresh-encryption-key:latest,OPENROUTER_API_KEY=OPENROUTER_API_KEY:latest,WHOOP_CLIENT_ID=whoop-client-id:latest,WHOOP_CLIENT_SECRET=whoop-client-secret:latest,WHOOP_TOKEN_ENCRYPTION_KEY=whoop-token-encryption-key:latest,GOOGLE_CLIENT_ID=google-client-id:latest,GOOGLE_CLIENT_SECRET=google-client-secret:latest,SUPER_ADMIN_PASSWORD=super-admin-password:latest,STRAVA_CLIENT_SECRET=strava_client_secret:latest,STRAVA_ACCESS_TOKEN=strava_access_token:latest,STRAVA_REFRESH_TOKEN=strava_refresh_token:latest,STRAVA_TOKEN_ENCRYPTION_KEY=strava-token-encryption-key:latest,LAB_UPLOAD_SEALING_KEY=lab-upload-sealing-key:latest"
+
+        gcloud run deploy "${SERVICE}" \
+          --image "${IMAGE}" \
+          --region "${REGION}" \
+          --platform managed \
+          --allow-unauthenticated \
+          --add-cloudsql-instances "${CLOUDSQL_INSTANCE}" \
+          --service-account codexjesus@biohax-777.iam.gserviceaccount.com \
+          --set-env-vars "${BACKEND_ENV_VARS}" \
+          --set-secrets "${BACKEND_SECRETS}" \
+          --project "${PROJECT_ID}" \
+          --quiet
+
+  - id: Build frontend image
+    name: gcr.io/cloud-builders/docker
+    dir: bh-fe
+    entrypoint: bash
+    env:
+      - DOCKER_BUILDKIT=1
+    secretEnv:
+      - VITE_GOOGLE_CLIENT_ID
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        if [[ "$_SERVICE" != "bh-fe" ]]; then
+          echo "Skipping frontend build for service $_SERVICE"
+          exit 0
+        fi
+
+        IMAGE="${_FRONTEND_IMAGE}"
+        if [[ -z "${IMAGE}" ]]; then
+          IMAGE="gcr.io/${PROJECT_ID}/bh-fe-final:latest"
+        fi
+        API_BASE_URL="${_FRONTEND_API_BASE_URL:-https://bh-backend-final-714223448245.europe-west1.run.app}"
+
+        docker build \
+          --build-arg VITE_GOOGLE_CLIENT_ID="$$VITE_GOOGLE_CLIENT_ID" \
+          --build-arg VITE_API_BASE_URL="${API_BASE_URL}" \
+          -t "${IMAGE}" \
+          -f Dockerfile \
+          .
+
+  - id: Push frontend image
+    name: gcr.io/cloud-builders/docker
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        if [[ "$_SERVICE" != "bh-fe" ]]; then
+          echo "Skipping frontend push for service $_SERVICE"
+          exit 0
+        fi
+
+        IMAGE="${_FRONTEND_IMAGE}"
+        if [[ -z "${IMAGE}" ]]; then
+          IMAGE="gcr.io/${PROJECT_ID}/bh-fe-final:latest"
+        fi
+
+        docker push "${IMAGE}"
+
+  - id: Deploy frontend to Cloud Run
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        if [[ "$_SERVICE" != "bh-fe" ]]; then
+          echo "Skipping frontend deploy for service $_SERVICE"
+          exit 0
+        fi
+
+        IMAGE="${_FRONTEND_IMAGE}"
+        if [[ -z "${IMAGE}" ]]; then
+          IMAGE="gcr.io/${PROJECT_ID}/bh-fe-final:latest"
+        fi
+
+        SERVICE="${_FRONTEND_SERVICE:-bh-fe-final}"
+        REGION="${_REGION:-europe-west1}"
+
+        gcloud run deploy "${SERVICE}" \
+          --image "${IMAGE}" \
+          --region "${REGION}" \
+          --platform managed \
+          --allow-unauthenticated \
+          --project "${PROJECT_ID}" \
+          --quiet
+
+availableSecrets:
+  secretManager:
+    - versionName: projects/$PROJECT_ID/secrets/google-client-id/versions/latest
+      env: VITE_GOOGLE_CLIENT_ID
+

@@ -23,6 +23,7 @@ import { notificationsRouter } from './modules/notifications/router';
 import { aiRouter } from './modules/ai/router';
 import { reportsRouter } from './modules/reports/router';
 import { practitionerRouter } from './modules/practitioner/router';
+import { baseLogger } from './observability/logger';
 
 const captureRawBody = (req: Request, _res: Response, buf: Buffer): void => {
   if (buf?.length) {
@@ -106,8 +107,7 @@ const applyCorsHeaders = (req: Request, res: Response, next: NextFunction) => {
     res.header('Vary', 'Origin');
   } else if (req.headers.origin) {
     // Log CORS rejection for debugging
-    const logger = require('./observability/logger').baseLogger.with({ component: 'cors' });
-    logger.warn('CORS request rejected', {
+    baseLogger.with({ component: 'cors' }).warn('CORS request rejected', {
       requestedOrigin: req.headers.origin,
       normalizedRequested: normalizeOrigin(req.headers.origin),
       allowedOrigins: normalizedAllowedOrigins,
@@ -133,8 +133,7 @@ app.use((req, res, next) => {
       return;
     } else if (req.headers.origin) {
       // Log CORS preflight rejection for debugging
-      const logger = require('./observability/logger').baseLogger.with({ component: 'cors' });
-      logger.warn('CORS preflight rejected', {
+      baseLogger.with({ component: 'cors' }).warn('CORS preflight rejected', {
         requestedOrigin: req.headers.origin,
         normalizedRequested: normalizeOrigin(req.headers.origin),
         allowedOrigins: normalizedAllowedOrigins,

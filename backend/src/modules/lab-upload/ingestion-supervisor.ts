@@ -165,7 +165,7 @@ Return JSON array only, no other text.`;
       typeof options.rawMetadata?.capturedAt === 'string' ? options.rawMetadata?.capturedAt : undefined;
 
     // First try regex-based extraction
-    let candidates = this.detectCandidates(text);
+    const candidates = this.detectCandidates(text);
 
     // If regex extraction found few or no results, try AI extraction
     if (candidates.length < 5 && text.length > 100) {

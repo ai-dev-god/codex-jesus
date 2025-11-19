@@ -106,6 +106,25 @@ so manual invocation is only necessary when iterating on secrets outside that sc
      --format='value(status.url,status.traffic.statuses.status)'
    ```
 
+### Cloud Build trigger config
+
+- The repository root now ships a dispatching `cloudbuild.yaml`. Setting `_SERVICE=backend` reproduces the backend deployment defined in `backend/cloudbuild.yaml`, while `_SERVICE=bh-fe` runs the frontend workflow from `bh-fe/cloudbuild.yaml`.
+- Point Cloud Build triggers at `cloudbuild.yaml` (default path) and pass `_SERVICE` in the trigger substitutions. Optional overrides:
+  - `_BACKEND_IMAGE`, `_BACKEND_SERVICE`, `_BACKEND_SQL_INSTANCE`, `_FRONTEND_IMAGE`, `_FRONTEND_SERVICE`, `_FRONTEND_API_BASE_URL`, `_REGION`
+- Manual runs should submit the repo root so both components are available:
+  ```bash
+  # backend
+  gcloud builds submit . \
+    --config cloudbuild.yaml \
+    --substitutions=_SERVICE=backend
+
+  # frontend
+  gcloud builds submit . \
+    --config cloudbuild.yaml \
+    --substitutions=_SERVICE=bh-fe,_FRONTEND_API_BASE_URL=https://api.biohax.pro
+  ```
+- Existing scripts (`devops/deploy-backend.sh`, frontend checklist commands) continue to work, but the unified config fixes triggers that require the build file at the repo root.
+
 ### Link & Integration Preflight (Required)
 
 Broken OAuth integrations were slipping into production because nothing validated the live URLs before a deploy. The new `devops/link-checker.mjs` script probes both the public frontend and the backend health endpoints and asserts that every required integration is fully configured.
