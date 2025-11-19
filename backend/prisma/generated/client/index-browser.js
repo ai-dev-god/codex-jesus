@@ -1,0 +1,980 @@
+
+Object.defineProperty(exports, "__esModule", { value: true });
+
+const {
+  Decimal,
+  objectEnumValues,
+  makeStrictEnum,
+  Public,
+  getRuntime,
+  skip
+} = require('@prisma/client/runtime/index-browser.js')
+
+
+const Prisma = {}
+
+exports.Prisma = Prisma
+exports.$Enums = {}
+
+/**
+ * Prisma Client JS version: 5.21.1
+ * Query Engine version: bf0e5e8a04cada8225617067eaa03d041e2bba36
+ */
+Prisma.prismaVersion = {
+  client: "5.21.1",
+  engine: "bf0e5e8a04cada8225617067eaa03d041e2bba36"
+}
+
+Prisma.PrismaClientKnownRequestError = () => {
+  const runtimeName = getRuntime().prettyName;
+  throw new Error(`PrismaClientKnownRequestError is unable to run in this browser environment, or has been bundled for the browser (running in ${runtimeName}).
+In case this error is unexpected for you, please report it in https://pris.ly/prisma-prisma-bug-report`,
+)};
+Prisma.PrismaClientUnknownRequestError = () => {
+  const runtimeName = getRuntime().prettyName;
+  throw new Error(`PrismaClientUnknownRequestError is unable to run in this browser environment, or has been bundled for the browser (running in ${runtimeName}).
+In case this error is unexpected for you, please report it in https://pris.ly/prisma-prisma-bug-report`,
+)}
+Prisma.PrismaClientRustPanicError = () => {
+  const runtimeName = getRuntime().prettyName;
+  throw new Error(`PrismaClientRustPanicError is unable to run in this browser environment, or has been bundled for the browser (running in ${runtimeName}).
+In case this error is unexpected for you, please report it in https://pris.ly/prisma-prisma-bug-report`,
+)}
+Prisma.PrismaClientInitializationError = () => {
+  const runtimeName = getRuntime().prettyName;
+  throw new Error(`PrismaClientInitializationError is unable to run in this browser environment, or has been bundled for the browser (running in ${runtimeName}).
+In case this error is unexpected for you, please report it in https://pris.ly/prisma-prisma-bug-report`,
+)}
+Prisma.PrismaClientValidationError = () => {
+  const runtimeName = getRuntime().prettyName;
+  throw new Error(`PrismaClientValidationError is unable to run in this browser environment, or has been bundled for the browser (running in ${runtimeName}).
+In case this error is unexpected for you, please report it in https://pris.ly/prisma-prisma-bug-report`,
+)}
+Prisma.NotFoundError = () => {
+  const runtimeName = getRuntime().prettyName;
+  throw new Error(`NotFoundError is unable to run in this browser environment, or has been bundled for the browser (running in ${runtimeName}).
+In case this error is unexpected for you, please report it in https://pris.ly/prisma-prisma-bug-report`,
+)}
+Prisma.Decimal = Decimal
+
+/**
+ * Re-export of sql-template-tag
+ */
+Prisma.sql = () => {
+  const runtimeName = getRuntime().prettyName;
+  throw new Error(`sqltag is unable to run in this browser environment, or has been bundled for the browser (running in ${runtimeName}).
+In case this error is unexpected for you, please report it in https://pris.ly/prisma-prisma-bug-report`,
+)}
+Prisma.empty = () => {
+  const runtimeName = getRuntime().prettyName;
+  throw new Error(`empty is unable to run in this browser environment, or has been bundled for the browser (running in ${runtimeName}).
+In case this error is unexpected for you, please report it in https://pris.ly/prisma-prisma-bug-report`,
+)}
+Prisma.join = () => {
+  const runtimeName = getRuntime().prettyName;
+  throw new Error(`join is unable to run in this browser environment, or has been bundled for the browser (running in ${runtimeName}).
+In case this error is unexpected for you, please report it in https://pris.ly/prisma-prisma-bug-report`,
+)}
+Prisma.raw = () => {
+  const runtimeName = getRuntime().prettyName;
+  throw new Error(`raw is unable to run in this browser environment, or has been bundled for the browser (running in ${runtimeName}).
+In case this error is unexpected for you, please report it in https://pris.ly/prisma-prisma-bug-report`,
+)}
+Prisma.validator = Public.validator
+
+/**
+* Extensions
+*/
+Prisma.getExtensionContext = () => {
+  const runtimeName = getRuntime().prettyName;
+  throw new Error(`Extensions.getExtensionContext is unable to run in this browser environment, or has been bundled for the browser (running in ${runtimeName}).
+In case this error is unexpected for you, please report it in https://pris.ly/prisma-prisma-bug-report`,
+)}
+Prisma.defineExtension = () => {
+  const runtimeName = getRuntime().prettyName;
+  throw new Error(`Extensions.defineExtension is unable to run in this browser environment, or has been bundled for the browser (running in ${runtimeName}).
+In case this error is unexpected for you, please report it in https://pris.ly/prisma-prisma-bug-report`,
+)}
+
+/**
+ * Shorthand utilities for JSON filtering
+ */
+Prisma.DbNull = objectEnumValues.instances.DbNull
+Prisma.JsonNull = objectEnumValues.instances.JsonNull
+Prisma.AnyNull = objectEnumValues.instances.AnyNull
+
+Prisma.NullTypes = {
+  DbNull: objectEnumValues.classes.DbNull,
+  JsonNull: objectEnumValues.classes.JsonNull,
+  AnyNull: objectEnumValues.classes.AnyNull
+}
+
+
+
+/**
+ * Enums
+ */
+
+exports.Prisma.TransactionIsolationLevel = makeStrictEnum({
+  ReadUncommitted: 'ReadUncommitted',
+  ReadCommitted: 'ReadCommitted',
+  RepeatableRead: 'RepeatableRead',
+  Serializable: 'Serializable'
+});
+
+exports.Prisma.UserScalarFieldEnum = {
+  id: 'id',
+  email: 'email',
+  passwordHash: 'passwordHash',
+  fullName: 'fullName',
+  role: 'role',
+  status: 'status',
+  whoopMemberId: 'whoopMemberId',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.ProfileScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  displayName: 'displayName',
+  timezone: 'timezone',
+  baselineSurvey: 'baselineSurvey',
+  consents: 'consents',
+  onboardingCompletedAt: 'onboardingCompletedAt',
+  deleteRequested: 'deleteRequested',
+  deletedAt: 'deletedAt',
+  aiInterpretationApprovedAt: 'aiInterpretationApprovedAt',
+  aiInterpretationApprovedBy: 'aiInterpretationApprovedBy',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.InsightScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  title: 'title',
+  summary: 'summary',
+  body: 'body',
+  modelUsed: 'modelUsed',
+  promptMetadata: 'promptMetadata',
+  status: 'status',
+  generatedAt: 'generatedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.LongevityPlanScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  status: 'status',
+  title: 'title',
+  summary: 'summary',
+  focusAreas: 'focusAreas',
+  sections: 'sections',
+  evidence: 'evidence',
+  safetyState: 'safetyState',
+  validatedBy: 'validatedBy',
+  validatedAt: 'validatedAt',
+  requestedAt: 'requestedAt',
+  completedAt: 'completedAt',
+  errorCode: 'errorCode',
+  errorMessage: 'errorMessage',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.BiomarkerScalarFieldEnum = {
+  id: 'id',
+  slug: 'slug',
+  name: 'name',
+  unit: 'unit',
+  referenceLow: 'referenceLow',
+  referenceHigh: 'referenceHigh',
+  source: 'source',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.BiomarkerLogScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  biomarkerId: 'biomarkerId',
+  value: 'value',
+  unit: 'unit',
+  source: 'source',
+  capturedAt: 'capturedAt',
+  accepted: 'accepted',
+  flagged: 'flagged',
+  notes: 'notes',
+  rawPayload: 'rawPayload',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.PanelUploadScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  status: 'status',
+  source: 'source',
+  storageKey: 'storageKey',
+  contentType: 'contentType',
+  byteSize: 'byteSize',
+  sha256Hash: 'sha256Hash',
+  pageCount: 'pageCount',
+  rawMetadata: 'rawMetadata',
+  normalizedPayload: 'normalizedPayload',
+  measurementCount: 'measurementCount',
+  processedAt: 'processedAt',
+  errorCode: 'errorCode',
+  errorMessage: 'errorMessage',
+  planId: 'planId',
+  sealedStorageKey: 'sealedStorageKey',
+  sealedKeyVersion: 'sealedKeyVersion',
+  uploadSessionId: 'uploadSessionId',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.BiomarkerMeasurementScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  biomarkerId: 'biomarkerId',
+  panelUploadId: 'panelUploadId',
+  markerName: 'markerName',
+  value: 'value',
+  unit: 'unit',
+  referenceLow: 'referenceLow',
+  referenceHigh: 'referenceHigh',
+  capturedAt: 'capturedAt',
+  status: 'status',
+  source: 'source',
+  confidence: 'confidence',
+  flags: 'flags',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.PanelUploadBiomarkerTagScalarFieldEnum = {
+  id: 'id',
+  panelUploadId: 'panelUploadId',
+  biomarkerId: 'biomarkerId',
+  taggedAt: 'taggedAt'
+};
+
+exports.Prisma.PanelUploadDownloadTokenScalarFieldEnum = {
+  id: 'id',
+  token: 'token',
+  userId: 'userId',
+  uploadId: 'uploadId',
+  expiresAt: 'expiresAt',
+  usedAt: 'usedAt',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.PanelUploadSessionScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  storageKey: 'storageKey',
+  contentType: 'contentType',
+  byteSize: 'byteSize',
+  sha256Hash: 'sha256Hash',
+  kmsKeyName: 'kmsKeyName',
+  expiresAt: 'expiresAt',
+  usedAt: 'usedAt',
+  status: 'status',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.AuthProviderScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  type: 'type',
+  providerUserId: 'providerUserId',
+  accessToken: 'accessToken',
+  refreshToken: 'refreshToken',
+  scopes: 'scopes',
+  expiresAt: 'expiresAt',
+  linkedAt: 'linkedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.LoginAuditScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  email: 'email',
+  provider: 'provider',
+  success: 'success',
+  ipAddress: 'ipAddress',
+  userAgent: 'userAgent',
+  failureReason: 'failureReason',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.InsightActionScalarFieldEnum = {
+  id: 'id',
+  insightId: 'insightId',
+  actorId: 'actorId',
+  actionType: 'actionType',
+  notes: 'notes',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.InsightGenerationJobScalarFieldEnum = {
+  id: 'id',
+  insightId: 'insightId',
+  requestedById: 'requestedById',
+  status: 'status',
+  cloudTaskName: 'cloudTaskName',
+  queue: 'queue',
+  payload: 'payload',
+  scheduledAt: 'scheduledAt',
+  dispatchedAt: 'dispatchedAt',
+  completedAt: 'completedAt',
+  errorCode: 'errorCode',
+  errorMessage: 'errorMessage',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.LongevityPlanJobScalarFieldEnum = {
+  id: 'id',
+  planId: 'planId',
+  requestedById: 'requestedById',
+  status: 'status',
+  cloudTaskName: 'cloudTaskName',
+  queue: 'queue',
+  payload: 'payload',
+  scheduledAt: 'scheduledAt',
+  dispatchedAt: 'dispatchedAt',
+  completedAt: 'completedAt',
+  errorCode: 'errorCode',
+  errorMessage: 'errorMessage',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.CloudTaskMetadataScalarFieldEnum = {
+  id: 'id',
+  taskName: 'taskName',
+  queue: 'queue',
+  status: 'status',
+  jobId: 'jobId',
+  planJobId: 'planJobId',
+  payload: 'payload',
+  scheduleTime: 'scheduleTime',
+  firstAttemptAt: 'firstAttemptAt',
+  lastAttemptAt: 'lastAttemptAt',
+  attemptCount: 'attemptCount',
+  errorMessage: 'errorMessage',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.WhoopIntegrationScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  whoopUserId: 'whoopUserId',
+  accessToken: 'accessToken',
+  refreshToken: 'refreshToken',
+  expiresAt: 'expiresAt',
+  scope: 'scope',
+  tokenKeyId: 'tokenKeyId',
+  tokenRotatedAt: 'tokenRotatedAt',
+  syncStatus: 'syncStatus',
+  lastSyncedAt: 'lastSyncedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.WhoopLinkSessionScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  state: 'state',
+  redirectUri: 'redirectUri',
+  scope: 'scope',
+  expiresAt: 'expiresAt',
+  createdAt: 'createdAt',
+  completedAt: 'completedAt',
+  cancelledAt: 'cancelledAt'
+};
+
+exports.Prisma.StravaIntegrationScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  athleteId: 'athleteId',
+  athleteUsername: 'athleteUsername',
+  athleteName: 'athleteName',
+  athleteAvatarUrl: 'athleteAvatarUrl',
+  athleteCity: 'athleteCity',
+  athleteCountry: 'athleteCountry',
+  accessToken: 'accessToken',
+  refreshToken: 'refreshToken',
+  expiresAt: 'expiresAt',
+  scope: 'scope',
+  syncStatus: 'syncStatus',
+  lastSyncedAt: 'lastSyncedAt',
+  lastSyncSummary: 'lastSyncSummary',
+  tokenKeyId: 'tokenKeyId',
+  tokenRotatedAt: 'tokenRotatedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.StravaLinkSessionScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  state: 'state',
+  redirectUri: 'redirectUri',
+  scope: 'scope',
+  expiresAt: 'expiresAt',
+  createdAt: 'createdAt',
+  completedAt: 'completedAt',
+  cancelledAt: 'cancelledAt'
+};
+
+exports.Prisma.StravaActivityScalarFieldEnum = {
+  id: 'id',
+  integrationId: 'integrationId',
+  userId: 'userId',
+  stravaActivityId: 'stravaActivityId',
+  name: 'name',
+  sportType: 'sportType',
+  distanceMeters: 'distanceMeters',
+  movingTimeSeconds: 'movingTimeSeconds',
+  elapsedTimeSeconds: 'elapsedTimeSeconds',
+  elevationGainMeters: 'elevationGainMeters',
+  averageSpeedMps: 'averageSpeedMps',
+  maxSpeedMps: 'maxSpeedMps',
+  averageWatts: 'averageWatts',
+  maxWatts: 'maxWatts',
+  sufferScore: 'sufferScore',
+  achievements: 'achievements',
+  kudosCount: 'kudosCount',
+  startDate: 'startDate',
+  startDateLocal: 'startDateLocal',
+  isCommute: 'isCommute',
+  isTrainer: 'isTrainer',
+  rawPayload: 'rawPayload',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.MembershipInviteScalarFieldEnum = {
+  id: 'id',
+  code: 'code',
+  email: 'email',
+  status: 'status',
+  maxUses: 'maxUses',
+  usedCount: 'usedCount',
+  expiresAt: 'expiresAt',
+  metadata: 'metadata',
+  createdById: 'createdById',
+  lastRedeemedAt: 'lastRedeemedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.MembershipInviteRedemptionScalarFieldEnum = {
+  id: 'id',
+  inviteId: 'inviteId',
+  userId: 'userId',
+  email: 'email',
+  redeemedAt: 'redeemedAt'
+};
+
+exports.Prisma.WhoopWorkoutScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  whoopUserId: 'whoopUserId',
+  whoopWorkoutId: 'whoopWorkoutId',
+  sport: 'sport',
+  sportCategory: 'sportCategory',
+  sportTypeId: 'sportTypeId',
+  scoreState: 'scoreState',
+  intensityLevel: 'intensityLevel',
+  startTime: 'startTime',
+  endTime: 'endTime',
+  durationSeconds: 'durationSeconds',
+  timezoneOffsetMinutes: 'timezoneOffsetMinutes',
+  strain: 'strain',
+  avgHeartRate: 'avgHeartRate',
+  maxHeartRate: 'maxHeartRate',
+  calories: 'calories',
+  distanceMeters: 'distanceMeters',
+  energyKilojoule: 'energyKilojoule',
+  rawPayload: 'rawPayload',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.FeedPostScalarFieldEnum = {
+  id: 'id',
+  authorId: 'authorId',
+  body: 'body',
+  tags: 'tags',
+  visibility: 'visibility',
+  flagged: 'flagged',
+  reactionSummary: 'reactionSummary',
+  commentCount: 'commentCount',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.CommentScalarFieldEnum = {
+  id: 'id',
+  postId: 'postId',
+  authorId: 'authorId',
+  body: 'body',
+  flagged: 'flagged',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.ReactionScalarFieldEnum = {
+  id: 'id',
+  type: 'type',
+  postId: 'postId',
+  commentId: 'commentId',
+  userId: 'userId',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.EngagementEventScalarFieldEnum = {
+  id: 'id',
+  type: 'type',
+  userId: 'userId',
+  postId: 'postId',
+  commentId: 'commentId',
+  reactionType: 'reactionType',
+  occurredAt: 'occurredAt',
+  metadata: 'metadata'
+};
+
+exports.Prisma.FlagScalarFieldEnum = {
+  id: 'id',
+  targetType: 'targetType',
+  status: 'status',
+  reason: 'reason',
+  postId: 'postId',
+  commentId: 'commentId',
+  insightId: 'insightId',
+  biomarkerLogId: 'biomarkerLogId',
+  openedById: 'openedById',
+  resolvedById: 'resolvedById',
+  resolvedAt: 'resolvedAt',
+  auditTrail: 'auditTrail',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.AdminAuditLogScalarFieldEnum = {
+  id: 'id',
+  actorId: 'actorId',
+  action: 'action',
+  targetType: 'targetType',
+  targetId: 'targetId',
+  metadata: 'metadata',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.AdminBackupJobScalarFieldEnum = {
+  id: 'id',
+  type: 'type',
+  status: 'status',
+  initiatedById: 'initiatedById',
+  storageUri: 'storageUri',
+  sizeBytes: 'sizeBytes',
+  durationSeconds: 'durationSeconds',
+  startedAt: 'startedAt',
+  completedAt: 'completedAt',
+  failureReason: 'failureReason',
+  metadata: 'metadata',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.ServiceApiKeyScalarFieldEnum = {
+  id: 'id',
+  name: 'name',
+  prefix: 'prefix',
+  suffix: 'suffix',
+  hashedSecret: 'hashedSecret',
+  scope: 'scope',
+  status: 'status',
+  createdById: 'createdById',
+  revokedById: 'revokedById',
+  revokedAt: 'revokedAt',
+  lastRotatedAt: 'lastRotatedAt',
+  lastUsedAt: 'lastUsedAt',
+  lastUsedIp: 'lastUsedIp',
+  requestCount: 'requestCount',
+  metadata: 'metadata',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.DataExportJobScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  status: 'status',
+  result: 'result',
+  errorMessage: 'errorMessage',
+  requestedAt: 'requestedAt',
+  processedAt: 'processedAt',
+  completedAt: 'completedAt',
+  expiresAt: 'expiresAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.DataDeletionJobScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  status: 'status',
+  deletedSummary: 'deletedSummary',
+  errorMessage: 'errorMessage',
+  requestedAt: 'requestedAt',
+  processedAt: 'processedAt',
+  completedAt: 'completedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.AiResponseAuditScalarFieldEnum = {
+  id: 'id',
+  planId: 'planId',
+  userId: 'userId',
+  provider: 'provider',
+  model: 'model',
+  role: 'role',
+  prompt: 'prompt',
+  response: 'response',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.RoomScalarFieldEnum = {
+  id: 'id',
+  name: 'name',
+  inviteCode: 'inviteCode',
+  status: 'status',
+  capacity: 'capacity',
+  hostId: 'hostId',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.RoomMembershipScalarFieldEnum = {
+  id: 'id',
+  roomId: 'roomId',
+  userId: 'userId',
+  role: 'role',
+  status: 'status',
+  joinedAt: 'joinedAt',
+  leftAt: 'leftAt',
+  lastSeenAt: 'lastSeenAt',
+  reconnectToken: 'reconnectToken',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.SortOrder = {
+  asc: 'asc',
+  desc: 'desc'
+};
+
+exports.Prisma.NullableJsonNullValueInput = {
+  DbNull: Prisma.DbNull,
+  JsonNull: Prisma.JsonNull
+};
+
+exports.Prisma.QueryMode = {
+  default: 'default',
+  insensitive: 'insensitive'
+};
+
+exports.Prisma.NullsOrder = {
+  first: 'first',
+  last: 'last'
+};
+
+exports.Prisma.JsonNullValueFilter = {
+  DbNull: Prisma.DbNull,
+  JsonNull: Prisma.JsonNull,
+  AnyNull: Prisma.AnyNull
+};
+exports.Role = exports.$Enums.Role = {
+  MEMBER: 'MEMBER',
+  COACH: 'COACH',
+  PRACTITIONER: 'PRACTITIONER',
+  MODERATOR: 'MODERATOR',
+  ADMIN: 'ADMIN'
+};
+
+exports.UserStatus = exports.$Enums.UserStatus = {
+  PENDING_ONBOARDING: 'PENDING_ONBOARDING',
+  ACTIVE: 'ACTIVE',
+  SUSPENDED: 'SUSPENDED'
+};
+
+exports.InsightStatus = exports.$Enums.InsightStatus = {
+  DRAFT: 'DRAFT',
+  DELIVERED: 'DELIVERED',
+  ARCHIVED: 'ARCHIVED'
+};
+
+exports.LongevityPlanStatus = exports.$Enums.LongevityPlanStatus = {
+  DRAFT: 'DRAFT',
+  PROCESSING: 'PROCESSING',
+  READY: 'READY',
+  FAILED: 'FAILED',
+  ARCHIVED: 'ARCHIVED'
+};
+
+exports.BiomarkerSource = exports.$Enums.BiomarkerSource = {
+  WHOOP: 'WHOOP',
+  MANUAL: 'MANUAL',
+  LAB_UPLOAD: 'LAB_UPLOAD'
+};
+
+exports.PanelUploadStatus = exports.$Enums.PanelUploadStatus = {
+  PENDING: 'PENDING',
+  NORMALIZED: 'NORMALIZED',
+  FAILED: 'FAILED'
+};
+
+exports.PanelUploadSource = exports.$Enums.PanelUploadSource = {
+  LAB_REPORT: 'LAB_REPORT',
+  WEARABLE_EXPORT: 'WEARABLE_EXPORT',
+  MANUAL_ENTRY: 'MANUAL_ENTRY'
+};
+
+exports.MeasurementStatus = exports.$Enums.MeasurementStatus = {
+  RAW: 'RAW',
+  NORMALIZED: 'NORMALIZED',
+  VERIFIED: 'VERIFIED',
+  REJECTED: 'REJECTED'
+};
+
+exports.PanelUploadSessionStatus = exports.$Enums.PanelUploadSessionStatus = {
+  PENDING: 'PENDING',
+  USED: 'USED',
+  EXPIRED: 'EXPIRED'
+};
+
+exports.AuthProviderType = exports.$Enums.AuthProviderType = {
+  EMAIL_PASSWORD: 'EMAIL_PASSWORD',
+  GOOGLE: 'GOOGLE',
+  APPLE: 'APPLE',
+  WHOOP: 'WHOOP'
+};
+
+exports.InsightActionType = exports.$Enums.InsightActionType = {
+  ACCEPTED: 'ACCEPTED',
+  DISMISSED: 'DISMISSED',
+  RETRY_REQUESTED: 'RETRY_REQUESTED',
+  FEEDBACK_LEFT: 'FEEDBACK_LEFT'
+};
+
+exports.InsightGenerationStatus = exports.$Enums.InsightGenerationStatus = {
+  QUEUED: 'QUEUED',
+  RUNNING: 'RUNNING',
+  SUCCEEDED: 'SUCCEEDED',
+  FAILED: 'FAILED'
+};
+
+exports.LongevityPlanJobStatus = exports.$Enums.LongevityPlanJobStatus = {
+  QUEUED: 'QUEUED',
+  RUNNING: 'RUNNING',
+  SUCCEEDED: 'SUCCEEDED',
+  FAILED: 'FAILED'
+};
+
+exports.CloudTaskStatus = exports.$Enums.CloudTaskStatus = {
+  PENDING: 'PENDING',
+  DISPATCHED: 'DISPATCHED',
+  SUCCEEDED: 'SUCCEEDED',
+  FAILED: 'FAILED'
+};
+
+exports.WhoopSyncStatus = exports.$Enums.WhoopSyncStatus = {
+  PENDING: 'PENDING',
+  ACTIVE: 'ACTIVE'
+};
+
+exports.StravaSyncStatus = exports.$Enums.StravaSyncStatus = {
+  PENDING: 'PENDING',
+  ACTIVE: 'ACTIVE',
+  ERROR: 'ERROR',
+  REVOKED: 'REVOKED'
+};
+
+exports.MembershipInviteStatus = exports.$Enums.MembershipInviteStatus = {
+  ACTIVE: 'ACTIVE',
+  REDEEMED: 'REDEEMED',
+  REVOKED: 'REVOKED',
+  EXPIRED: 'EXPIRED'
+};
+
+exports.PostVisibility = exports.$Enums.PostVisibility = {
+  MEMBERS: 'MEMBERS',
+  COHORT: 'COHORT',
+  PUBLIC: 'PUBLIC'
+};
+
+exports.ReactionType = exports.$Enums.ReactionType = {
+  BOOST: 'BOOST',
+  HIGH_FIVE: 'HIGH_FIVE',
+  NOTEWORTHY: 'NOTEWORTHY'
+};
+
+exports.EngagementEventType = exports.$Enums.EngagementEventType = {
+  POST_CREATED: 'POST_CREATED',
+  POST_DELETED: 'POST_DELETED',
+  COMMENT_CREATED: 'COMMENT_CREATED',
+  COMMENT_DELETED: 'COMMENT_DELETED',
+  REACTION_ADDED: 'REACTION_ADDED',
+  REACTION_REMOVED: 'REACTION_REMOVED'
+};
+
+exports.FlagTargetType = exports.$Enums.FlagTargetType = {
+  POST: 'POST',
+  COMMENT: 'COMMENT',
+  INSIGHT: 'INSIGHT',
+  BIOMARKER_LOG: 'BIOMARKER_LOG'
+};
+
+exports.FlagStatus = exports.$Enums.FlagStatus = {
+  OPEN: 'OPEN',
+  TRIAGED: 'TRIAGED',
+  RESOLVED: 'RESOLVED'
+};
+
+exports.AdminBackupType = exports.$Enums.AdminBackupType = {
+  FULL: 'FULL',
+  INCREMENTAL: 'INCREMENTAL'
+};
+
+exports.AdminBackupStatus = exports.$Enums.AdminBackupStatus = {
+  QUEUED: 'QUEUED',
+  RUNNING: 'RUNNING',
+  SUCCEEDED: 'SUCCEEDED',
+  FAILED: 'FAILED'
+};
+
+exports.ServiceApiKeyScope = exports.$Enums.ServiceApiKeyScope = {
+  READ: 'READ',
+  WRITE: 'WRITE',
+  FULL: 'FULL'
+};
+
+exports.ServiceApiKeyStatus = exports.$Enums.ServiceApiKeyStatus = {
+  ACTIVE: 'ACTIVE',
+  REVOKED: 'REVOKED'
+};
+
+exports.DataExportJobStatus = exports.$Enums.DataExportJobStatus = {
+  QUEUED: 'QUEUED',
+  IN_PROGRESS: 'IN_PROGRESS',
+  COMPLETE: 'COMPLETE',
+  FAILED: 'FAILED'
+};
+
+exports.DataDeletionJobStatus = exports.$Enums.DataDeletionJobStatus = {
+  QUEUED: 'QUEUED',
+  IN_PROGRESS: 'IN_PROGRESS',
+  COMPLETE: 'COMPLETE',
+  FAILED: 'FAILED'
+};
+
+exports.RoomStatus = exports.$Enums.RoomStatus = {
+  LOBBY: 'LOBBY',
+  ACTIVE: 'ACTIVE',
+  COMPLETED: 'COMPLETED',
+  CANCELLED: 'CANCELLED'
+};
+
+exports.RoomMembershipRole = exports.$Enums.RoomMembershipRole = {
+  HOST: 'HOST',
+  PLAYER: 'PLAYER',
+  SPECTATOR: 'SPECTATOR'
+};
+
+exports.RoomMembershipStatus = exports.$Enums.RoomMembershipStatus = {
+  ACTIVE: 'ACTIVE',
+  LEFT: 'LEFT',
+  SPECTATOR: 'SPECTATOR'
+};
+
+exports.Prisma.ModelName = {
+  User: 'User',
+  Profile: 'Profile',
+  Insight: 'Insight',
+  LongevityPlan: 'LongevityPlan',
+  Biomarker: 'Biomarker',
+  BiomarkerLog: 'BiomarkerLog',
+  PanelUpload: 'PanelUpload',
+  BiomarkerMeasurement: 'BiomarkerMeasurement',
+  PanelUploadBiomarkerTag: 'PanelUploadBiomarkerTag',
+  PanelUploadDownloadToken: 'PanelUploadDownloadToken',
+  PanelUploadSession: 'PanelUploadSession',
+  AuthProvider: 'AuthProvider',
+  LoginAudit: 'LoginAudit',
+  InsightAction: 'InsightAction',
+  InsightGenerationJob: 'InsightGenerationJob',
+  LongevityPlanJob: 'LongevityPlanJob',
+  CloudTaskMetadata: 'CloudTaskMetadata',
+  WhoopIntegration: 'WhoopIntegration',
+  WhoopLinkSession: 'WhoopLinkSession',
+  StravaIntegration: 'StravaIntegration',
+  StravaLinkSession: 'StravaLinkSession',
+  StravaActivity: 'StravaActivity',
+  MembershipInvite: 'MembershipInvite',
+  MembershipInviteRedemption: 'MembershipInviteRedemption',
+  WhoopWorkout: 'WhoopWorkout',
+  FeedPost: 'FeedPost',
+  Comment: 'Comment',
+  Reaction: 'Reaction',
+  EngagementEvent: 'EngagementEvent',
+  Flag: 'Flag',
+  AdminAuditLog: 'AdminAuditLog',
+  AdminBackupJob: 'AdminBackupJob',
+  ServiceApiKey: 'ServiceApiKey',
+  DataExportJob: 'DataExportJob',
+  DataDeletionJob: 'DataDeletionJob',
+  AiResponseAudit: 'AiResponseAudit',
+  Room: 'Room',
+  RoomMembership: 'RoomMembership'
+};
+
+/**
+ * This is a stub Prisma Client that will error at runtime if called.
+ */
+class PrismaClient {
+  constructor() {
+    return new Proxy(this, {
+      get(target, prop) {
+        let message
+        const runtime = getRuntime()
+        if (runtime.isEdge) {
+          message = `PrismaClient is not configured to run in ${runtime.prettyName}. In order to run Prisma Client on edge runtime, either:
+- Use Prisma Accelerate: https://pris.ly/d/accelerate
+- Use Driver Adapters: https://pris.ly/d/driver-adapters
+`;
+        } else {
+          message = 'PrismaClient is unable to run in this browser environment, or has been bundled for the browser (running in `' + runtime.prettyName + '`).'
+        }
+        
+        message += `
+If this is unexpected, please open an issue: https://pris.ly/prisma-prisma-bug-report`
+
+        throw new Error(message)
+      }
+    })
+  }
+}
+
+exports.PrismaClient = PrismaClient
+
+Object.assign(exports, Prisma)

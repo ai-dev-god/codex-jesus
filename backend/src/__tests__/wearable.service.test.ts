@@ -271,4 +271,43 @@ describe('WhoopService', () => {
       reason: 'initial-link'
     });
   });
+
+  it('completes link when refresh token is missing', async () => {
+    const prisma = createMockPrisma();
+    const { service, oauthClient, tokenCrypto } = createService(prisma);
+    const session = createSessionRecord();
+
+    prisma.whoopLinkSession.findUnique.mockResolvedValueOnce(session);
+    (oauthClient.exchangeCode as jest.Mock).mockResolvedValue({
+      accessToken: 'access-token',
+      refreshToken: null,
+      expiresIn: 1800,
+      scope: ['scope:read'],
+      whoopUserId: 'member-123'
+    });
+    const integration = createIntegrationRecord();
+    prisma.whoopIntegration.findUnique.mockResolvedValueOnce(integration);
+    prisma.whoopLinkSession.findFirst.mockResolvedValueOnce(null);
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const result = await service.completeLink({
+      userId: 'user-1',
+      code: 'auth-code',
+      state: 'state-xyz'
+    });
+
+    expect(tokenCrypto.encrypt).toHaveBeenCalledTimes(1);
+    expect(prisma.whoopIntegration.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({
+          refreshToken: null
+        }),
+        create: expect.objectContaining({
+          refreshToken: null
+        })
+      })
+    );
+    expect(result.linked).toBe(true);
+    warnSpy.mockRestore();
+  });
 });

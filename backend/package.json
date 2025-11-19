@@ -9,6 +9,7 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc --project tsconfig.build.json",
     "start": "node dist/server.js",
+    "postinstall": "node scripts/install-prisma-client.cjs",
     "lint": "node scripts/run-eslint.cjs",
     "qa:preflight": "tsx scripts/preflight.ts",
     "test": "jest",

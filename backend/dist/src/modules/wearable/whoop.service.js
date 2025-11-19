@@ -11,6 +11,7 @@ const http_error_1 = require("../observability-ops/http-error");
 const dashboard_service_1 = require("../dashboard/dashboard.service");
 const token_crypto_1 = require("./token-crypto");
 const oauth_client_1 = require("./oauth-client");
+const whoop_api_client_1 = require("./whoop-api.client");
 const whoop_sync_queue_1 = require("./whoop-sync-queue");
 const whoop_config_1 = require("./whoop-config");
 const DEFAULT_SCOPES = ['read:recovery', 'read:cycles', 'read:profile'];
@@ -124,10 +125,41 @@ class WhoopService {
             }
             throw error;
         }
+        // If user ID is not in token response, fetch it from the API (non-blocking)
+        let whoopUserId = exchange.whoopUserId;
+        const resolvedUserId = whoopUserId ??
+            (await (async () => {
+                try {
+                    const apiClient = new whoop_api_client_1.WhoopApiClient();
+                    const userProfile = await apiClient.getUserProfile(exchange.accessToken);
+                    if (userProfile && userProfile.id) {
+                        console.log('[Whoop] Fetched user ID from API:', userProfile.id);
+                        return String(userProfile.id);
+                    }
+                    const workouts = await apiClient.listWorkouts(exchange.accessToken, { limit: 1 });
+                    if (workouts.records.length > 0 && workouts.records[0].user_id) {
+                        console.log('[Whoop] Fetched user ID from workouts:', workouts.records[0].user_id);
+                        return String(workouts.records[0].user_id);
+                    }
+                }
+                catch (apiError) {
+                    console.warn('[Whoop] Failed to fetch user ID from API, proceeding without it:', {
+                        error: apiError instanceof Error ? apiError.message : String(apiError)
+                    });
+                }
+                return null;
+            })());
+        whoopUserId = resolvedUserId;
         const now = this.now();
         const expiresAt = new Date(now.getTime() + exchange.expiresIn * 1000);
         const encryptedAccess = this.tokenCrypto.encrypt(exchange.accessToken);
-        const encryptedRefresh = this.tokenCrypto.encrypt(exchange.refreshToken);
+        const encryptedRefresh = exchange.refreshToken ? this.tokenCrypto.encrypt(exchange.refreshToken) : null;
+        if (!exchange.refreshToken) {
+            console.warn('[Whoop] Token exchange did not return a refresh_token. Access token will expire without automatic refresh.', {
+                userId: session.userId,
+                whoopUserId
+            });
+        }
         await this.prisma.$transaction(async (tx) => {
             await tx.whoopLinkSession.update({
                 where: { id: session.id },
@@ -149,7 +181,7 @@ class WhoopService {
             await tx.whoopIntegration.upsert({
                 where: { userId: session.userId },
                 update: {
-                    whoopUserId: exchange.whoopUserId,
+                    whoopUserId: whoopUserId,
                     accessToken: encryptedAccess,
                     refreshToken: encryptedRefresh,
                     expiresAt,
@@ -162,7 +194,7 @@ class WhoopService {
                 },
                 create: {
                     userId: session.userId,
-                    whoopUserId: exchange.whoopUserId,
+                    whoopUserId: whoopUserId,
                     accessToken: encryptedAccess,
                     refreshToken: encryptedRefresh,
                     expiresAt,
@@ -176,14 +208,21 @@ class WhoopService {
             await tx.user.update({
                 where: { id: session.userId },
                 data: {
-                    whoopMemberId: exchange.whoopUserId
+                    whoopMemberId: whoopUserId
                 }
             });
         });
-        await this.scheduleInitialSync({
-            userId: input.userId,
-            whoopUserId: exchange.whoopUserId
-        });
+        if (whoopUserId) {
+            await this.scheduleInitialSync({
+                userId: input.userId,
+                whoopUserId: whoopUserId
+            });
+        }
+        else {
+            console.warn('[Whoop] Skipping initial sync because whoopUserId is still unknown.', {
+                userId: input.userId
+            });
+        }
         await this.invalidateDashboard(input.userId);
         return this.getStatus(input.userId);
     }

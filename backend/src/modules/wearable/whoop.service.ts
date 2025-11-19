@@ -175,42 +175,45 @@ export class WhoopService {
       throw error;
     }
 
-    // If user ID is not in token response, fetch it from the API
+    // If user ID is not in token response, fetch it from the API (non-blocking)
     let whoopUserId = exchange.whoopUserId;
-    if (!whoopUserId) {
-      try {
-        const apiClient = new WhoopApiClient();
-        const userProfile = await apiClient.getUserProfile(exchange.accessToken);
-        if (userProfile && userProfile.id) {
-          whoopUserId = String(userProfile.id);
-          console.log('[Whoop] Fetched user ID from API:', whoopUserId);
-        } else {
-          // Try to get it from workouts as fallback
+    const resolvedUserId =
+      whoopUserId ??
+      (await (async () => {
+        try {
+          const apiClient = new WhoopApiClient();
+          const userProfile = await apiClient.getUserProfile(exchange.accessToken);
+          if (userProfile && userProfile.id) {
+            console.log('[Whoop] Fetched user ID from API:', userProfile.id);
+            return String(userProfile.id);
+          }
+
           const workouts = await apiClient.listWorkouts(exchange.accessToken, { limit: 1 });
           if (workouts.records.length > 0 && workouts.records[0].user_id) {
-            whoopUserId = String(workouts.records[0].user_id);
-            console.log('[Whoop] Fetched user ID from workouts:', whoopUserId);
+            console.log('[Whoop] Fetched user ID from workouts:', workouts.records[0].user_id);
+            return String(workouts.records[0].user_id);
           }
+        } catch (apiError) {
+          console.warn('[Whoop] Failed to fetch user ID from API, proceeding without it:', {
+            error: apiError instanceof Error ? apiError.message : String(apiError)
+          });
         }
-      } catch (apiError) {
-        console.warn('[Whoop] Failed to fetch user ID from API, will proceed without it:', {
-          error: apiError instanceof Error ? apiError.message : String(apiError)
-        });
-      }
+        return null;
+      })());
 
-      if (!whoopUserId) {
-        throw new HttpError(
-          502,
-          'Unable to retrieve Whoop user ID. Token exchange succeeded but user ID could not be determined.',
-          'WHOOP_USER_ID_MISSING'
-        );
-      }
-    }
+    whoopUserId = resolvedUserId;
 
     const now = this.now();
     const expiresAt = new Date(now.getTime() + exchange.expiresIn * 1000);
     const encryptedAccess = this.tokenCrypto.encrypt(exchange.accessToken);
-    const encryptedRefresh = this.tokenCrypto.encrypt(exchange.refreshToken);
+    const encryptedRefresh = exchange.refreshToken ? this.tokenCrypto.encrypt(exchange.refreshToken) : null;
+
+    if (!exchange.refreshToken) {
+      console.warn('[Whoop] Token exchange did not return a refresh_token. Access token will expire without automatic refresh.', {
+        userId: session.userId,
+        whoopUserId
+      });
+    }
 
     await this.prisma.$transaction(async (tx) => {
       await tx.whoopLinkSession.update({
@@ -268,10 +271,16 @@ export class WhoopService {
       });
     });
 
-    await this.scheduleInitialSync({
-      userId: input.userId,
-      whoopUserId: whoopUserId
-    });
+    if (whoopUserId) {
+      await this.scheduleInitialSync({
+        userId: input.userId,
+        whoopUserId: whoopUserId
+      });
+    } else {
+      console.warn('[Whoop] Skipping initial sync because whoopUserId is still unknown.', {
+        userId: input.userId
+      });
+    }
 
     await this.invalidateDashboard(input.userId);
 

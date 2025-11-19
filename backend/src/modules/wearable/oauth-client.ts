@@ -8,7 +8,7 @@ export interface WhoopTokenExchangeInput {
 
 export interface WhoopTokenExchangeResult {
   accessToken: string;
-  refreshToken: string;
+  refreshToken: string | null;
   expiresIn: number;
   scope: string[];
   whoopUserId: string | null; // May be null if not in token response, will be fetched separately
@@ -119,13 +119,24 @@ export class LiveWhoopOAuthClient implements WhoopOAuthClient {
     // Read response body as text first so we can use it for both error and success cases
     const responseText = await response.text().catch(() => 'Unable to read response body');
 
+    // Log raw response for debugging
+    console.log('[Whoop] Token exchange raw response:', {
+      status: response.status,
+      statusText: response.statusText,
+      url: WHOOP_TOKEN_URL,
+      contentType: response.headers.get('content-type'),
+      bodyLength: responseText?.length ?? 0,
+      bodyPreview: responseText?.substring(0, 500)
+    });
+
     if (!response.ok) {
       const errorDetail = responseText ? `: ${responseText}` : '';
       console.error('[Whoop] Token exchange HTTP error:', {
         status: response.status,
         statusText: response.statusText,
         url: WHOOP_TOKEN_URL,
-        errorBody: responseText?.substring(0, 500)
+        errorBody: responseText?.substring(0, 500),
+        headers: Object.fromEntries(response.headers.entries())
       });
       throw new WhoopOAuthError(`Whoop token exchange failed with status ${response.status}${errorDetail}`);
     }
@@ -138,54 +149,90 @@ export class LiveWhoopOAuthClient implements WhoopOAuthClient {
         status: response.status,
         statusText: response.statusText,
         body: responseText?.substring(0, 1000),
-        error: jsonError instanceof Error ? jsonError.message : String(jsonError)
+        error: jsonError instanceof Error ? jsonError.message : String(jsonError),
+        contentType: response.headers.get('content-type')
       });
       throw new WhoopOAuthError(`Whoop token exchange returned invalid JSON: ${responseText?.substring(0, 200) ?? 'empty response'}`);
     }
 
     // Log the full payload for debugging (but sanitize sensitive data)
     const sanitizedPayload = { ...payload };
-    if (typeof sanitizedPayload.access_token === 'string') {
-      sanitizedPayload.access_token = `[REDACTED:${sanitizedPayload.access_token.length} chars]`;
-    }
-    if (typeof sanitizedPayload.refresh_token === 'string') {
-      sanitizedPayload.refresh_token = `[REDACTED:${sanitizedPayload.refresh_token.length} chars]`;
+    const sanitizeToken = (obj: Record<string, unknown>, key: string): void => {
+      if (typeof obj[key] === 'string') {
+        obj[key] = `[REDACTED:${(obj[key] as string).length} chars]`;
+      }
+    };
+    sanitizeToken(sanitizedPayload, 'access_token');
+    sanitizeToken(sanitizedPayload, 'refresh_token');
+    sanitizeToken(sanitizedPayload, 'accessToken');
+    sanitizeToken(sanitizedPayload, 'refreshToken');
+    sanitizeToken(sanitizedPayload, 'token');
+    if (sanitizedPayload.data && typeof sanitizedPayload.data === 'object') {
+      const data = sanitizedPayload.data as Record<string, unknown>;
+      sanitizeToken(data, 'access_token');
+      sanitizeToken(data, 'refresh_token');
     }
     console.log('[Whoop] Token exchange response payload:', JSON.stringify(sanitizedPayload, null, 2));
 
-    const accessToken = typeof payload.access_token === 'string' ? payload.access_token : null;
-    const refreshToken = typeof payload.refresh_token === 'string' ? payload.refresh_token : null;
-    const expiresInRaw = payload.expires_in;
+    // Handle potential nested response (e.g., { data: { access_token: ... } })
+    const actualPayload = (payload.data && typeof payload.data === 'object' && !Array.isArray(payload.data))
+      ? (payload.data as Record<string, unknown>)
+      : payload;
+
+    // Try multiple field name variations
+    const accessToken = 
+      (typeof actualPayload.access_token === 'string' ? actualPayload.access_token : null) ||
+      (typeof actualPayload.accessToken === 'string' ? actualPayload.accessToken : null) ||
+      (typeof actualPayload.token === 'string' ? actualPayload.token : null) ||
+      null;
+    
+    const refreshToken =
+      (typeof actualPayload.refresh_token === 'string' ? actualPayload.refresh_token : null) ||
+      (typeof actualPayload.refreshToken === 'string' ? actualPayload.refreshToken : null) ||
+      null;
+    
+    const expiresInRaw = actualPayload.expires_in ?? actualPayload.expiresIn ?? actualPayload.expires;
     const expiresIn =
       typeof expiresInRaw === 'number'
         ? expiresInRaw
         : typeof expiresInRaw === 'string'
           ? Number.parseInt(expiresInRaw, 10)
           : NaN;
-    const scope = resolveScope(payload.scope);
-    const whoopUserId = resolveWhoopUserId(payload);
+    
+    const scope = resolveScope(actualPayload.scope);
+    const whoopUserId = resolveWhoopUserId(actualPayload);
 
-    // access_token, refresh_token, and expires_in are required
-    if (!accessToken || !refreshToken || !Number.isFinite(expiresIn)) {
+    // access_token and expires_in are required; refresh_token is optional (Whoop sometimes omits it)
+    if (!accessToken || !Number.isFinite(expiresIn)) {
+      // Log the FULL payload (sanitized) for debugging
+      const fullSanitizedPayload = JSON.stringify(sanitizedPayload, null, 2);
       console.error('[Whoop] Token exchange payload validation failed:', {
         hasAccessToken: Boolean(accessToken),
-        hasRefreshToken: Boolean(refreshToken),
         expiresIn: expiresInRaw,
+        expiresInType: typeof expiresInRaw,
         expiresInParsed: expiresIn,
         isFinite: Number.isFinite(expiresIn),
         hasWhoopUserId: Boolean(whoopUserId),
         payloadKeys: Object.keys(payload),
-        fullPayload: JSON.stringify(sanitizedPayload, null, 2)
+        payloadTypes: Object.fromEntries(
+          Object.entries(payload).map(([k, v]) => [k, typeof v])
+        ),
+        fullPayload: fullSanitizedPayload
       });
+      
+      // Try to provide helpful error message
+      const missingFields = [
+        !accessToken && 'access_token',
+        !Number.isFinite(expiresIn) && 'expires_in'
+      ].filter(Boolean);
+      
       throw new WhoopOAuthError(
-        `Whoop token exchange returned an invalid payload. Missing: ${[
-          !accessToken && 'access_token',
-          !refreshToken && 'refresh_token',
-          !Number.isFinite(expiresIn) && 'expires_in'
-        ]
-          .filter(Boolean)
-          .join(', ')}`
+        `Whoop token exchange returned an invalid payload. Missing: ${missingFields.join(', ')}. Response keys: ${Object.keys(payload).join(', ')}`
       );
+    }
+
+    if (!refreshToken) {
+      console.warn('[Whoop] Token exchange response missing refresh_token; tokens cannot be refreshed automatically.');
     }
 
     // Log if user_id is missing (we'll fetch it separately)

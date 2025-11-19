@@ -76,15 +76,35 @@ export class WhoopApiClient {
         }
 
         const altPayload = (await altResponse.json().catch(() => null)) as Record<string, unknown> | null;
-        if (altPayload && (typeof altPayload.id === 'string' || typeof altPayload.id === 'number')) {
-          return { id: altPayload.id, ...altPayload };
+        const altId =
+          altPayload && typeof altPayload === 'object'
+            ? (altPayload.id ??
+              altPayload.user_id ??
+              altPayload.member_id ??
+              (typeof altPayload.user === 'object' && altPayload.user
+                ? (altPayload.user as Record<string, unknown>).id ?? (altPayload.user as Record<string, unknown>).user_id
+                : undefined))
+            : undefined;
+        if (typeof altId === 'string' || typeof altId === 'number') {
+          return { id: altId, ...altPayload };
         }
         return null;
       }
 
       const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
-      if (payload && (typeof payload.id === 'string' || typeof payload.id === 'number')) {
-        return { id: payload.id, ...payload };
+      const resolvedId =
+        payload && typeof payload === 'object'
+          ? (payload.id ??
+            payload.user_id ??
+            (typeof payload.user === 'object' && payload.user
+              ? ((payload.user as Record<string, unknown>).id ??
+                (payload.user as Record<string, unknown>).user_id ??
+                (payload.user as Record<string, unknown>).member_id)
+              : undefined) ??
+            payload.member_id)
+          : undefined;
+      if (typeof resolvedId === 'string' || typeof resolvedId === 'number') {
+        return { id: resolvedId, ...payload };
       }
       return null;
     } catch {

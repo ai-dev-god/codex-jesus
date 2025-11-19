@@ -15,6 +15,63 @@ class WhoopApiClient {
     constructor(baseUrl = DEFAULT_BASE_URL) {
         this.baseUrl = baseUrl;
     }
+    async getUserProfile(accessToken) {
+        try {
+            const url = new URL(this.buildUrl('/user/profile/basic'));
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                    Accept: 'application/json'
+                }
+            });
+            if (!response.ok) {
+                // Try alternative endpoint
+                const altUrl = new URL(this.buildUrl('/user'));
+                const altResponse = await fetch(altUrl, {
+                    method: 'GET',
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                        Accept: 'application/json'
+                    }
+                });
+                if (!altResponse.ok) {
+                    return null;
+                }
+                const altPayload = (await altResponse.json().catch(() => null));
+                const altId = altPayload && typeof altPayload === 'object'
+                    ? (altPayload.id ??
+                        altPayload.user_id ??
+                        altPayload.member_id ??
+                        (typeof altPayload.user === 'object' && altPayload.user
+                            ? altPayload.user.id ?? altPayload.user.user_id
+                            : undefined))
+                    : undefined;
+                if (typeof altId === 'string' || typeof altId === 'number') {
+                    return { id: altId, ...altPayload };
+                }
+                return null;
+            }
+            const payload = (await response.json().catch(() => null));
+            const resolvedId = payload && typeof payload === 'object'
+                ? (payload.id ??
+                    payload.user_id ??
+                    (typeof payload.user === 'object' && payload.user
+                        ? (payload.user.id ??
+                            payload.user.user_id ??
+                            payload.user.member_id)
+                        : undefined) ??
+                    payload.member_id)
+                : undefined;
+            if (typeof resolvedId === 'string' || typeof resolvedId === 'number') {
+                return { id: resolvedId, ...payload };
+            }
+            return null;
+        }
+        catch {
+            return null;
+        }
+    }
     async listWorkouts(accessToken, params = {}) {
         const url = new URL(this.buildUrl('/workouts'));
         if (params.start) {

@@ -41,7 +41,7 @@ steps:
       - >-
         NODE_ENV=production,
         GCP_PROJECT_ID=$PROJECT_ID,
-        CORS_ORIGIN=https://biohax.pro,
+        CORS_ORIGIN=https://biohax.pro https://staging.biohax.pro http://localhost:5173 http://localhost:3000 http://127.0.0.1:5173 http://127.0.0.1:3000,
         WHOOP_REDIRECT_URI=https://biohax.pro/oauth/whoop/callback,
         WHOOP_TOKEN_KEY_ID=whoop-token-key-v1,
         AUTH_ACCESS_TOKEN_TTL_SECONDS=900,
