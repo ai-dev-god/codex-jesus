@@ -2,7 +2,7 @@ import env from '../../config/env';
 
 const DEFAULT_AUTHORIZE_URL = 'https://api.prod.whoop.com/oauth/oauth2/auth';
 const DEFAULT_TOKEN_URL = 'https://api.prod.whoop.com/oauth/oauth2/token';
-const DEFAULT_API_BASE_URL = 'https://api.prod.whoop.com/developer/v1';
+const DEFAULT_API_BASE_URL = 'https://api.prod.whoop.com/developer/v2';
 
 const sanitizeUrl = (rawUrl: string | null | undefined, fallback: string): string => {
   if (!rawUrl) {

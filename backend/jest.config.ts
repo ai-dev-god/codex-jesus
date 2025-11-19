@@ -4,8 +4,10 @@ const config: Config = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   roots: ['<rootDir>'],
+  rootDir: '.',
   testMatch: ['**/__tests__/**/*.test.ts', '**/integration/**/*.test.ts'],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'json'],
+  globalSetup: '<rootDir>/tests/global-setup.ts',
   setupFiles: ['dotenv/config', '<rootDir>/tests/jest.setup-db.ts'],
   setupFilesAfterEnv: ['<rootDir>/tests/jest.setup-after-env.ts'],
   testTimeout: 30000

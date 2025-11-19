@@ -64,7 +64,7 @@ const normaliseErrorOutput = (error: unknown): string => {
   return `${asString(stdout)}\n${asString(stderr)}`.trim();
 };
 
-const waitForPort = (port: number, host: string, timeoutMs: number): Promise<void> => {
+const waitForPort = (port: number, host: string, timeoutMs: number = 30000): Promise<void> => {
   const attemptDelayMs = 200;
   const start = Date.now();
 
@@ -277,13 +277,14 @@ export const ensureDatabaseReady = async (): Promise<void> => {
 };
 
 const runDbReset = (): void => {
-  execFileSync('npm', ['run', 'db:reset'], {
+  spawnSync('npm', ['run', 'db:reset'], {
     cwd: backendDir,
     env: {
       ...process.env,
       DATABASE_URL: databaseUrl
     },
-    stdio: 'pipe'
+    stdio: 'pipe',
+    shell: true
   });
 };
 
