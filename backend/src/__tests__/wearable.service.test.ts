@@ -4,10 +4,10 @@ import { HttpError } from '../modules/observability-ops/http-error';
 import { WhoopService } from '../modules/wearable/whoop.service';
 import type { WhoopOAuthClient } from '../modules/wearable/oauth-client';
 import type { TokenCrypto } from '../modules/wearable/token-crypto';
-import { enqueueWhoopSyncTask } from '../modules/wearable/whoop-sync-queue';
+import { enqueueAndMaybeRunWhoopSync } from '../modules/wearable/whoop-sync-dispatcher';
 
-jest.mock('../modules/wearable/whoop-sync-queue', () => ({
-  enqueueWhoopSyncTask: jest.fn()
+jest.mock('../modules/wearable/whoop-sync-dispatcher', () => ({
+  enqueueAndMaybeRunWhoopSync: jest.fn()
 }));
 
 jest.mock('../modules/dashboard/dashboard.service', () => ({
@@ -265,11 +265,15 @@ describe('WhoopService', () => {
     expect(result.linked).toBe(true);
     expect(result.linkUrl).toBeNull();
     expect(result.syncStatus).toBe('ACTIVE');
-    expect(enqueueWhoopSyncTask).toHaveBeenCalledWith(prisma, {
-      userId: 'user-1',
-      whoopUserId: 'member-123',
-      reason: 'initial-link'
-    });
+    expect(enqueueAndMaybeRunWhoopSync).toHaveBeenCalledWith(
+      prisma,
+      {
+        userId: 'user-1',
+        whoopUserId: 'member-123',
+        reason: 'initial-link'
+      },
+      { swallowErrors: true }
+    );
   });
 
   it('completes link when refresh token is missing', async () => {

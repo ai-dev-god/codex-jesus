@@ -10,7 +10,7 @@ import { whoopTokenCrypto } from './token-crypto';
 import type { WhoopOAuthClient } from './oauth-client';
 import { WhoopOAuthError, whoopOAuthClient } from './oauth-client';
 import { WhoopApiClient } from './whoop-api.client';
-import { enqueueWhoopSyncTask } from './whoop-sync-queue';
+import { enqueueAndMaybeRunWhoopSync } from './whoop-sync-dispatcher';
 import { normalizeAuthorizeUrl, whoopAuthorizeUrl } from './whoop-config';
 
 const DEFAULT_SCOPES = ['read:recovery', 'read:cycles', 'read:profile'];
@@ -379,11 +379,15 @@ export class WhoopService {
 
   private async scheduleInitialSync(params: { userId: string; whoopUserId: string }): Promise<void> {
     try {
-      await enqueueWhoopSyncTask(this.prisma, {
-        userId: params.userId,
-        whoopUserId: params.whoopUserId,
-        reason: 'initial-link'
-      });
+      await enqueueAndMaybeRunWhoopSync(
+        this.prisma,
+        {
+          userId: params.userId,
+          whoopUserId: params.whoopUserId,
+          reason: 'initial-link'
+        },
+        { swallowErrors: true }
+      );
     } catch (error) {
       console.warn('[whoop-service] Failed to enqueue whoop sync task', {
         userId: params.userId,

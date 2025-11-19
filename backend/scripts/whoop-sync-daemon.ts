@@ -2,7 +2,7 @@ import { PrismaClient, WhoopIntegration } from '@prisma/client';
 
 import env from '../src/config/env';
 import { whoopTokenCrypto } from '../src/modules/wearable/token-crypto';
-import { enqueueWhoopSyncTask } from '../src/modules/wearable/whoop-sync-queue';
+import { enqueueAndMaybeRunWhoopSync } from '../src/modules/wearable/whoop-sync-dispatcher';
 import { WhoopTokenManager } from '../src/modules/wearable/whoop-token-manager';
 
 const prisma = new PrismaClient();
@@ -43,7 +43,7 @@ const enqueueSync = async (integration: WhoopIntegration) => {
     return;
   }
 
-  await enqueueWhoopSyncTask(
+  await enqueueAndMaybeRunWhoopSync(
     prisma,
     {
       userId: integration.userId,

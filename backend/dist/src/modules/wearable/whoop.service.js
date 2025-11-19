@@ -12,7 +12,7 @@ const dashboard_service_1 = require("../dashboard/dashboard.service");
 const token_crypto_1 = require("./token-crypto");
 const oauth_client_1 = require("./oauth-client");
 const whoop_api_client_1 = require("./whoop-api.client");
-const whoop_sync_queue_1 = require("./whoop-sync-queue");
+const whoop_sync_dispatcher_1 = require("./whoop-sync-dispatcher");
 const whoop_config_1 = require("./whoop-config");
 const DEFAULT_SCOPES = ['read:recovery', 'read:cycles', 'read:profile'];
 const DEFAULT_STATE_TTL_MS = 10 * 60 * 1000;
@@ -304,11 +304,11 @@ class WhoopService {
     }
     async scheduleInitialSync(params) {
         try {
-            await (0, whoop_sync_queue_1.enqueueWhoopSyncTask)(this.prisma, {
+            await (0, whoop_sync_dispatcher_1.enqueueAndMaybeRunWhoopSync)(this.prisma, {
                 userId: params.userId,
                 whoopUserId: params.whoopUserId,
                 reason: 'initial-link'
-            });
+            }, { swallowErrors: true });
         }
         catch (error) {
             console.warn('[whoop-service] Failed to enqueue whoop sync task', {

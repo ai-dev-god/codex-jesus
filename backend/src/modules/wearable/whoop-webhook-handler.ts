@@ -4,12 +4,13 @@ import crypto from 'node:crypto';
 
 import env from '../../config/env';
 import prismaClient from '../../lib/prisma';
-import { enqueueWhoopSyncTask, type WhoopSyncTaskPayload } from './whoop-sync-queue';
+import { enqueueAndMaybeRunWhoopSync } from './whoop-sync-dispatcher';
+import type { WhoopSyncTaskPayload } from './whoop-sync-queue';
 
 type Dependencies = {
   prisma: PrismaClient;
   secret: string | null;
-  enqueue: typeof enqueueWhoopSyncTask;
+  dispatch: typeof enqueueAndMaybeRunWhoopSync;
 };
 
 type JsonRecord = Record<string, unknown>;
@@ -198,7 +199,7 @@ const enqueueSyncTask = async (
   };
 
   const options = traceId ? { taskName: `whoop-webhook-${traceId}` } : undefined;
-  await deps.enqueue(deps.prisma, payload, options);
+  await deps.dispatch(deps.prisma, payload, { ...options, swallowErrors: true });
 };
 
 export const createWhoopWebhookHandler = (dependencies: Dependencies): RequestHandler => {
@@ -264,6 +265,6 @@ export const createWhoopWebhookHandler = (dependencies: Dependencies): RequestHa
 export const whoopWebhookHandler = createWhoopWebhookHandler({
   prisma: prismaClient,
   secret: env.WHOOP_WEBHOOK_SECRET ?? null,
-  enqueue: enqueueWhoopSyncTask
+  dispatch: enqueueAndMaybeRunWhoopSync
 });
 

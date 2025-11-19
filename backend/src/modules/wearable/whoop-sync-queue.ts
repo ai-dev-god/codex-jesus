@@ -18,7 +18,7 @@ export type WhoopSyncTaskPayload = {
     reason: WhoopSyncReason;
 };
 
-type EnqueueOptions = {
+export type WhoopSyncEnqueueOptions = {
   scheduleTime?: Date;
   taskName?: string;
 };
@@ -29,7 +29,7 @@ const toJsonValue = (payload: unknown): Prisma.InputJsonValue =>
 export const enqueueWhoopSyncTask = async (
   prisma: PrismaClient,
   payload: WhoopSyncTaskPayload,
-  options: EnqueueOptions = {}
+  options: WhoopSyncEnqueueOptions = {}
 ) => {
   const taskName = options.taskName ?? `whoop-sync-${payload.userId}-${Date.now()}`;
 
@@ -50,6 +50,6 @@ export const enqueueWhoopSyncTask = async (
 export const whoopSyncQueue = {
   queue: WHOOP_SYNC_QUEUE,
   retryConfig: WHOOP_SYNC_RETRY_CONFIG,
-  enqueue: (payload: WhoopSyncTaskPayload, options?: EnqueueOptions) =>
+  enqueue: (payload: WhoopSyncTaskPayload, options?: WhoopSyncEnqueueOptions) =>
     enqueueWhoopSyncTask(prismaClient, payload, options)
 };

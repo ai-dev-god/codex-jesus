@@ -11,13 +11,31 @@ import { sealLabPayload } from './lab-upload-crypto';
 import { labPlanLinkService } from './plan-link.service';
 import type { PanelIngestionService, PanelMeasurementInput } from '../ai/panel-ingest.service';
 
-const bufferToText = (buffer: Buffer, contentType?: string | null): string => {
+const bufferToText = async (buffer: Buffer, contentType?: string | null): Promise<string> => {
   if (!contentType) {
     return buffer.toString('utf8');
   }
+  
+  // Handle PDF files
+  if (contentType.includes('pdf') || contentType === 'application/pdf') {
+    try {
+      // Dynamic import to handle ESM/CJS compatibility
+      const { PDFParse } = await import('pdf-parse');
+      const parser = new PDFParse({ data: buffer });
+      const result = await parser.getText();
+      await parser.destroy();
+      return result.text || '';
+    } catch (error) {
+      throw new Error(`Failed to parse PDF: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  
+  // Handle text-based formats
   if (contentType.includes('json') || contentType.includes('csv') || contentType.startsWith('text/')) {
     return buffer.toString('utf8');
   }
+  
+  // Fallback for other binary formats
   return buffer.toString('latin1');
 };
 
@@ -123,7 +141,7 @@ export const runLabUploadIngestion = async (
 
   await bucket.file(sealedKey).save(sealed.ciphertext, saveOptions);
 
-  const textPayload = bufferToText(buffer, upload.contentType);
+  const textPayload = await bufferToText(buffer, upload.contentType);
   const ingestion = await supervisor.supervise(textPayload, {
     rawMetadata: (upload.rawMetadata as Record<string, unknown> | null) ?? null,
     contentType: upload.contentType

@@ -2,7 +2,7 @@ import type { Prisma, PrismaClient, WhoopSyncStatus, WhoopWorkout } from '@prism
 
 import prismaClient from '../../lib/prisma';
 import { HttpError } from '../observability-ops/http-error';
-import { enqueueWhoopSyncTask } from '../wearable/whoop-sync-queue';
+import { enqueueAndMaybeRunWhoopSync } from '../wearable/whoop-sync-dispatcher';
 import { resolveWhoopSport } from './whoop-sport-map';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -216,7 +216,7 @@ export class GymService {
       throw new HttpError(409, 'Whoop account is not fully linked yet.', 'WHOOP_PENDING_LINK');
     }
 
-    await enqueueWhoopSyncTask(this.prisma, {
+    await enqueueAndMaybeRunWhoopSync(this.prisma, {
       userId,
       whoopUserId: integration.whoopUserId,
       reason: 'manual-retry'

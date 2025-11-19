@@ -104,6 +104,16 @@ const applyCorsHeaders = (req: Request, res: Response, next: NextFunction) => {
     res.header('Access-Control-Allow-Origin', origin);
     res.header('Access-Control-Allow-Credentials', 'true');
     res.header('Vary', 'Origin');
+  } else if (req.headers.origin) {
+    // Log CORS rejection for debugging
+    const logger = require('./observability/logger').baseLogger.with({ component: 'cors' });
+    logger.warn('CORS request rejected', {
+      requestedOrigin: req.headers.origin,
+      normalizedRequested: normalizeOrigin(req.headers.origin),
+      allowedOrigins: normalizedAllowedOrigins,
+      path: req.path,
+      method: req.method
+    });
   }
   next();
 };
@@ -119,6 +129,17 @@ app.use((req, res, next) => {
       res.header('Access-Control-Allow-Methods', DEFAULT_ALLOWED_METHODS);
       res.header('Access-Control-Max-Age', PREFLIGHT_MAX_AGE_SECONDS);
       res.header('Vary', 'Origin');
+      res.sendStatus(204);
+      return;
+    } else if (req.headers.origin) {
+      // Log CORS preflight rejection for debugging
+      const logger = require('./observability/logger').baseLogger.with({ component: 'cors' });
+      logger.warn('CORS preflight rejected', {
+        requestedOrigin: req.headers.origin,
+        normalizedRequested: normalizeOrigin(req.headers.origin),
+        allowedOrigins: normalizedAllowedOrigins,
+        path: req.path
+      });
     }
 
     res.sendStatus(204);

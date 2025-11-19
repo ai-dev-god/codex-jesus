@@ -6,7 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.gymService = exports.GymService = void 0;
 const prisma_1 = __importDefault(require("../../lib/prisma"));
 const http_error_1 = require("../observability-ops/http-error");
-const whoop_sync_queue_1 = require("../wearable/whoop-sync-queue");
+const whoop_sync_dispatcher_1 = require("../wearable/whoop-sync-dispatcher");
 const whoop_sport_map_1 = require("./whoop-sport-map");
 const DAY_MS = 24 * 60 * 60 * 1000;
 const toNumber = (value) => {
@@ -153,7 +153,7 @@ class GymService {
         if (!integration.whoopUserId) {
             throw new http_error_1.HttpError(409, 'Whoop account is not fully linked yet.', 'WHOOP_PENDING_LINK');
         }
-        await (0, whoop_sync_queue_1.enqueueWhoopSyncTask)(this.prisma, {
+        await (0, whoop_sync_dispatcher_1.enqueueAndMaybeRunWhoopSync)(this.prisma, {
             userId,
             whoopUserId: integration.whoopUserId,
             reason: 'manual-retry'

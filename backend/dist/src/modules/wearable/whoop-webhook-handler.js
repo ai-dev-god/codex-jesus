@@ -7,7 +7,7 @@ exports.whoopWebhookHandler = exports.createWhoopWebhookHandler = exports.verify
 const node_crypto_1 = __importDefault(require("node:crypto"));
 const env_1 = __importDefault(require("../../config/env"));
 const prisma_1 = __importDefault(require("../../lib/prisma"));
-const whoop_sync_queue_1 = require("./whoop-sync-queue");
+const whoop_sync_dispatcher_1 = require("./whoop-sync-dispatcher");
 const SIGNATURE_HEADER_CANDIDATES = ['x-whoop-signature', 'whoop-signature', 'x-signature', 'x-hub-signature'];
 const respondWithError = (res, status, code, message) => res.status(status).json({
     error: {
@@ -162,7 +162,7 @@ const enqueueSyncTask = async (deps, integration, traceId) => {
         reason: 'webhook'
     };
     const options = traceId ? { taskName: `whoop-webhook-${traceId}` } : undefined;
-    await deps.enqueue(deps.prisma, payload, options);
+    await deps.dispatch(deps.prisma, payload, { ...options, swallowErrors: true });
 };
 const createWhoopWebhookHandler = (dependencies) => {
     const deps = {
@@ -220,5 +220,5 @@ exports.createWhoopWebhookHandler = createWhoopWebhookHandler;
 exports.whoopWebhookHandler = (0, exports.createWhoopWebhookHandler)({
     prisma: prisma_1.default,
     secret: env_1.default.WHOOP_WEBHOOK_SECRET ?? null,
-    enqueue: whoop_sync_queue_1.enqueueWhoopSyncTask
+    dispatch: whoop_sync_dispatcher_1.enqueueAndMaybeRunWhoopSync
 });

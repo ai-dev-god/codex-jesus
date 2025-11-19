@@ -34,7 +34,7 @@ spec:
             - name: GCP_PROJECT_ID
               value: biohax-777
             - name: CORS_ORIGIN
-              value: https://biohax.pro
+              value: https://biohax.pro https://staging.biohax.pro http://localhost:5173 http://localhost:3000 http://127.0.0.1:5173 http://127.0.0.1:3000
             - name: WHOOP_REDIRECT_URI
               value: https://biohax.pro/oauth/whoop/callback
             - name: WHOOP_TOKEN_KEY_ID

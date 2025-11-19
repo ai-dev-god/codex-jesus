@@ -69,12 +69,12 @@ describe('whoop webhook handler', () => {
         findUnique: jest.fn()
       }
     };
-    const enqueue = jest.fn();
+    const dispatch = jest.fn();
 
     return {
       prisma: prisma as unknown as PrismaClient,
       rawPrisma: prisma,
-      enqueue
+      dispatch
     };
   };
 
@@ -83,7 +83,7 @@ describe('whoop webhook handler', () => {
     const handler = createWhoopWebhookHandler({
       prisma: deps.prisma,
       secret,
-      enqueue: deps.enqueue
+      dispatch: deps.dispatch
     });
 
     const payload = { member_id: 'member-123', event: 'recovery.updated' };
@@ -99,7 +99,7 @@ describe('whoop webhook handler', () => {
       })
     );
     expect(deps.rawPrisma.whoopIntegration.findUnique).not.toHaveBeenCalled();
-    expect(deps.enqueue).not.toHaveBeenCalled();
+    expect(deps.dispatch).not.toHaveBeenCalled();
   });
 
   it('acknowledges events when no integration exists', async () => {
@@ -109,7 +109,7 @@ describe('whoop webhook handler', () => {
     const handler = createWhoopWebhookHandler({
       prisma: deps.prisma,
       secret,
-      enqueue: deps.enqueue
+      dispatch: deps.dispatch
     });
 
     const payload = { member_id: 'member-123', event: 'sleep.updated' };
@@ -123,7 +123,7 @@ describe('whoop webhook handler', () => {
 
     expect(res.status).toHaveBeenCalledWith(202);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ accepted: true, ignored: 'UNLINKED_MEMBER' }));
-    expect(deps.enqueue).not.toHaveBeenCalled();
+    expect(deps.dispatch).not.toHaveBeenCalled();
   });
 
   it('enqueues a sync task when integration is active', async () => {
@@ -136,7 +136,7 @@ describe('whoop webhook handler', () => {
     const handler = createWhoopWebhookHandler({
       prisma: deps.prisma,
       secret,
-      enqueue: deps.enqueue
+      dispatch: deps.dispatch
     });
 
     const payload = { member_id: 'member-123', event: 'recovery.updated', trace_id: 'trace-abc' };
@@ -153,14 +153,14 @@ describe('whoop webhook handler', () => {
       expect.objectContaining({ accepted: true, enqueued: true, traceId: 'trace-abc' })
     );
 
-    expect(deps.enqueue).toHaveBeenCalledWith(
+    expect(deps.dispatch).toHaveBeenCalledWith(
       deps.prisma,
       {
         userId: 'user-123',
         whoopUserId: 'member-123',
         reason: 'webhook'
       },
-      { taskName: 'whoop-webhook-trace-abc' }
+      { taskName: 'whoop-webhook-trace-abc', swallowErrors: true }
     );
   });
 });

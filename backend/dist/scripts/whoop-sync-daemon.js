@@ -6,7 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const client_1 = require("@prisma/client");
 const env_1 = __importDefault(require("../src/config/env"));
 const token_crypto_1 = require("../src/modules/wearable/token-crypto");
-const whoop_sync_queue_1 = require("../src/modules/wearable/whoop-sync-queue");
+const whoop_sync_dispatcher_1 = require("../src/modules/wearable/whoop-sync-dispatcher");
 const whoop_token_manager_1 = require("../src/modules/wearable/whoop-token-manager");
 const prisma = new client_1.PrismaClient();
 const REFRESH_THRESHOLD_MS = Number(process.env.WHOOP_REFRESH_THRESHOLD_MS ?? 5 * 60 * 1000);
@@ -28,7 +28,7 @@ const enqueueSync = async (integration) => {
         console.warn('[whoop-sync-daemon] Missing whoopUserId for integration', { userId: integration.userId });
         return;
     }
-    await (0, whoop_sync_queue_1.enqueueWhoopSyncTask)(prisma, {
+    await (0, whoop_sync_dispatcher_1.enqueueAndMaybeRunWhoopSync)(prisma, {
         userId: integration.userId,
         whoopUserId: integration.whoopUserId,
         reason: 'scheduled'

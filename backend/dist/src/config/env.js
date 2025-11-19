@@ -38,6 +38,7 @@ const envSchema = zod_1.z.object({
     WHOOP_TOKEN_ENCRYPTION_KEY: zod_1.z.string().min(16).default('dev-whoop-token-secret'),
     WHOOP_TOKEN_KEY_ID: zod_1.z.string().default('whoop-token-key-v1'),
     WHOOP_WEBHOOK_SECRET: zod_1.z.string().min(16).default('dev-whoop-webhook-secret'),
+    WHOOP_SYNC_INLINE: zod_1.z.coerce.boolean().default(true),
     WHOOP_SCOPES: zod_1.z.string().optional(),
     STRAVA_CLIENT_ID: zod_1.z.string().optional(),
     STRAVA_CLIENT_SECRET: zod_1.z.string().optional(),

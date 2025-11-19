@@ -2,6 +2,9 @@ import type { Biomarker, PrismaClient } from '@prisma/client';
 
 import prismaClient from '../../lib/prisma';
 import type { PanelMeasurementInput } from '../ai/panel-ingest.service';
+import { openRouterClient } from '../../lib/openrouter';
+import env from '../../config/env';
+import { baseLogger } from '../../observability/logger';
 
 type ExtractionOptions = {
   rawMetadata?: Record<string, unknown> | null;
@@ -25,6 +28,7 @@ const normalizeName = (value: string): string => value.toLowerCase().replace(/[^
 
 export class LabIngestionSupervisor {
   private biomarkerIndex: Map<string, Biomarker> | null = null;
+  private readonly logger = baseLogger.with({ component: 'lab-ingestion-supervisor' });
 
   constructor(private readonly prisma: PrismaClient = prismaClient) {}
 
@@ -84,14 +88,100 @@ export class LabIngestionSupervisor {
     return candidates;
   }
 
+  private async extractWithAI(text: string, biomarkerMap: Map<string, Biomarker>): Promise<CandidateMeasurement[]> {
+    if (!env.OPENROUTER_API_KEY) {
+      this.logger.warn('OpenRouter API key not configured, skipping AI extraction');
+      return [];
+    }
+
+    try {
+      // Get list of known biomarkers for context
+      const biomarkerNames = Array.from(biomarkerMap.values())
+        .slice(0, 50) // Limit to avoid token limits
+        .map((b) => `${b.name} (${b.unit})`)
+        .join(', ');
+
+      const systemPrompt = `You are a medical lab report parser. Extract biomarker measurements from lab report text.
+Return ONLY a JSON array of objects with this exact structure:
+[
+  {
+    "markerName": "exact biomarker name from report",
+    "value": numeric_value,
+    "unit": "unit string or null"
+  }
+]
+If you cannot find any measurements, return an empty array [].`;
+
+      const userPrompt = `Extract all biomarker measurements from this lab report text. Known biomarkers include: ${biomarkerNames}
+
+Lab report text:
+${text.substring(0, 8000)}${text.length > 8000 ? '\n[...truncated]' : ''}
+
+Return JSON array only, no other text.`;
+
+      const completion = await openRouterClient.createChatCompletion({
+        model: env.OPENROUTER_GEMINI25_PRO_MODEL,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.1,
+        maxTokens: 2000
+      });
+
+      // Parse JSON response
+      const jsonMatch = completion.content.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) {
+        this.logger.warn('AI extraction did not return valid JSON array');
+        return [];
+      }
+
+      const parsed = JSON.parse(jsonMatch[0]) as Array<{
+        markerName: string;
+        value: number;
+        unit: string | null;
+      }>;
+
+      return parsed.map((item) => ({
+        markerName: item.markerName,
+        value: item.value,
+        unit: item.unit,
+        line: `${item.markerName}: ${item.value} ${item.unit || ''}`
+      }));
+    } catch (error) {
+      this.logger.warn('AI extraction failed, falling back to regex', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return [];
+    }
+  }
+
   async supervise(text: string, options: ExtractionOptions = {}): Promise<IngestionResult> {
     const biomarkerMap = await this.loadBiomarkerIndex();
-    const candidates = this.detectCandidates(text);
     const notes: string[] = [];
     const measurements: PanelMeasurementInput[] = [];
 
     const capturedAt =
       typeof options.rawMetadata?.capturedAt === 'string' ? options.rawMetadata?.capturedAt : undefined;
+
+    // First try regex-based extraction
+    let candidates = this.detectCandidates(text);
+
+    // If regex extraction found few or no results, try AI extraction
+    if (candidates.length < 5 && text.length > 100) {
+      this.logger.info('Regex extraction found few results, attempting AI extraction');
+      const aiCandidates = await this.extractWithAI(text, biomarkerMap);
+      if (aiCandidates.length > 0) {
+        // Merge AI candidates with regex candidates, avoiding duplicates
+        const existingNames = new Set(candidates.map((c) => normalizeName(c.markerName)));
+        for (const aiCandidate of aiCandidates) {
+          if (!existingNames.has(normalizeName(aiCandidate.markerName))) {
+            candidates.push(aiCandidate);
+            notes.push(`AI-extracted: ${aiCandidate.markerName}`);
+          }
+        }
+      }
+    }
 
     candidates.forEach((candidate) => {
       const key = normalizeName(candidate.markerName);
@@ -136,16 +226,18 @@ export class LabIngestionSupervisor {
     if (measurements.length === 0) {
       notes.push(
         options.contentType?.includes('pdf')
-          ? 'OCR step produced no structured rows from PDF.'
+          ? 'PDF text extraction completed but no biomarker measurements were found. The PDF may be image-based or use an unsupported format.'
           : 'No biomarker-like lines detected.'
       );
     }
 
+    const extractionMethod = candidates.length > 0 && notes.some((n) => n.startsWith('AI-extracted:')) ? 'AI-enhanced parsing' : 'heuristic parsing';
+
     return {
       measurements,
-      summary: `AI supervisor extracted ${measurements.length} biomarker${
+      summary: `Extracted ${measurements.length} biomarker${
         measurements.length === 1 ? '' : 's'
-      } via heuristic parsing.`,
+      } via ${extractionMethod}.`,
       notes
     };
   }
