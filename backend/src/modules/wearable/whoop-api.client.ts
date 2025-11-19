@@ -61,51 +61,16 @@ export class WhoopApiClient {
       });
 
       if (!response.ok) {
-        // Try alternative endpoint
-        const altUrl = new URL(this.buildUrl('/user'));
-        const altResponse = await fetch(altUrl, {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            Accept: 'application/json'
-          }
-        });
-
-        if (!altResponse.ok) {
-          return null;
-        }
-
-        const altPayload = (await altResponse.json().catch(() => null)) as Record<string, unknown> | null;
-        const altId =
-          altPayload && typeof altPayload === 'object'
-            ? (altPayload.id ??
-              altPayload.user_id ??
-              altPayload.member_id ??
-              (typeof altPayload.user === 'object' && altPayload.user
-                ? (altPayload.user as Record<string, unknown>).id ?? (altPayload.user as Record<string, unknown>).user_id
-                : undefined))
-            : undefined;
-        if (typeof altId === 'string' || typeof altId === 'number') {
-          return { id: altId, ...altPayload };
-        }
         return null;
       }
 
       const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
-      const resolvedId =
-        payload && typeof payload === 'object'
-          ? (payload.id ??
-            payload.user_id ??
-            (typeof payload.user === 'object' && payload.user
-              ? ((payload.user as Record<string, unknown>).id ??
-                (payload.user as Record<string, unknown>).user_id ??
-                (payload.user as Record<string, unknown>).member_id)
-              : undefined) ??
-            payload.member_id)
-          : undefined;
+      const resolvedId = payload && typeof payload === 'object' ? payload.user_id ?? payload.id : undefined;
+
       if (typeof resolvedId === 'string' || typeof resolvedId === 'number') {
         return { id: resolvedId, ...payload };
       }
+
       return null;
     } catch {
       return null;
@@ -113,7 +78,7 @@ export class WhoopApiClient {
   }
 
   async listWorkouts(accessToken: string, params: WhoopWorkoutListParams = {}): Promise<WhoopWorkoutListResponse> {
-    const url = new URL(this.buildUrl('/workouts'));
+    const url = new URL(this.buildUrl('/activity/workout'));
     if (params.start) {
       const iso = params.start.toISOString();
       url.searchParams.set('start', iso);

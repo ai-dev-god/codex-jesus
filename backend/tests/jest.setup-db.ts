@@ -1,3 +1,5 @@
+import { ensureDatabaseReady } from './integration/support/db';
+
 const useExternalDatabase =
   process.env.PLAYWRIGHT_USE_EXTERNAL_PG === '1' || process.env.TEST_PG_EXTERNAL === '1';
 
@@ -21,3 +23,6 @@ if (!useExternalDatabase) {
   process.env.TEST_DATABASE_URL = databaseUrl;
 }
 
+export default async () => {
+  await ensureDatabaseReady();
+};
