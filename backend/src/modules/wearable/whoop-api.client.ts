@@ -25,15 +25,89 @@ export type WhoopWorkoutRecord = {
   score?: WhoopWorkoutScore;
 };
 
-export type WhoopWorkoutListParams = {
+export type WhoopCycleScore = {
+  strain?: number;
+  kilojoule?: number;
+  average_heart_rate?: number;
+  max_heart_rate?: number;
+};
+
+export type WhoopCycleRecord = {
+  id: string | number;
+  user_id: string | number;
+  created_at: string;
+  updated_at: string;
+  start: string;
+  end: string | null;
+  timezone_offset: number | null;
+  score_state: string;
+  score: WhoopCycleScore;
+};
+
+export type WhoopRecoveryScore = {
+  user_calibrating: boolean;
+  recovery_score: number;
+  resting_heart_rate: number;
+  hrv_rmssd_milli: number;
+  spo2_percentage: number;
+  skin_temp_celsius: number;
+};
+
+export type WhoopRecoveryRecord = {
+  cycle_id: string | number;
+  sleep_id: string | number;
+  user_id: string | number;
+  created_at: string;
+  updated_at: string;
+  score_state: string;
+  score: WhoopRecoveryScore;
+};
+
+export type WhoopSleepScore = {
+  stage_summary: {
+    total_in_bed_time_milli: number;
+    total_awake_time_milli: number;
+    total_no_data_time_milli: number;
+    total_light_sleep_time_milli: number;
+    total_slow_wave_sleep_time_milli: number;
+    total_rem_sleep_time_milli: number;
+    sleep_cycle_count: number;
+    disturbance_count: number;
+  };
+  sleep_needed: {
+    baseline_milli: number;
+    need_from_sleep_debt_milli: number;
+    need_from_recent_strain_milli: number;
+    need_from_recent_nap_milli: number;
+  };
+  respiratory_rate: number;
+  sleep_performance_percentage: number;
+  sleep_consistency_percentage: number;
+  sleep_efficiency_percentage: number;
+};
+
+export type WhoopSleepRecord = {
+  id: string | number;
+  user_id: string | number;
+  created_at: string;
+  updated_at: string;
+  start: string;
+  end: string;
+  timezone_offset: number | null;
+  nap: boolean;
+  score_state: string;
+  score: WhoopSleepScore;
+};
+
+export type WhoopListParams = {
   start?: Date;
   end?: Date;
   limit?: number;
   cursor?: string | null;
 };
 
-export type WhoopWorkoutListResponse = {
-  records: WhoopWorkoutRecord[];
+export type WhoopListResponse<T> = {
+  records: T[];
   nextCursor: string | null;
 };
 
@@ -77,8 +151,28 @@ export class WhoopApiClient {
     }
   }
 
-  async listWorkouts(accessToken: string, params: WhoopWorkoutListParams = {}): Promise<WhoopWorkoutListResponse> {
-    const url = new URL(this.buildUrl('/activity/workout'));
+  async listWorkouts(accessToken: string, params: WhoopListParams = {}): Promise<WhoopListResponse<WhoopWorkoutRecord>> {
+    return this.fetchCollection<WhoopWorkoutRecord>(accessToken, '/activity/workout', params);
+  }
+
+  async listCycles(accessToken: string, params: WhoopListParams = {}): Promise<WhoopListResponse<WhoopCycleRecord>> {
+    return this.fetchCollection<WhoopCycleRecord>(accessToken, '/cycle', params);
+  }
+
+  async listRecovery(accessToken: string, params: WhoopListParams = {}): Promise<WhoopListResponse<WhoopRecoveryRecord>> {
+    return this.fetchCollection<WhoopRecoveryRecord>(accessToken, '/recovery', params);
+  }
+
+  async listSleep(accessToken: string, params: WhoopListParams = {}): Promise<WhoopListResponse<WhoopSleepRecord>> {
+    return this.fetchCollection<WhoopSleepRecord>(accessToken, '/activity/sleep', params);
+  }
+
+  private async fetchCollection<T>(
+    accessToken: string,
+    path: string,
+    params: WhoopListParams
+  ): Promise<WhoopListResponse<T>> {
+    const url = new URL(this.buildUrl(path));
     if (params.start) {
       const iso = params.start.toISOString();
       url.searchParams.set('start', iso);
@@ -111,7 +205,7 @@ export class WhoopApiClient {
     if (!response.ok) {
       const text = await response.text().catch(() => null);
       throw new WhoopApiError(
-        `WHOOP workouts request failed with status ${response.status}${text ? `: ${text.substring(0, 200)}` : ''}`,
+        `WHOOP request to ${path} failed with status ${response.status}${text ? `: ${text.substring(0, 200)}` : ''}`,
         response.status
       );
     }
@@ -119,7 +213,7 @@ export class WhoopApiClient {
     const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
     const rawRecords = Array.isArray(payload.records) ? payload.records : [];
     const records = rawRecords
-      .filter((entry): entry is WhoopWorkoutRecord => entry !== null && typeof entry === 'object')
+      .filter((entry): entry is T => entry !== null && typeof entry === 'object')
       .map((entry) => entry);
     const nextCursor =
       typeof payload.next_token === 'string'

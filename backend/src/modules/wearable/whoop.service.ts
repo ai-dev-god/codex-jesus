@@ -13,7 +13,14 @@ import { WhoopApiClient } from './whoop-api.client';
 import { enqueueAndMaybeRunWhoopSync } from './whoop-sync-dispatcher';
 import { normalizeAuthorizeUrl, whoopAuthorizeUrl } from './whoop-config';
 
-const DEFAULT_SCOPES = ['read:recovery', 'read:cycles', 'read:profile'];
+const DEFAULT_SCOPES = [
+  'read:recovery',
+  'read:cycles',
+  'read:profile',
+  'read:workout',
+  'read:sleep',
+  'read:body_measurement'
+];
 const DEFAULT_STATE_TTL_MS = 10 * 60 * 1000;
 
 const parseScopeList = (raw?: string | null): string[] | null => {
