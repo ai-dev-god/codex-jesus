@@ -1,9 +1,10 @@
-
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { jest } from '@jest/globals';
 import { PrismaClient } from '@prisma/client';
-import { createWhoopSyncWorker } from '../whoop-sync';
+
 import { WhoopApiClient } from '../../modules/wearable/whoop-api.client';
 import { WhoopTokenManager } from '../../modules/wearable/whoop-token-manager';
+import { createWhoopSyncWorker } from '../whoop-sync';
 
 // Mock dependencies
 const mockPrisma = {
