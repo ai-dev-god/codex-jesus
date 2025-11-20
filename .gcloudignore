@@ -1,0 +1,9 @@
+.git
+.gitignore
+node_modules/
+backend/node_modules/
+bh-fe/node_modules/
+pg_data_6544/
+undefined/
+tools/
+.secrets/
