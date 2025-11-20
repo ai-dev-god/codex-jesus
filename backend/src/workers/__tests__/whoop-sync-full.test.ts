@@ -70,30 +70,30 @@ describe('whoopSyncWorker', () => {
     const whoopUserId = 'whoop-1';
 
     // Mock Metadata
-    (mockPrisma.cloudTaskMetadata.findUnique as jest.Mock).mockResolvedValue({
+    (mockPrisma.cloudTaskMetadata.findUnique as any).mockResolvedValue({
       id: 'meta-1',
       taskName,
       payload: {
         payload: { userId, whoopUserId, reason: 'scheduled' },
       },
       attemptCount: 0,
-    } as any);
+    });
 
     // Mock Integration
-    (mockPrisma.whoopIntegration.findUnique as jest.Mock).mockResolvedValue({
+    (mockPrisma.whoopIntegration.findUnique as any).mockResolvedValue({
       id: 'int-1',
       userId,
       whoopUserId,
       syncStatus: 'ACTIVE',
-    } as any);
+    });
 
     // Mock Token
-    (mockTokenManager.ensureAccessToken as jest.Mock).mockResolvedValue({
+    (mockTokenManager.ensureAccessToken as any).mockResolvedValue({
       accessToken: 'valid-token',
-    } as any);
+    });
 
     // Mock Data Responses
-    (mockApiClient.listCycles as jest.Mock).mockResolvedValue({
+    (mockApiClient.listCycles as any).mockResolvedValue({
       records: [{
         id: 101,
         user_id: 1001,
@@ -106,9 +106,9 @@ describe('whoopSyncWorker', () => {
         score: { strain: 10.5, kilojoule: 2000, average_heart_rate: 60, max_heart_rate: 120 }
       }],
       nextCursor: null
-    } as any);
+    });
 
-    (mockApiClient.listWorkouts as jest.Mock).mockResolvedValue({
+    (mockApiClient.listWorkouts as any).mockResolvedValue({
       records: [{
         id: 201,
         user_id: 1001,
@@ -120,9 +120,9 @@ describe('whoopSyncWorker', () => {
         score: { strain: 8.0, kilocalories: 500 }
       }],
       nextCursor: null
-    } as any);
+    });
 
-    (mockApiClient.listSleep as jest.Mock).mockResolvedValue({
+    (mockApiClient.listSleep as any).mockResolvedValue({
       records: [{
         id: 301,
         user_id: 1001,
@@ -155,9 +155,9 @@ describe('whoopSyncWorker', () => {
         }
       }],
       nextCursor: null
-    } as any);
+    });
 
-    (mockApiClient.listRecovery as jest.Mock).mockResolvedValue({
+    (mockApiClient.listRecovery as any).mockResolvedValue({
       records: [{
         cycle_id: 101,
         sleep_id: 301,
@@ -175,7 +175,7 @@ describe('whoopSyncWorker', () => {
         }
       }],
       nextCursor: null
-    } as any);
+    });
 
     await worker(taskName);
 
@@ -192,8 +192,10 @@ describe('whoopSyncWorker', () => {
     expect((mockPrisma as any).whoopRecovery.upsert).toHaveBeenCalled();
 
     expect(mockPrisma.cloudTaskMetadata.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'meta-1' } }),
-      expect.objectContaining({ data: expect.objectContaining({ status: 'SUCCEEDED' }) })
+      expect.objectContaining({
+        where: { id: 'meta-1' },
+        data: expect.objectContaining({ status: 'SUCCEEDED' })
+      })
     );
   });
 
@@ -201,34 +203,38 @@ describe('whoopSyncWorker', () => {
     const taskName = 'test-task-no-token';
     const userId = 'user-1';
 
-     (mockPrisma.cloudTaskMetadata.findUnique as jest.Mock).mockResolvedValue({
+     (mockPrisma.cloudTaskMetadata.findUnique as any).mockResolvedValue({
       id: 'meta-2',
       taskName,
       payload: {
         payload: { userId, whoopUserId: 'w1', reason: 'scheduled' },
       },
       attemptCount: 0,
-    } as any);
+    });
 
-    (mockPrisma.whoopIntegration.findUnique as jest.Mock).mockResolvedValue({
+    (mockPrisma.whoopIntegration.findUnique as any).mockResolvedValue({
       id: 'int-1',
       userId,
-    } as any);
+    });
 
-    (mockTokenManager.ensureAccessToken as jest.Mock).mockResolvedValue({
+    (mockTokenManager.ensureAccessToken as any).mockResolvedValue({
       accessToken: null,
-    } as any);
+    });
 
     await expect(worker(taskName)).rejects.toThrow('Missing Whoop access token');
 
     expect(mockPrisma.whoopIntegration.update).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 'int-1' } }),
-        expect.objectContaining({ data: { syncStatus: 'PENDING' } })
+        expect.objectContaining({
+            where: { id: 'int-1' },
+            data: expect.objectContaining({ syncStatus: 'PENDING' })
+        })
     );
 
     expect(mockPrisma.cloudTaskMetadata.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'meta-2' } }),
-      expect.objectContaining({ data: expect.objectContaining({ status: 'FAILED' }) })
+      expect.objectContaining({
+        where: { id: 'meta-2' },
+        data: expect.objectContaining({ status: 'FAILED' })
+      })
     );
   });
 });
