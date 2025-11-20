@@ -1,0 +1,1 @@
+/Users/aurel/codex-jesus/backend/node_modules/@embedded-postgres/darwin-arm64/native/bin/postgres "-D" "./pg_data_6544" "-p" "6544"
