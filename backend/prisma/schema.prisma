@@ -55,6 +55,11 @@ model User {
   membershipInviteRedemptions MembershipInviteRedemption[]
   dataExportJobs            DataExportJob[]
   dataDeletionJobs          DataDeletionJob[]
+  nutritionLogs            NutritionLog[]
+  macroGoals               MacroGoals?
+  nutritionProtocols       NutritionProtocol[]
+  mealTemplates            MealTemplate[]
+  nutritionMicronutrients  NutritionMicronutrient[]
   createdAt                 DateTime               @default(now())
   updatedAt                 DateTime               @updatedAt
 }
@@ -1021,4 +1026,115 @@ enum MembershipInviteStatus {
   REDEEMED
   REVOKED
   EXPIRED
+}
+
+model NutritionLog {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  name      String
+  type      MealType
+  calories  Int
+  protein   Float
+  carbs     Float
+  fats      Float
+  items     String[]
+  notes     String?
+  eatenAt   DateTime
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([userId, eatenAt])
+}
+
+model MacroGoals {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String   @unique
+  calories  Int
+  protein   Float
+  carbs     Float
+  fats      Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model NutritionProtocol {
+  id          String                  @id @default(cuid())
+  user        User?                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String?
+  title       String
+  focus       String?
+  category    String?
+  durationWeeks Int?
+  evidence    NutritionEvidenceLevel
+  adherence   Int?
+  impactSummary String?
+  timing      String?
+  supplements String[]                @default([])
+  citations   Int?
+  colorTheme  String?
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+
+  @@index([userId])
+}
+
+model MealTemplate {
+  id              String             @id @default(cuid())
+  user            User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          String?
+  name            String
+  calories        Int
+  protein         Float
+  carbs           Float
+  fats            Float
+  prepTimeMinutes Int
+  complexity      TemplateComplexity
+  description     String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([userId])
+}
+
+model NutritionMicronutrient {
+  id         String                @id @default(cuid())
+  user       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  name       String
+  value      Float
+  target     Float
+  unit       String
+  status     MicronutrientStatus
+  recordedAt DateTime              @default(now())
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+
+  @@index([userId, recordedAt])
+}
+
+enum MealType {
+  BREAKFAST
+  LUNCH
+  DINNER
+  SNACK
+}
+
+enum NutritionEvidenceLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum TemplateComplexity {
+  EASY
+  MEDIUM
+  ADVANCED
+}
+
+enum MicronutrientStatus {
+  LOW
+  OPTIMAL
+  HIGH
 }

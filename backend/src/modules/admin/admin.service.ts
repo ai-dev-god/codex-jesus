@@ -1298,6 +1298,166 @@ export class AdminService {
     };
   }
 
+  async getSystemOverview(): Promise<{
+    quickStats: {
+      label: string;
+      value: string;
+      change: string;
+      trend: 'up' | 'down' | 'stable';
+    }[];
+    recentActivity: {
+      action: string;
+      time: string;
+      severity: 'info' | 'success' | 'warning' | 'error';
+    }[];
+  }> {
+    const now = this.now();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+    const [totalUsers, lastMonthUsers, activeSessions, health] = await Promise.all([
+      this.prisma.user.count(),
+      this.prisma.user.count({ where: { createdAt: { lt: startOfMonth } } }),
+      this.prisma.loginAudit.count({
+        where: { createdAt: { gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) } }
+      }),
+      this.getSystemHealthSummary()
+    ]);
+
+    const userGrowth = lastMonthUsers > 0 
+      ? ((totalUsers - lastMonthUsers) / lastMonthUsers) * 100 
+      : 0;
+
+    const recentAuditLogs = await this.prisma.adminAuditLog.findMany({
+      take: 5,
+      orderBy: { createdAt: 'desc' },
+      include: { actor: { include: { profile: true } } }
+    });
+
+    const recentActivity = recentAuditLogs.map(log => ({
+      action: log.action.replace(/_/g, ' ').toLowerCase(),
+      time: log.createdAt.toISOString(),
+      severity: (log.action.includes('ERROR') || log.action.includes('FAILED')) ? 'error' as const : 
+                (log.action.includes('WARN') ? 'warning' as const : 'info' as const)
+    }));
+
+    // Calculate system health score
+    const penalty = Math.min(60, health.queues.totalPending * 2 + health.sync.staleConnections * 5);
+    const healthScore = Math.max(0, 100 - penalty);
+
+    return {
+      quickStats: [
+        {
+          label: 'Total Users',
+          value: totalUsers.toLocaleString(),
+          change: `${userGrowth > 0 ? '+' : ''}${userGrowth.toFixed(1)}%`,
+          trend: userGrowth >= 0 ? 'up' : 'down'
+        },
+        {
+          label: 'Active Sessions (24h)',
+          value: activeSessions.toLocaleString(),
+          change: 'Active',
+          trend: 'stable'
+        },
+        {
+          label: 'System Health',
+          value: `${healthScore}%`,
+          change: healthScore > 90 ? 'Optimal' : 'Degraded',
+          trend: healthScore > 90 ? 'stable' : 'down'
+        },
+        {
+          label: 'Pending Jobs',
+          value: health.queues.totalPending.toString(),
+          change: 'Queue size',
+          trend: health.queues.totalPending < 10 ? 'stable' : 'down'
+        }
+      ],
+      recentActivity
+    };
+  }
+
+  async getSystemMetrics(): Promise<{
+    userGrowth: { month: string; users: number }[];
+    revenue: { month: string; revenue: number }[];
+    keyMetrics: { label: string; value: string; change: string }[];
+    realtime: { activeNow: number; todaySignups: number; avgResponseTime: number };
+  }> {
+    const now = this.now();
+    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+
+    // Group users by month
+    const usersByMonth = await this.prisma.$queryRaw<{ month: string; count: bigint }[]>`
+      SELECT to_char("createdAt", 'Mon') as month, COUNT(*)::bigint as count
+      FROM "User"
+      WHERE "createdAt" >= ${sixMonthsAgo}
+      GROUP BY to_char("createdAt", 'Mon'), date_trunc('month', "createdAt")
+      ORDER BY date_trunc('month', "createdAt")
+    `;
+
+    const formattedUserGrowth = usersByMonth.map(u => ({
+      month: u.month,
+      users: Number(u.count)
+    }));
+
+    // Mock revenue for now as we don't have payments table
+    const revenueData = formattedUserGrowth.map(u => ({
+      month: u.month,
+      revenue: u.users * 20 // Assume $20 ARPU
+    }));
+
+    const todayStart = startOfUtcDay(now);
+    const todaySignups = await this.prisma.user.count({
+      where: { createdAt: { gte: todayStart } }
+    });
+
+    // Simple active session count estimate (logins in last hour)
+    const activeNow = await this.prisma.loginAudit.count({
+      where: { createdAt: { gte: new Date(now.getTime() - 60 * 60 * 1000) } }
+    });
+
+    // Avg response time from recent jobs
+    const recentJobs = await this.prisma.insightGenerationJob.findMany({
+      where: { completedAt: { not: null }, createdAt: { gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) } },
+      take: 100
+    });
+    const avgLatency = recentJobs.length > 0
+      ? recentJobs.reduce((sum, job) => sum + (job.completedAt!.getTime() - job.dispatchedAt!.getTime()), 0) / recentJobs.length
+      : 0;
+
+    const totalApiKeys = await this.prisma.serviceApiKey.count();
+
+    return {
+      userGrowth: formattedUserGrowth,
+      revenue: revenueData,
+      keyMetrics: [
+        { label: 'Total Users', value: (formattedUserGrowth[formattedUserGrowth.length - 1]?.users ?? 0).toString(), change: 'Total' },
+        { label: 'Est. MRR', value: `$${(revenueData[revenueData.length - 1]?.revenue ?? 0).toLocaleString()}`, change: 'Est.' },
+        { label: 'API Keys', value: totalApiKeys.toString(), change: 'Total' },
+        { label: 'Avg Job Latency', value: `${(avgLatency / 1000).toFixed(2)}s`, change: '24h Avg' }
+      ],
+      realtime: {
+        activeNow,
+        todaySignups,
+        avgResponseTime: Math.round(avgLatency)
+      }
+    };
+  }
+
+  async getAppConfig(): Promise<Record<string, string>> {
+    return {
+      appName: 'BioHax - Human Performance OS',
+      appUrl: env.APP_URL || 'https://app.biohax.com',
+      defaultLanguage: 'en',
+      maintenanceMode: 'false',
+      userRegistration: 'true',
+      smtpHost: env.SMTP_HOST || '',
+      fromEmail: env.FROM_EMAIL || '',
+      stripePublishableKey: env.STRIPE_PUBLIC_KEY ? `${env.STRIPE_PUBLIC_KEY.substring(0, 8)}...` : '',
+      openRouterModel: env.OPENROUTER_OPENCHAT5_MODEL || 'openrouter/openchat/openchat-5',
+      geminiModel: env.OPENROUTER_GEMINI25_PRO_MODEL || 'openrouter/google/gemini-2.5-pro'
+    };
+  }
+
   async listManagedUsers(
     options: ListManagedUsersOptions
   ): Promise<{ data: AdminManagedUser[]; meta: PaginationMeta }> {

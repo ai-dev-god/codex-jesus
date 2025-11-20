@@ -447,3 +447,217 @@ export const fetchLlmUsageMetrics = (
   });
 };
 
+export type SystemOverview = {
+  quickStats: {
+    label: string;
+    value: string;
+    change: string;
+    trend: 'up' | 'down' | 'stable';
+  }[];
+  recentActivity: {
+    action: string;
+    time: string;
+    severity: 'info' | 'success' | 'warning' | 'error';
+  }[];
+};
+
+export const fetchSystemOverview = (token: string): Promise<SystemOverview> =>
+  apiFetch<SystemOverview>('/admin/overview', {
+    method: 'GET',
+    authToken: token
+  });
+
+export type SystemMetrics = {
+  userGrowth: { month: string; users: number }[];
+  revenue: { month: string; revenue: number }[];
+  keyMetrics: { label: string; value: string; change: string }[];
+  realtime: { activeNow: number; todaySignups: number; avgResponseTime: number };
+};
+
+export const fetchSystemMetrics = (token: string): Promise<SystemMetrics> =>
+  apiFetch<SystemMetrics>('/admin/metrics/system', {
+    method: 'GET',
+    authToken: token
+  });
+
+export const fetchAppConfig = (token: string): Promise<Record<string, string>> =>
+  apiFetch<Record<string, string>>('/admin/config', {
+    method: 'GET',
+    authToken: token
+  });
+
+export type AdminAuditLogActor = {
+  id: string;
+  email: string;
+  displayName: string;
+  role: Role;
+  status?: UserStatus;
+};
+
+export type AdminAuditLogEntry = {
+  id: string;
+  action: string;
+  targetType: string;
+  targetId: string | null;
+  metadata: Record<string, unknown> | null;
+  actor: AdminAuditLogActor;
+  createdAt: string;
+};
+
+export type ListAuditLogsParams = Partial<{
+  actorId: string;
+  action: string;
+  from: string;
+  to: string;
+  cursor: string;
+  limit: number;
+}>;
+
+export type ListAuditLogsResponse = {
+  data: AdminAuditLogEntry[];
+  meta: {
+    nextCursor: string | null;
+    hasMore: boolean;
+  };
+};
+
+export const listAuditLogs = (
+  token: string,
+  params: ListAuditLogsParams = {}
+): Promise<ListAuditLogsResponse> => {
+  const query = buildQueryString({
+    actorId: params.actorId,
+    action: params.action,
+    from: params.from,
+    to: params.to,
+    cursor: params.cursor,
+    limit: params.limit
+  });
+
+  return apiFetch<ListAuditLogsResponse>(`/admin/audit${query}`, {
+    method: 'GET',
+    authToken: token
+  });
+};
+
+export type FlagStatus = 'OPEN' | 'TRIAGED' | 'RESOLVED';
+export type FlagTargetType = 'POST' | 'COMMENT' | 'INSIGHT' | 'BIOMARKER_LOG';
+
+export type AdminFlagActor = {
+  id: string;
+  email: string;
+  displayName: string;
+  role: Role;
+};
+
+export type AdminFlagCommentTarget = {
+  type: 'COMMENT';
+  id: string;
+  body: string;
+  postId: string | null;
+  author: AdminFlagActor | null;
+};
+
+export type AdminFlagPostTarget = {
+  type: 'POST';
+  id: string;
+  body: string;
+  author: AdminFlagActor | null;
+};
+
+export type AdminFlagInsightTarget = {
+  type: 'INSIGHT';
+  id: string;
+  title: string | null;
+  summary: string | null;
+  author: AdminFlagActor | null;
+};
+
+export type AdminFlagBiomarkerTarget = {
+  type: 'BIOMARKER_LOG';
+  id: string;
+  biomarker: {
+    id: string;
+    name: string;
+    unit: string;
+  } | null;
+  value: number | null;
+  capturedAt: string | null;
+  owner: AdminFlagActor | null;
+};
+
+export type AdminFlagTarget =
+  | AdminFlagCommentTarget
+  | AdminFlagPostTarget
+  | AdminFlagInsightTarget
+  | AdminFlagBiomarkerTarget;
+
+export type AdminFlagAuditEvent = {
+  status: FlagStatus;
+  notes: string | null;
+  metadata: Record<string, unknown> | null;
+  actorId: string | null;
+  occurredAt: string;
+};
+
+export type AdminFlag = {
+  id: string;
+  status: FlagStatus;
+  reason: string;
+  targetType: FlagTargetType;
+  target: AdminFlagTarget | null;
+  openedBy: AdminFlagActor;
+  resolvedBy: AdminFlagActor | null;
+  resolvedAt: string | null;
+  auditTrail: { events: AdminFlagAuditEvent[] } | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ListFlagsParams = Partial<{
+  status: FlagStatus;
+  cursor: string;
+  limit: number;
+}>;
+
+export type ListFlagsResponse = {
+  data: AdminFlag[];
+  meta: {
+    nextCursor: string | null;
+    hasMore: boolean;
+  };
+};
+
+export const listAdminFlags = (
+  token: string,
+  params: ListFlagsParams = {}
+): Promise<ListFlagsResponse> => {
+  const query = buildQueryString({
+    status: params.status,
+    cursor: params.cursor,
+    limit: params.limit
+  });
+
+  return apiFetch<ListFlagsResponse>(`/admin/flags${query}`, {
+    method: 'GET',
+    authToken: token
+  });
+};
+
+export type ResolveFlagPayload = {
+  status: Exclude<FlagStatus, 'OPEN'>;
+  resolutionNotes?: string;
+  metadata?: Record<string, unknown>;
+};
+
+export const resolveAdminFlag = (
+  token: string,
+  flagId: string,
+  payload: ResolveFlagPayload
+): Promise<AdminFlag> =>
+  apiFetch<AdminFlag>(`/admin/flags/${flagId}/resolve`, {
+    method: 'POST',
+    authToken: token,
+    body: JSON.stringify(payload)
+  });
+

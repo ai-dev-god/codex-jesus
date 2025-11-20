@@ -23,6 +23,7 @@ import { notificationsRouter } from './modules/notifications/router';
 import { aiRouter } from './modules/ai/router';
 import { reportsRouter } from './modules/reports/router';
 import { practitionerRouter } from './modules/practitioner/router';
+import { nutritionRouter } from './modules/nutrition/router';
 import { baseLogger } from './observability/logger';
 
 const captureRawBody = (req: Request, _res: Response, buf: Buffer): void => {
@@ -170,6 +171,7 @@ app.use('/notifications', notificationsRouter);
 app.use('/ai', aiRouter);
 app.use('/reports', reportsRouter);
 app.use('/practitioner', practitionerRouter);
+app.use('/nutrition', nutritionRouter);
 app.use(notFoundHandler);
 app.use(errorHandler);
 

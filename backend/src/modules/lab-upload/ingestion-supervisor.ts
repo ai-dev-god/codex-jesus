@@ -5,6 +5,9 @@ import type { PanelMeasurementInput } from '../ai/panel-ingest.service';
 import { openRouterClient } from '../../lib/openrouter';
 import env from '../../config/env';
 import { baseLogger } from '../../observability/logger';
+import { parseTrueAgeReport } from './parsers/trueage-parser';
+import { parseGenevaGiReport } from './parsers/geneva-gi-parser';
+import type { SpecializedParser } from './parsers/types';
 
 type ExtractionOptions = {
   rawMetadata?: Record<string, unknown> | null;
@@ -158,6 +161,19 @@ Return JSON array only, no other text.`;
 
   async supervise(text: string, options: ExtractionOptions = {}): Promise<IngestionResult> {
     const biomarkerMap = await this.loadBiomarkerIndex();
+
+    const specializedParsers: SpecializedParser[] = [parseTrueAgeReport, parseGenevaGiReport];
+    for (const parser of specializedParsers) {
+      const result = parser(text, biomarkerMap, options);
+      if (result.matched && result.measurements.length > 0) {
+        return {
+          measurements: result.measurements,
+          summary: result.summary,
+          notes: result.notes
+        };
+      }
+    }
+
     const notes: string[] = [];
     const measurements: PanelMeasurementInput[] = [];
 

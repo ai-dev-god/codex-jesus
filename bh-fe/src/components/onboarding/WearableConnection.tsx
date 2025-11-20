@@ -95,14 +95,27 @@ export default function WearableConnection() {
     setActionLoading(true);
     setError(null);
     try {
+      if (whoopStatus?.isConfigured === false) {
+        toast.info('WHOOP linking is disabled in this environment.');
+        return;
+      }
       const token = await ensureAccessToken();
       const status = await requestWhoopLink(token);
       setWhoopStatus(status);
       if (status.linkUrl) {
         window.location.href = status.linkUrl;
-      } else {
-        toast.info('Whoop integration is already linked or not configured.');
+        return;
       }
+      if (status.linked) {
+        toast.success('WHOOP integration is already linked.');
+        await fetchStatus();
+        return;
+      }
+      if (status.isConfigured === false) {
+        toast.info('WHOOP linking is disabled in this environment.');
+        return;
+      }
+      toast.info('Unable to initiate WHOOP linking. Please try again.');
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
@@ -112,7 +125,7 @@ export default function WearableConnection() {
     } finally {
       setActionLoading(false);
     }
-  }, [ensureAccessToken]);
+  }, [ensureAccessToken, fetchStatus, whoopStatus]);
 
   const handleWhoopUnlink = useCallback(async () => {
     setActionLoading(true);
@@ -138,6 +151,10 @@ export default function WearableConnection() {
       if (actionLoading) {
         return;
       }
+      if (whoopStatus?.isConfigured === false) {
+        toast.info('WHOOP linking is disabled in this environment.');
+        return;
+      }
       void handleWhoopLink();
       return;
     }
@@ -156,7 +173,7 @@ export default function WearableConnection() {
     if (whoopStatus?.linked) {
       return `Last sync ${whoopStatus.lastSyncAt ? new Date(whoopStatus.lastSyncAt).toLocaleString() : 'pending'}`;
     }
-    if (whoopStatus && !whoopStatus.linkUrl) {
+    if (whoopStatus?.isConfigured === false) {
       return 'Whoop is not configured for this environment.';
     }
     return 'HRV, recovery, strain, sleep tracking';
@@ -261,7 +278,7 @@ export default function WearableConnection() {
                         e.stopPropagation();
                         void handleWhoopLink();
                       }}
-                      disabled={actionLoading || loading || !whoopStatus?.linkUrl}
+                      disabled={actionLoading || loading || whoopStatus?.isConfigured === false}
                     >
                       <Link2 className="w-4 h-4" />
                       Connect Whoop

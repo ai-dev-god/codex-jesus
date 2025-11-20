@@ -42,7 +42,8 @@ type WhoopLinkStatus = {
   state: string | null;
   expiresAt: string | null;
   lastSyncAt: string | null;
-  syncStatus: WhoopSyncStatus;
+  syncStatus: WhoopSyncStatus | 'NOT_LINKED';
+  isConfigured: boolean;
 };
 
 type WhoopLinkRequest = {
@@ -352,19 +353,21 @@ export class WhoopService {
   }
 
   private toStatus(integration: WhoopIntegration | null, session: WhoopLinkSession | null): WhoopLinkStatus {
-    const linked = Boolean(integration && integration.syncStatus === 'ACTIVE' && integration.accessToken);
-    const syncStatus = integration?.syncStatus ?? 'PENDING';
-    const linkable = !linked && Boolean(this.config.clientId);
+    const linked = Boolean(integration && integration.accessToken);
+    const syncStatus: WhoopSyncStatus | 'NOT_LINKED' = integration?.syncStatus ?? 'NOT_LINKED';
+    const isConfigured = Boolean(this.config.clientId);
+    const canInitiateLink = isConfigured && !linked;
 
-    const linkUrl = linkable && session ? this.buildAuthorizeUrl(session) : null;
+    const linkUrl = canInitiateLink && session ? this.buildAuthorizeUrl(session) : null;
 
     return {
       linked,
       linkUrl,
-      state: linkable && session ? session.state : null,
-      expiresAt: linkable && session ? session.expiresAt.toISOString() : null,
+      state: canInitiateLink && session ? session.state : null,
+      expiresAt: canInitiateLink && session ? session.expiresAt.toISOString() : null,
       lastSyncAt: integration?.lastSyncedAt ? integration.lastSyncedAt.toISOString() : null,
-      syncStatus
+      syncStatus,
+      isConfigured
     };
   }
 
@@ -382,6 +385,23 @@ export class WhoopService {
     if (!this.config.clientId || !this.config.clientSecret) {
       throw new HttpError(503, 'Whoop integration is not configured for this environment.', 'WHOOP_NOT_CONFIGURED');
     }
+  }
+
+  async manualSync(userId: string): Promise<void> {
+    const integration = await this.prisma.whoopIntegration.findUnique({ where: { userId } });
+    if (!integration || !integration.accessToken || !integration.whoopUserId) {
+      throw new HttpError(400, 'Whoop integration not linked or invalid.', 'WHOOP_NOT_LINKED');
+    }
+
+    await enqueueAndMaybeRunWhoopSync(
+      this.prisma,
+      {
+        userId,
+        whoopUserId: integration.whoopUserId,
+        reason: 'manual-retry'
+      },
+      { swallowErrors: false }
+    );
   }
 
   private async scheduleInitialSync(params: { userId: string; whoopUserId: string }): Promise<void> {

@@ -17,7 +17,11 @@ import {
   FlagStatus,
   FlagTargetType,
   WhoopSyncStatus,
-  MembershipInviteStatus
+  MembershipInviteStatus,
+  MealType,
+  NutritionEvidenceLevel,
+  TemplateComplexity,
+  MicronutrientStatus
 } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
@@ -218,6 +222,306 @@ async function seed() {
   });
 
   const primaryInsight = user.insights[0];
+
+  await prisma.macroGoals.upsert({
+    where: { userId: user.id },
+    update: {
+      calories: 2400,
+      protein: 180,
+      carbs: 250,
+      fats: 80
+    },
+    create: {
+      id: 'seed-macro-goals',
+      userId: user.id,
+      calories: 2400,
+      protein: 180,
+      carbs: 250,
+      fats: 80
+    }
+  });
+
+  const seededMeals: Array<{
+    id: string;
+    name: string;
+    type: MealType;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fats: number;
+    items: string[];
+    hour: number;
+    minute: number;
+  }> = [
+    {
+      id: 'seed-nutrition-breakfast',
+      name: 'Longevity Power Bowl',
+      type: MealType.BREAKFAST,
+      calories: 520,
+      protein: 42,
+      carbs: 58,
+      fats: 18,
+      items: ['6 eggs', 'Spinach', 'Avocado', 'Sweet potato', 'Olive oil'],
+      hour: 8,
+      minute: 30
+    },
+    {
+      id: 'seed-nutrition-lunch',
+      name: 'Wild Salmon & Quinoa',
+      type: MealType.LUNCH,
+      calories: 680,
+      protein: 52,
+      carbs: 72,
+      fats: 24,
+      items: ['Wild salmon (6oz)', 'Quinoa', 'Broccoli', 'Mixed greens', 'Tahini'],
+      hour: 13,
+      minute: 0
+    },
+    {
+      id: 'seed-nutrition-snack',
+      name: 'Pre-Workout Snack',
+      type: MealType.SNACK,
+      calories: 280,
+      protein: 28,
+      carbs: 32,
+      fats: 8,
+      items: ['Greek yogurt', 'Blueberries', 'Honey', 'Almonds'],
+      hour: 16,
+      minute: 30
+    }
+  ];
+
+  for (const meal of seededMeals) {
+    const eatenAt = new Date();
+    eatenAt.setHours(meal.hour, meal.minute, 0, 0);
+    await prisma.nutritionLog.upsert({
+      where: { id: meal.id },
+      update: {
+        name: meal.name,
+        type: meal.type,
+        calories: meal.calories,
+        protein: meal.protein,
+        carbs: meal.carbs,
+        fats: meal.fats,
+        items: meal.items,
+        eatenAt
+      },
+      create: {
+        id: meal.id,
+        userId: user.id,
+        name: meal.name,
+        type: meal.type,
+        calories: meal.calories,
+        protein: meal.protein,
+        carbs: meal.carbs,
+        fats: meal.fats,
+        items: meal.items,
+        eatenAt
+      }
+    });
+  }
+
+  const seededProtocols: Array<{
+    id: string;
+    title: string;
+    focus: string;
+    durationWeeks: number;
+    evidence: NutritionEvidenceLevel;
+    adherence: number;
+    impactSummary: string;
+    timing: string;
+    supplements: string[];
+    citations: number;
+    colorTheme: string;
+  }> = [
+    {
+      id: 'seed-protocol-mitochondrial',
+      title: 'Mitochondrial Support Protocol',
+      focus: 'Energy production, cellular health',
+      durationWeeks: 8,
+      evidence: NutritionEvidenceLevel.HIGH,
+      adherence: 87,
+      impactSummary: 'Improves ATP output and reduces perceived fatigue.',
+      timing: 'Morning with breakfast',
+      supplements: ['NAD+ (500mg)', 'CoQ10 (200mg)', 'PQQ (20mg)', 'Alpha-Lipoic Acid (600mg)'],
+      citations: 8,
+      colorTheme: 'electric'
+    },
+    {
+      id: 'seed-protocol-micronutrient',
+      title: 'Longevity Micronutrient Stack',
+      focus: 'Cellular repair, antioxidant support',
+      durationWeeks: 12,
+      evidence: NutritionEvidenceLevel.HIGH,
+      adherence: 92,
+      impactSummary: 'Supports methylation, bone density, and lipid balance.',
+      timing: 'With largest meal',
+      supplements: ['Vitamin D3 (5000 IU)', 'K2 (200mcg)', 'Magnesium (400mg)', 'Omega-3 (2g EPA/DHA)'],
+      citations: 12,
+      colorTheme: 'bio'
+    },
+    {
+      id: 'seed-protocol-autophagy',
+      title: 'Autophagy Enhancement',
+      focus: 'Cellular cleanup, metabolic health',
+      durationWeeks: 16,
+      evidence: NutritionEvidenceLevel.MEDIUM,
+      adherence: 78,
+      impactSummary: 'Encourages senescent cell recycling and metabolic flexibility.',
+      timing: 'During fasting window',
+      supplements: ['Spermidine (1mg)', 'Resveratrol (500mg)', 'Berberine (1500mg)'],
+      citations: 6,
+      colorTheme: 'neural'
+    }
+  ];
+
+  for (const protocol of seededProtocols) {
+    await prisma.nutritionProtocol.upsert({
+      where: { id: protocol.id },
+      update: {
+        title: protocol.title,
+        focus: protocol.focus,
+        durationWeeks: protocol.durationWeeks,
+        evidence: protocol.evidence,
+        adherence: protocol.adherence,
+        impactSummary: protocol.impactSummary,
+        timing: protocol.timing,
+        supplements: protocol.supplements,
+        citations: protocol.citations,
+        colorTheme: protocol.colorTheme,
+        userId: user.id
+      },
+      create: {
+        id: protocol.id,
+        userId: user.id,
+        title: protocol.title,
+        focus: protocol.focus,
+        durationWeeks: protocol.durationWeeks,
+        evidence: protocol.evidence,
+        adherence: protocol.adherence,
+        impactSummary: protocol.impactSummary,
+        timing: protocol.timing,
+        supplements: protocol.supplements,
+        citations: protocol.citations,
+        colorTheme: protocol.colorTheme
+      }
+    });
+  }
+
+  const seededTemplates: Array<{
+    id: string;
+    name: string;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fats: number;
+    prepTimeMinutes: number;
+    complexity: TemplateComplexity;
+    description?: string;
+  }> = [
+    {
+      id: 'seed-template-protein-breakfast',
+      name: 'High Protein Breakfast',
+      calories: 520,
+      protein: 45,
+      carbs: 48,
+      fats: 18,
+      prepTimeMinutes: 15,
+      complexity: TemplateComplexity.EASY,
+      description: 'Quick AM template to hit protein target without spiking glucose.'
+    },
+    {
+      id: 'seed-template-mediterranean-lunch',
+      name: 'Mediterranean Power Lunch',
+      calories: 650,
+      protein: 48,
+      carbs: 68,
+      fats: 22,
+      prepTimeMinutes: 25,
+      complexity: TemplateComplexity.MEDIUM,
+      description: 'Balanced midday meal emphasizing polyphenols and fiber.'
+    },
+    {
+      id: 'seed-template-recovery',
+      name: 'Post-Workout Recovery',
+      calories: 420,
+      protein: 52,
+      carbs: 42,
+      fats: 8,
+      prepTimeMinutes: 10,
+      complexity: TemplateComplexity.EASY,
+      description: 'Rapid absorption template to refuel glycogen and support muscle repair.'
+    }
+  ];
+
+  for (const template of seededTemplates) {
+    await prisma.mealTemplate.upsert({
+      where: { id: template.id },
+      update: {
+        name: template.name,
+        calories: template.calories,
+        protein: template.protein,
+        carbs: template.carbs,
+        fats: template.fats,
+        prepTimeMinutes: template.prepTimeMinutes,
+        complexity: template.complexity,
+        description: template.description,
+        userId: user.id
+      },
+      create: {
+        id: template.id,
+        name: template.name,
+        calories: template.calories,
+        protein: template.protein,
+        carbs: template.carbs,
+        fats: template.fats,
+        prepTimeMinutes: template.prepTimeMinutes,
+        complexity: template.complexity,
+        description: template.description,
+        userId: user.id
+      }
+    });
+  }
+
+  const micronutrientsSeed: Array<{
+    id: string;
+    name: string;
+    value: number;
+    target: number;
+    unit: string;
+    status: MicronutrientStatus;
+  }> = [
+    { id: 'seed-micro-vitamin-d', name: 'Vitamin D', value: 58, target: 70, unit: 'ng/mL', status: MicronutrientStatus.LOW },
+    { id: 'seed-micro-magnesium', name: 'Magnesium', value: 5.2, target: 6.0, unit: 'mg/dL', status: MicronutrientStatus.LOW },
+    { id: 'seed-micro-omega3', name: 'Omega-3 Index', value: 7.8, target: 8.5, unit: '%', status: MicronutrientStatus.OPTIMAL },
+    { id: 'seed-micro-b12', name: 'Vitamin B12', value: 580, target: 500, unit: 'pg/mL', status: MicronutrientStatus.OPTIMAL },
+    { id: 'seed-micro-iron', name: 'Iron', value: 92, target: 100, unit: 'µg/dL', status: MicronutrientStatus.OPTIMAL }
+  ];
+
+  for (const nutrient of micronutrientsSeed) {
+    await prisma.nutritionMicronutrient.upsert({
+      where: { id: nutrient.id },
+      update: {
+        name: nutrient.name,
+        value: nutrient.value,
+        target: nutrient.target,
+        unit: nutrient.unit,
+        status: nutrient.status,
+        recordedAt: new Date(),
+        userId: user.id
+      },
+      create: {
+        id: nutrient.id,
+        userId: user.id,
+        name: nutrient.name,
+        value: nutrient.value,
+        target: nutrient.target,
+        unit: nutrient.unit,
+        status: nutrient.status,
+        recordedAt: new Date()
+      }
+    });
+  }
 
   const adminUser = await prisma.user.upsert({
     where: { email: adminEmail },
