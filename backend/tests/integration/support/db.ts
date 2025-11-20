@@ -14,7 +14,7 @@ const workerIndex = workerId > 0 ? workerId - 1 : 0;
 
 const baseEmbeddedPgRoot = path.resolve(
   process.env.EMBEDDED_PG_ROOT ??
-    (fs.existsSync(repoToolsDir) ? path.join(repoToolsDir, '.tmp') : path.join(backendDir, '.tmp'))
+  (fs.existsSync(repoToolsDir) ? path.join(repoToolsDir, '.tmp') : path.join(backendDir, '.tmp'))
 );
 const embeddedPgRoot = path.join(baseEmbeddedPgRoot, `worker-${workerId}`);
 
@@ -103,9 +103,11 @@ const waitForPort = (port: number, host: string, timeoutMs: number = 30000): Pro
 const waitForWorkerReady = (worker: ChildProcess): Promise<void> =>
   new Promise((resolve, reject) => {
     let buffer = '';
+    let stderrBuffer = '';
 
     const cleanup = (): void => {
       worker.stdout?.off('data', handleData);
+      worker.stderr?.off('data', handleStderr);
       worker.off('error', handleError);
       worker.off('exit', handleExit);
     };
@@ -130,6 +132,10 @@ const waitForWorkerReady = (worker: ChildProcess): Promise<void> =>
       }
     };
 
+    const handleStderr = (chunk: Buffer): void => {
+      stderrBuffer += chunk.toString();
+    };
+
     const handleError = (error: Error): void => {
       cleanup();
       reject(error);
@@ -137,7 +143,11 @@ const waitForWorkerReady = (worker: ChildProcess): Promise<void> =>
 
     const handleExit = (code: number | null, signal: NodeJS.Signals | null): void => {
       cleanup();
-      reject(new Error(`Embedded Postgres worker exited (code=${code ?? 'null'}, signal=${signal ?? 'null'})`));
+      reject(
+        new Error(
+          `Embedded Postgres worker exited (code=${code ?? 'null'}, signal=${signal ?? 'null'})\nStderr: ${stderrBuffer}`
+        )
+      );
     };
 
     if (!worker.stdout) {
@@ -147,6 +157,7 @@ const waitForWorkerReady = (worker: ChildProcess): Promise<void> =>
     }
 
     worker.stdout.on('data', handleData);
+    worker.stderr?.on('data', handleStderr);
     worker.once('error', handleError);
     worker.once('exit', handleExit);
   });
@@ -170,7 +181,7 @@ const startEmbeddedWorker = async (): Promise<void> => {
       EMBEDDED_PG_PASSWORD: postgresPassword,
       EMBEDDED_PG_DATABASE: postgresDatabase
     },
-    stdio: ['ignore', 'pipe', 'inherit']
+    stdio: ['ignore', 'pipe', 'pipe']
   });
 
   embeddedWorker = worker;

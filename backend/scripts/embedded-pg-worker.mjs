@@ -27,6 +27,7 @@ const ensureDatabase = async (instance, dbName, dbHost) => {
 
 const start = async () => {
   try {
+    process.stderr.write('DEBUG: Starting worker...\n');
     const embedded = new EmbeddedPostgres({
       databaseDir: dataDir || undefined,
       port,
@@ -36,8 +37,11 @@ const start = async () => {
       createPostgresUser: typeof process.getuid === 'function' && process.getuid() === 0 && process.platform === 'linux'
     });
 
+    process.stderr.write('DEBUG: Initialising...\n');
     await embedded.initialise();
+    process.stderr.write('DEBUG: Starting PG...\n');
     await embedded.start();
+    process.stderr.write('DEBUG: Ensuring DB...\n');
     await ensureDatabase(embedded, database, host);
 
     process.stdout.write('READY\n');
@@ -55,6 +59,7 @@ const start = async () => {
     });
     process.on('disconnect', shutdown);
   } catch (error) {
+    process.stderr.write(`DEBUG: Caught error: ${typeof error} ${String(error)}\n`);
     const messages = [];
     if (error instanceof Error) {
       messages.push(error.stack ?? error.message);
