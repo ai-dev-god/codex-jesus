@@ -107,6 +107,8 @@ export const parseTrueAgeReport = (
   biomarkerMap: BiomarkerLookup,
   _options?: SpecializedParserOptions
 ): SpecializedParseResult => {
+  void _options;
+
   if (!TRUEAGE_KEYWORDS.test(text)) {
     return { matched: false, measurements: [], summary: '', notes: [] };
   }

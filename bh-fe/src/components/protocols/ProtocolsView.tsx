@@ -82,9 +82,16 @@ export default function ProtocolsView() {
     );
   }
 
+  const errorBanner = error ? (
+    <div className="rounded-xl border border-pulse/30 bg-pulse/10 px-4 py-3 text-sm text-pulse">
+      {error}
+    </div>
+  ) : null;
+
   return (
     <div className="min-h-screen mesh-gradient py-12 px-6" data-testid="view-protocols">
       <div className="max-w-7xl mx-auto space-y-12">
+        {errorBanner}
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>

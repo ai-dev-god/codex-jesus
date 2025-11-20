@@ -1313,8 +1313,6 @@ export class AdminService {
   }> {
     const now = this.now();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-
     const [totalUsers, lastMonthUsers, activeSessions, health] = await Promise.all([
       this.prisma.user.count(),
       this.prisma.user.count({ where: { createdAt: { lt: startOfMonth } } }),

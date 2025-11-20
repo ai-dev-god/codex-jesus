@@ -53,10 +53,6 @@ export default function NutritionView() {
   const [fats, setFats] = useState('');
   const [ingredients, setIngredients] = useState('');
 
-  useEffect(() => {
-    void loadData();
-  }, [loadData]);
-
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
@@ -78,6 +74,10 @@ export default function NutritionView() {
       setLoading(false);
     }
   }, [ensureAccessToken]);
+
+useEffect(() => {
+  void loadData();
+}, [loadData]);
 
   const handleCreateMeal = async () => {
     try {
@@ -411,7 +411,7 @@ export default function NutritionView() {
           )}
         </TabsContent>
 
-              <TabsContent value="protocols" className="mt-6 space-y-4">
+        <TabsContent value="protocols" className="mt-6 space-y-4">
           {loading ? (
             <Card className="p-6 text-center text-steel">Loading protocols…</Card>
           ) : protocols.length === 0 ? (
@@ -419,7 +419,7 @@ export default function NutritionView() {
               No active supplementation protocols yet. Generate a longevity plan to unlock personalized guidance.
             </Card>
           ) : (
-            protocols.map((protocol, idx) => {
+            protocols.map((protocol) => {
               const cardClass = `neo-card-${protocol.color}`;
               const gradientClass = `gradient-${protocol.color}`;
               const adherence = protocol.adherence ?? 0;

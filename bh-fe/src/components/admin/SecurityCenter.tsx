@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Shield, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
+import { Shield, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useAuth } from '../../lib/auth/AuthContext';
