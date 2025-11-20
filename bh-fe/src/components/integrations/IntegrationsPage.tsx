@@ -98,6 +98,7 @@ export default function IntegrationsPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const formatSyncStatus = useCallback((status: string | null | undefined) => {
@@ -272,7 +273,10 @@ export default function IntegrationsPage() {
   }, []);
 
   const handleRefreshStatus = useCallback(() => {
-    void fetchIntegrationData();
+    setRefreshing(true);
+    void fetchIntegrationData().finally(() => {
+      setRefreshing(false);
+    });
   }, [fetchIntegrationData]);
 
   const renderWhoopCard = () => {
@@ -318,9 +322,18 @@ export default function IntegrationsPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-3 lg:flex-col lg:items-end">
-            <Button variant="outline" onClick={handleRefreshStatus} disabled={loading || actionLoading}>
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Refresh Status
+            <Button variant="outline" onClick={handleRefreshStatus} disabled={loading || actionLoading || refreshing}>
+              {refreshing ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Refreshing…
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Refresh Status
+                </>
+              )}
             </Button>
             {whoopStatus?.linked ? (
               <>

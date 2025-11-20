@@ -1,6 +1,6 @@
 generator client {
   provider      = "prisma-client-js"
-  binaryTargets = ["native", "debian-openssl-3.0.x"]
+  binaryTargets = ["native", "debian-openssl-3.0.x", "darwin-arm64"]
 }
 
 datasource db {
@@ -21,6 +21,9 @@ model User {
   whoopIntegration            WhoopIntegration?
   whoopLinkSessions           WhoopLinkSession[]
   whoopWorkouts               WhoopWorkout[]
+  whoopCycles                 WhoopCycle[]
+  whoopRecoveries             WhoopRecovery[]
+  whoopSleeps                 WhoopSleep[]
   stravaIntegration           StravaIntegration?
   stravaLinkSessions          StravaLinkSession[]
   stravaActivities            StravaActivity[]
@@ -52,6 +55,11 @@ model User {
   membershipInviteRedemptions MembershipInviteRedemption[]
   dataExportJobs              DataExportJob[]
   dataDeletionJobs            DataDeletionJob[]
+  nutritionLogs               NutritionLog[]
+  macroGoals                  MacroGoals?
+  nutritionProtocols          NutritionProtocol[]
+  mealTemplates               MealTemplate[]
+  nutritionMicronutrients     NutritionMicronutrient[]
   createdAt                   DateTime                     @default(now())
   updatedAt                   DateTime                     @updatedAt
 }
@@ -538,6 +546,82 @@ model WhoopWorkout {
   @@index([whoopUserId, startTime])
 }
 
+model WhoopCycle {
+  id                    String    @id @default(cuid())
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId                String
+  whoopUserId           String
+  whoopCycleId          String    @unique
+  startTime             DateTime
+  endTime               DateTime?
+  timezoneOffsetMinutes Int?
+  scoreState            String?
+  strain                Decimal?  @db.Decimal(5, 2)
+  kilojoule             Decimal?  @db.Decimal(10, 2)
+  avgHeartRate          Int?
+  maxHeartRate          Int?
+  rawPayload            Json?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId, startTime])
+  @@index([whoopUserId, startTime])
+}
+
+model WhoopRecovery {
+  id               String   @id @default(cuid())
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId           String
+  whoopUserId      String
+  whoopRecoveryId  String   @unique
+  cycleId          String?
+  sleepId          String?
+  scoreState       String?
+  recoveryScore    Int?
+  restingHeartRate Int?
+  hrvRmssdMilli    Decimal? @db.Decimal(10, 4)
+  spo2Percentage   Decimal? @db.Decimal(5, 2)
+  skinTempCelsius  Decimal? @db.Decimal(5, 2)
+  userCalibrating  Boolean  @default(false)
+  rawPayload       Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([userId, cycleId])
+  @@index([whoopUserId, cycleId])
+}
+
+model WhoopSleep {
+  id                          String    @id @default(cuid())
+  user                        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId                      String
+  whoopUserId                 String
+  whoopSleepId                String    @unique
+  startTime                   DateTime
+  endTime                     DateTime?
+  timezoneOffsetMinutes       Int?
+  nap                         Boolean   @default(false)
+  scoreState                  String?
+  totalInBedTimeMilli         Int?
+  totalAwakeTimeMilli         Int?
+  totalNoDataTimeMilli        Int?
+  totalLightSleepTimeMilli    Int?
+  totalSlowWaveSleepTimeMilli Int?
+  totalRemSleepTimeMilli      Int?
+  sleepCycleCount             Int?
+  disturbanceCount            Int?
+  sleepScore                  Int?
+  respiratoryRate             Decimal?  @db.Decimal(5, 2)
+  sleepEfficiency             Decimal?  @db.Decimal(5, 2)
+  sleepConsistency            Decimal?  @db.Decimal(5, 2)
+  rawPayload                  Json?
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @updatedAt
+
+  @@index([userId, startTime])
+  @@index([whoopUserId, startTime])
+}
+
 model FeedPost {
   id               String            @id @default(cuid())
   author           User              @relation("FeedPostAuthor", fields: [authorId], references: [id], onDelete: Cascade)
@@ -942,4 +1026,115 @@ enum MembershipInviteStatus {
   REDEEMED
   REVOKED
   EXPIRED
+}
+
+model NutritionLog {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  name      String
+  type      MealType
+  calories  Int
+  protein   Float
+  carbs     Float
+  fats      Float
+  items     String[]
+  notes     String?
+  eatenAt   DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, eatenAt])
+}
+
+model MacroGoals {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String   @unique
+  calories  Int
+  protein   Float
+  carbs     Float
+  fats      Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model NutritionProtocol {
+  id            String                 @id @default(cuid())
+  user          User?                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String?
+  title         String
+  focus         String?
+  category      String?
+  durationWeeks Int?
+  evidence      NutritionEvidenceLevel
+  adherence     Int?
+  impactSummary String?
+  timing        String?
+  supplements   String[]               @default([])
+  citations     Int?
+  colorTheme    String?
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+
+  @@index([userId])
+}
+
+model MealTemplate {
+  id              String             @id @default(cuid())
+  user            User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          String?
+  name            String
+  calories        Int
+  protein         Float
+  carbs           Float
+  fats            Float
+  prepTimeMinutes Int
+  complexity      TemplateComplexity
+  description     String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([userId])
+}
+
+model NutritionMicronutrient {
+  id         String              @id @default(cuid())
+  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  name       String
+  value      Float
+  target     Float
+  unit       String
+  status     MicronutrientStatus
+  recordedAt DateTime            @default(now())
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  @@index([userId, recordedAt])
+}
+
+enum MealType {
+  BREAKFAST
+  LUNCH
+  DINNER
+  SNACK
+}
+
+enum NutritionEvidenceLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum TemplateComplexity {
+  EASY
+  MEDIUM
+  ADVANCED
+}
+
+enum MicronutrientStatus {
+  LOW
+  OPTIMAL
+  HIGH
 }
