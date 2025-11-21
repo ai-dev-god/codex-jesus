@@ -28,6 +28,7 @@ export type WhoopWorkoutRecord = {
 export type WhoopSleepRecord = {
   id: string | number;
   user_id?: string | number;
+  cycle_id?: string | number;
   created_at?: string;
   updated_at?: string;
   start?: string;
@@ -102,6 +103,7 @@ export type WhoopBodyMeasurementRecord = {
   max_heart_rate?: number;
   created_at?: string;
   updated_at?: string;
+  captured_at?: string;
 };
 
 export type WhoopPaginationParams = {

@@ -24,6 +24,7 @@ model User {
   whoopCycles               WhoopCycle[]
   whoopRecoveries           WhoopRecovery[]
   whoopSleeps               WhoopSleep[]
+  whoopBodyMeasurements     WhoopBodyMeasurement[]
   stravaIntegration         StravaIntegration?
   stravaLinkSessions        StravaLinkSession[]
   stravaActivities          StravaActivity[]
@@ -577,7 +578,7 @@ model WhoopRecovery {
   cycleId               String?
   sleepId               String?
   scoreState            String?
-  recoveryScore         Int?
+  score                 Int?
   restingHeartRate      Int?
   hrvRmssdMilli         Decimal?        @db.Decimal(10, 4)
   spo2Percentage        Decimal?        @db.Decimal(5, 2)
@@ -587,8 +588,7 @@ model WhoopRecovery {
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
 
-  @@index([userId, cycleId])
-  @@index([whoopUserId, cycleId])
+  @@index([userId, createdAt])
 }
 
 model WhoopSleep {
@@ -597,29 +597,48 @@ model WhoopSleep {
   userId                String
   whoopUserId           String
   whoopSleepId          String          @unique
+  cycleId               String?
   startTime             DateTime
   endTime               DateTime?
   timezoneOffsetMinutes Int?
   nap                   Boolean         @default(false)
   scoreState            String?
-  totalInBedTimeMilli   Int?
-  totalAwakeTimeMilli   Int?
-  totalNoDataTimeMilli  Int?
-  totalLightSleepTimeMilli Int?
-  totalSlowWaveSleepTimeMilli Int?
-  totalRemSleepTimeMilli Int?
+  score                 Int?
+  performance           Int?
+  consistency           Int?
+  efficiency            Int?
   sleepCycleCount       Int?
   disturbanceCount      Int?
-  sleepScore            Int?
   respiratoryRate       Decimal?        @db.Decimal(5, 2)
-  sleepEfficiency       Decimal?        @db.Decimal(5, 2)
-  sleepConsistency      Decimal?        @db.Decimal(5, 2)
+  totalInBedSeconds     Int?
+  totalAwakeSeconds     Int?
+  totalLightSleepSeconds Int?
+  totalSlowWaveSleepSeconds Int?
+  totalRemSleepSeconds  Int?
+  sleepNeedSeconds      Int?
   rawPayload            Json?
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
 
   @@index([userId, startTime])
   @@index([whoopUserId, startTime])
+}
+
+model WhoopBodyMeasurement {
+  id             String   @id @default(cuid())
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String
+  whoopUserId    String
+  heightMeter    Decimal? @db.Decimal(5, 3)
+  weightKg       Decimal? @db.Decimal(6, 3)
+  maxHeartRate   Int?
+  rawPayload     Json?
+  capturedAt     DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([userId, capturedAt])
+  @@index([whoopUserId, capturedAt])
 }
 
 model FeedPost {

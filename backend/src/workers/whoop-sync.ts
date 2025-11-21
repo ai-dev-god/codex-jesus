@@ -80,13 +80,16 @@ const toInt = (value: unknown): number | null => {
   return Math.round(num);
 };
 
-const toDecimal = (value: unknown): Prisma.Decimal | null => {
+const toDecimalWithPrecision = (value: unknown, fractionDigits = 2): Prisma.Decimal | null => {
   const num = toNumber(value);
   if (num === null) {
     return null;
   }
-  return new Prisma.Decimal(num.toFixed(2));
+  const digits = Number.isFinite(fractionDigits) ? Math.max(0, fractionDigits) : 2;
+  return new Prisma.Decimal(num.toFixed(digits));
 };
+
+const toDecimal = (value: unknown): Prisma.Decimal | null => toDecimalWithPrecision(value, 2);
 
 const parseDate = (value: unknown): Date | null => {
   if (typeof value !== 'string') {
@@ -303,58 +306,80 @@ const upsertSleep = async (
   }
 
   const whoopSleepId = String(record.id);
+  const cycleId = record.cycle_id ? String(record.cycle_id) : null;
   const score = record.score ?? {};
   const summary = score.stage_summary ?? {};
   const needed = score.sleep_needed ?? {};
+  const performanceScore = toInt(score.sleep_performance_percentage);
+  const consistencyScore = toInt(score.sleep_consistency_percentage);
+  const efficiencyScore = toInt(score.sleep_efficiency_percentage);
+  const totalInBedSeconds = summary.total_in_bed_time_milli ? Math.round(summary.total_in_bed_time_milli / 1000) : null;
+  const totalAwakeSeconds = summary.total_awake_time_milli ? Math.round(summary.total_awake_time_milli / 1000) : null;
+  const totalLightSleepSeconds = summary.total_light_sleep_time_milli
+    ? Math.round(summary.total_light_sleep_time_milli / 1000)
+    : null;
+  const totalSlowWaveSleepSeconds = summary.total_slow_wave_sleep_time_milli
+    ? Math.round(summary.total_slow_wave_sleep_time_milli / 1000)
+    : null;
+  const totalRemSleepSeconds = summary.total_rem_sleep_time_milli
+    ? Math.round(summary.total_rem_sleep_time_milli / 1000)
+    : null;
+  const sleepNeedMillis =
+    (needed.baseline_milli ?? 0) +
+    (needed.need_from_sleep_debt_milli ?? 0) +
+    (needed.need_from_recent_strain_milli ?? 0) +
+    (needed.need_from_recent_nap_milli ?? 0);
+  const sleepNeedSeconds = sleepNeedMillis > 0 ? Math.round(sleepNeedMillis / 1000) : null;
 
   await prisma.whoopSleep.upsert({
     where: { whoopSleepId },
     update: {
       userId,
       whoopUserId,
-      cycleId: undefined,
+      cycleId,
       startTime,
       endTime,
       timezoneOffsetMinutes: toInt(record.timezone_offset),
       nap: record.nap ?? false,
       scoreState: record.score_state ?? null,
-      score: toInt(score.sleep_performance_percentage),
-      performance: toInt(score.sleep_performance_percentage),
-      consistency: toInt(score.sleep_consistency_percentage),
-      efficiency: toInt(score.sleep_efficiency_percentage),
+      score: performanceScore,
+      performance: performanceScore,
+      consistency: consistencyScore,
+      efficiency: efficiencyScore,
       respiratoryRate: toDecimal(score.respiratory_rate),
-      totalInBedSeconds: summary.total_in_bed_time_milli ? Math.round(summary.total_in_bed_time_milli / 1000) : null,
-      totalAwakeSeconds: summary.total_awake_time_milli ? Math.round(summary.total_awake_time_milli / 1000) : null,
-      totalLightSleepSeconds: summary.total_light_sleep_time_milli ? Math.round(summary.total_light_sleep_time_milli / 1000) : null,
-      totalSlowWaveSleepSeconds: summary.total_slow_wave_sleep_time_milli ? Math.round(summary.total_slow_wave_sleep_time_milli / 1000) : null,
-      totalRemSleepSeconds: summary.total_rem_sleep_time_milli ? Math.round(summary.total_rem_sleep_time_milli / 1000) : null,
+      totalInBedSeconds,
+      totalAwakeSeconds,
+      totalLightSleepSeconds,
+      totalSlowWaveSleepSeconds,
+      totalRemSleepSeconds,
       sleepCycleCount: toInt(summary.sleep_cycle_count),
       disturbanceCount: toInt(summary.disturbance_count),
-      sleepNeedSeconds: needed.baseline_milli ? Math.round((needed.baseline_milli + (needed.need_from_sleep_debt_milli || 0) + (needed.need_from_recent_strain_milli || 0) + (needed.need_from_recent_nap_milli || 0)) / 1000) : null,
+      sleepNeedSeconds,
       rawPayload: record as Prisma.InputJsonValue
     },
     create: {
       userId,
       whoopUserId,
       whoopSleepId,
+      cycleId,
       startTime,
       endTime,
       timezoneOffsetMinutes: toInt(record.timezone_offset),
       nap: record.nap ?? false,
       scoreState: record.score_state ?? null,
-      score: toInt(score.sleep_performance_percentage),
-      performance: toInt(score.sleep_performance_percentage),
-      consistency: toInt(score.sleep_consistency_percentage),
-      efficiency: toInt(score.sleep_efficiency_percentage),
+      score: performanceScore,
+      performance: performanceScore,
+      consistency: consistencyScore,
+      efficiency: efficiencyScore,
       respiratoryRate: toDecimal(score.respiratory_rate),
-      totalInBedSeconds: summary.total_in_bed_time_milli ? Math.round(summary.total_in_bed_time_milli / 1000) : null,
-      totalAwakeSeconds: summary.total_awake_time_milli ? Math.round(summary.total_awake_time_milli / 1000) : null,
-      totalLightSleepSeconds: summary.total_light_sleep_time_milli ? Math.round(summary.total_light_sleep_time_milli / 1000) : null,
-      totalSlowWaveSleepSeconds: summary.total_slow_wave_sleep_time_milli ? Math.round(summary.total_slow_wave_sleep_time_milli / 1000) : null,
-      totalRemSleepSeconds: summary.total_rem_sleep_time_milli ? Math.round(summary.total_rem_sleep_time_milli / 1000) : null,
+      totalInBedSeconds,
+      totalAwakeSeconds,
+      totalLightSleepSeconds,
+      totalSlowWaveSleepSeconds,
+      totalRemSleepSeconds,
       sleepCycleCount: toInt(summary.sleep_cycle_count),
       disturbanceCount: toInt(summary.disturbance_count),
-      sleepNeedSeconds: needed.baseline_milli ? Math.round((needed.baseline_milli + (needed.need_from_sleep_debt_milli || 0) + (needed.need_from_recent_strain_milli || 0) + (needed.need_from_recent_nap_milli || 0)) / 1000) : null,
+      sleepNeedSeconds,
       rawPayload: record as Prisma.InputJsonValue
     }
   });
@@ -366,15 +391,34 @@ const upsertBodyMeasurement = async (
   whoopUserId: string,
   record: WhoopBodyMeasurementRecord
 ): Promise<void> => {
-  await prisma.whoopBodyMeasurement.create({
-    data: {
+  const capturedAt = parseDate(record.captured_at ?? record.updated_at ?? record.created_at) ?? new Date();
+  const heightMeter = toDecimalWithPrecision(record.height_meter, 3);
+  const weightKg = toDecimalWithPrecision(record.weight_kg, 3);
+  const rawPayload = record as Prisma.InputJsonValue;
+
+  await prisma.whoopBodyMeasurement.upsert({
+    where: {
+      userId_capturedAt: {
+        userId,
+        capturedAt
+      }
+    },
+    update: {
+      whoopUserId,
+      heightMeter,
+      weightKg,
+      maxHeartRate: toInt(record.max_heart_rate),
+      rawPayload,
+      capturedAt
+    },
+    create: {
       userId,
       whoopUserId,
-      heightMeter: toDecimal(record.height_meter),
-      weightKg: toDecimal(record.weight_kg),
+      heightMeter,
+      weightKg,
       maxHeartRate: toInt(record.max_heart_rate),
-      rawPayload: record as Prisma.InputJsonValue,
-      capturedAt: new Date()
+      rawPayload,
+      capturedAt
     }
   });
 };
