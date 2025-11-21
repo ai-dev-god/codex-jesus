@@ -98,23 +98,7 @@ export default function IntegrationsPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const formatSyncStatus = useCallback((status: string | null | undefined) => {
-    switch (status) {
-      case 'ACTIVE':
-        return 'Active';
-      case 'PENDING':
-        return 'Pending';
-      case 'ERROR':
-        return 'Error';
-      case 'NOT_LINKED':
-        return 'Not linked';
-      default:
-        return status ?? 'Unknown';
-    }
-  }, []);
 
   const fetchIntegrationData = useCallback(async () => {
     setLoading(true);
@@ -159,13 +143,6 @@ export default function IntegrationsPage() {
     return new Date(whoopStatus.lastSyncAt).toLocaleString();
   }, [whoopStatus, loading]);
 
-  const syncStatusLabel = useMemo(() => {
-    if (loading) {
-      return '—';
-    }
-    return formatSyncStatus(whoopStatus?.syncStatus ?? 'NOT_LINKED');
-  }, [formatSyncStatus, loading, whoopStatus?.syncStatus]);
-
   const whoopSubtitle = useMemo(() => {
     if (loading) {
       return 'Checking your WHOOP status…';
@@ -175,7 +152,7 @@ export default function IntegrationsPage() {
         ? `Last sync ${new Date(whoopStatus.lastSyncAt).toLocaleString()}`
         : 'Linked • waiting for first sync';
     }
-    if (whoopStatus?.isConfigured === false) {
+    if (whoopStatus && !whoopStatus.linkUrl) {
       return 'WHOOP is not configured for this environment.';
     }
     return 'Connect WHOOP to sync recovery and strain metrics.';
@@ -198,10 +175,6 @@ export default function IntegrationsPage() {
     setActionLoading(true);
     setError(null);
     try {
-      if (whoopStatus?.isConfigured === false) {
-        toast.error('WHOOP linking is disabled in this environment.');
-        return;
-      }
       const token = await ensureAccessToken();
       const status = await requestWhoopLink(token);
       setWhoopStatus(status);
@@ -211,14 +184,9 @@ export default function IntegrationsPage() {
       }
       if (status.linked) {
         toast.success('WHOOP is already linked.');
-        await fetchIntegrationData();
-        return;
+      } else {
+        toast.info('WHOOP linking is not available in this environment.');
       }
-      if (status.isConfigured === false) {
-        toast.info('WHOOP linking is disabled in this environment.');
-        return;
-      }
-      toast.info('Unable to initiate WHOOP linking. Please try again.');
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
@@ -228,7 +196,7 @@ export default function IntegrationsPage() {
     } finally {
       setActionLoading(false);
     }
-  }, [ensureAccessToken, fetchIntegrationData, whoopStatus]);
+  }, [ensureAccessToken]);
 
   const handleWhoopDisconnect = useCallback(async () => {
     setActionLoading(true);
@@ -273,10 +241,7 @@ export default function IntegrationsPage() {
   }, []);
 
   const handleRefreshStatus = useCallback(() => {
-    setRefreshing(true);
-    void fetchIntegrationData().finally(() => {
-      setRefreshing(false);
-    });
+    void fetchIntegrationData();
   }, [fetchIntegrationData]);
 
   const renderWhoopCard = () => {
@@ -308,8 +273,7 @@ export default function IntegrationsPage() {
               <p className="text-ink mb-3">{whoopSubtitle}</p>
               {gymOverview?.lastSyncAt && (
                 <p className="text-sm text-steel mb-4">
-                  <span className="font-semibold">WHOOP sync status:</span>{' '}
-                  {formatSyncStatus(gymOverview.syncStatus)}
+                  <span className="font-semibold">WHOOP sync status:</span> {gymOverview.syncStatus}
                 </p>
               )}
               <div className="flex flex-wrap gap-2">
@@ -322,18 +286,9 @@ export default function IntegrationsPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-3 lg:flex-col lg:items-end">
-            <Button variant="outline" onClick={handleRefreshStatus} disabled={loading || actionLoading || refreshing}>
-              {refreshing ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Refreshing…
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Refresh Status
-                </>
-              )}
+            <Button variant="outline" onClick={handleRefreshStatus} disabled={loading || actionLoading}>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Refresh Status
             </Button>
             {whoopStatus?.linked ? (
               <>
@@ -364,10 +319,7 @@ export default function IntegrationsPage() {
                 </Button>
               </>
             ) : (
-              <Button
-                onClick={handleWhoopConnect}
-                disabled={actionLoading || loading || whoopStatus?.isConfigured === false}
-              >
+              <Button onClick={handleWhoopConnect} disabled={actionLoading || loading}>
                 {actionLoading ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -490,8 +442,8 @@ export default function IntegrationsPage() {
                 <div className="text-2xl font-bold text-ink">{lastSyncLabel}</div>
               </div>
             </div>
-              <p className="text-sm text-steel">
-              Sync status: {syncStatusLabel}
+            <p className="text-sm text-steel">
+              Sync status: {whoopStatus?.syncStatus ?? 'NOT_LINKED'}
             </p>
           </div>
         </div>

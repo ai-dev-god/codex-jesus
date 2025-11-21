@@ -25,88 +25,93 @@ export type WhoopWorkoutRecord = {
   score?: WhoopWorkoutScore;
 };
 
-export type WhoopCycleScore = {
-  strain?: number;
-  kilojoule?: number;
-  average_heart_rate?: number;
-  max_heart_rate?: number;
+export type WhoopSleepRecord = {
+  id: string | number;
+  user_id?: string | number;
+  created_at?: string;
+  updated_at?: string;
+  start?: string;
+  end?: string;
+  timezone_offset?: number;
+  nap?: boolean;
+  score_state?: string;
+  score?: {
+    stage_summary?: {
+      total_in_bed_time_milli?: number;
+      total_awake_time_milli?: number;
+      total_no_data_time_milli?: number;
+      total_light_sleep_time_milli?: number;
+      total_slow_wave_sleep_time_milli?: number;
+      total_rem_sleep_time_milli?: number;
+      sleep_cycle_count?: number;
+      disturbance_count?: number;
+    };
+    sleep_needed?: {
+      baseline_milli?: number;
+      need_from_sleep_debt_milli?: number;
+      need_from_recent_strain_milli?: number;
+      need_from_recent_nap_milli?: number;
+    };
+    respiratory_rate?: number;
+    sleep_performance_percentage?: number;
+    sleep_consistency_percentage?: number;
+    sleep_efficiency_percentage?: number;
+  };
 };
 
 export type WhoopCycleRecord = {
   id: string | number;
-  user_id: string | number;
-  created_at: string;
-  updated_at: string;
-  start: string;
-  end: string | null;
-  timezone_offset: number | null;
-  score_state: string;
-  score: WhoopCycleScore;
-};
-
-export type WhoopRecoveryScore = {
-  user_calibrating: boolean;
-  recovery_score: number;
-  resting_heart_rate: number;
-  hrv_rmssd_milli: number;
-  spo2_percentage: number;
-  skin_temp_celsius: number;
+  user_id?: string | number;
+  created_at?: string;
+  updated_at?: string;
+  start?: string;
+  end?: string;
+  timezone_offset?: number;
+  score_state?: string;
+  score?: {
+    strain?: number;
+    kilojoule?: number;
+    average_heart_rate?: number;
+    max_heart_rate?: number;
+  };
 };
 
 export type WhoopRecoveryRecord = {
-  cycle_id: string | number;
-  sleep_id: string | number;
-  user_id: string | number;
-  created_at: string;
-  updated_at: string;
-  score_state: string;
-  score: WhoopRecoveryScore;
-};
-
-export type WhoopSleepScore = {
-  stage_summary: {
-    total_in_bed_time_milli: number;
-    total_awake_time_milli: number;
-    total_no_data_time_milli: number;
-    total_light_sleep_time_milli: number;
-    total_slow_wave_sleep_time_milli: number;
-    total_rem_sleep_time_milli: number;
-    sleep_cycle_count: number;
-    disturbance_count: number;
-  };
-  sleep_needed: {
-    baseline_milli: number;
-    need_from_sleep_debt_milli: number;
-    need_from_recent_strain_milli: number;
-    need_from_recent_nap_milli: number;
-  };
-  respiratory_rate: number;
-  sleep_performance_percentage: number;
-  sleep_consistency_percentage: number;
-  sleep_efficiency_percentage: number;
-};
-
-export type WhoopSleepRecord = {
   id: string | number;
-  user_id: string | number;
-  created_at: string;
-  updated_at: string;
-  start: string;
-  end: string;
-  timezone_offset: number | null;
-  nap: boolean;
-  score_state: string;
-  score: WhoopSleepScore;
+  cycle_id?: string | number;
+  sleep_id?: string | number;
+  user_id?: string | number;
+  created_at?: string;
+  updated_at?: string;
+  score_state?: string;
+  score?: {
+    user_calibrating?: boolean;
+    recovery_score?: number;
+    resting_heart_rate?: number;
+    hrv_rmssd_milli?: number;
+    spo2_percentage?: number;
+    skin_temp_celsius?: number;
+  };
 };
 
-export type WhoopListParams = {
+export type WhoopBodyMeasurementRecord = {
+  id: string | number;
+  user_id?: string | number;
+  height_meter?: number;
+  weight_kg?: number;
+  max_heart_rate?: number;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type WhoopPaginationParams = {
   start?: Date;
   end?: Date;
   limit?: number;
   cursor?: string | null;
 };
 
-export type WhoopListResponse<T> = {
+export type WhoopPaginatedResponse<T> = {
   records: T[];
   nextCursor: string | null;
 };
@@ -151,47 +156,65 @@ export class WhoopApiClient {
     }
   }
 
-  async listWorkouts(accessToken: string, params: WhoopListParams = {}): Promise<WhoopListResponse<WhoopWorkoutRecord>> {
-    return this.fetchCollection<WhoopWorkoutRecord>(accessToken, '/activity/workout', params);
+  async listWorkouts(accessToken: string, params: WhoopPaginationParams = {}): Promise<WhoopPaginatedResponse<WhoopWorkoutRecord>> {
+    return this.listResource<WhoopWorkoutRecord>('/activity/workout', accessToken, params);
   }
 
-  async listCycles(accessToken: string, params: WhoopListParams = {}): Promise<WhoopListResponse<WhoopCycleRecord>> {
-    return this.fetchCollection<WhoopCycleRecord>(accessToken, '/cycle', params);
+  async listSleeps(accessToken: string, params: WhoopPaginationParams = {}): Promise<WhoopPaginatedResponse<WhoopSleepRecord>> {
+    return this.listResource<WhoopSleepRecord>('/activity/sleep', accessToken, params);
   }
 
-  async listRecovery(accessToken: string, params: WhoopListParams = {}): Promise<WhoopListResponse<WhoopRecoveryRecord>> {
-    return this.fetchCollection<WhoopRecoveryRecord>(accessToken, '/recovery', params);
+  async listCycles(accessToken: string, params: WhoopPaginationParams = {}): Promise<WhoopPaginatedResponse<WhoopCycleRecord>> {
+    return this.listResource<WhoopCycleRecord>('/cycle', accessToken, params);
   }
 
-  async listSleep(accessToken: string, params: WhoopListParams = {}): Promise<WhoopListResponse<WhoopSleepRecord>> {
-    return this.fetchCollection<WhoopSleepRecord>(accessToken, '/activity/sleep', params);
+  async listRecoveries(accessToken: string, params: WhoopPaginationParams = {}): Promise<WhoopPaginatedResponse<WhoopRecoveryRecord>> {
+    return this.listResource<WhoopRecoveryRecord>('/recovery', accessToken, params);
   }
 
-  private async fetchCollection<T>(
-    accessToken: string,
+  async getBodyMeasurements(accessToken: string): Promise<WhoopBodyMeasurementRecord | null> {
+    try {
+      const url = new URL(this.buildUrl('/user/measurement/body'));
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      return (await response.json().catch(() => null)) as WhoopBodyMeasurementRecord | null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async listResource<T>(
     path: string,
-    params: WhoopListParams
-  ): Promise<WhoopListResponse<T>> {
+    accessToken: string,
+    params: WhoopPaginationParams
+  ): Promise<WhoopPaginatedResponse<T>> {
     const url = new URL(this.buildUrl(path));
     if (params.start) {
       const iso = params.start.toISOString();
       url.searchParams.set('start', iso);
-      url.searchParams.set('start_time', iso);
     }
 
     if (params.end) {
       const iso = params.end.toISOString();
       url.searchParams.set('end', iso);
-      url.searchParams.set('end_time', iso);
     }
 
     if (params.limit) {
-      url.searchParams.set('limit', String(Math.min(Math.max(params.limit, 1), 200)));
+      url.searchParams.set('limit', String(Math.min(Math.max(params.limit, 1), 25)));
     }
 
     if (params.cursor) {
       url.searchParams.set('next_token', params.cursor);
-      url.searchParams.set('cursor', params.cursor);
     }
 
     const response = await fetch(url, {
@@ -234,4 +257,3 @@ export class WhoopApiClient {
     return `${normalizedBase}${normalizedPath}`;
   }
 }
-

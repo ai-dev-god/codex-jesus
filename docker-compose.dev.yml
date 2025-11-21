@@ -28,17 +28,6 @@ services:
       PORT: 4000
       DATABASE_URL: postgresql://biohax:biohax@postgres:5432/biohax?schema=public
       CORS_ORIGIN: http://localhost:5173
-      WHOOP_CLIENT_ID: ${WHOOP_CLIENT_ID:-}
-      WHOOP_CLIENT_SECRET: ${WHOOP_CLIENT_SECRET:-}
-      WHOOP_REDIRECT_URI: ${WHOOP_REDIRECT_URI:-http://localhost:5173/oauth/whoop/callback}
-      WHOOP_AUTHORIZE_URL: ${WHOOP_AUTHORIZE_URL:-https://api.prod.whoop.com/oauth/oauth2/auth}
-      WHOOP_TOKEN_URL: ${WHOOP_TOKEN_URL:-https://api.prod.whoop.com/oauth/oauth2/token}
-      WHOOP_API_BASE_URL: ${WHOOP_API_BASE_URL:-https://api.prod.whoop.com/developer/v1}
-      WHOOP_SCOPES: ${WHOOP_SCOPES:-}
-      WHOOP_TOKEN_ENCRYPTION_KEY: ${WHOOP_TOKEN_ENCRYPTION_KEY:-dev-whoop-token-secret}
-      WHOOP_TOKEN_KEY_ID: ${WHOOP_TOKEN_KEY_ID:-whoop-token-key-v1}
-      WHOOP_WEBHOOK_SECRET: ${WHOOP_WEBHOOK_SECRET:-dev-whoop-webhook-secret}
-      WHOOP_SYNC_INLINE: ${WHOOP_SYNC_INLINE:-true}
     volumes:
       - ./backend:/workspace
       - backend_node_modules:/workspace/node_modules

@@ -1,8 +1,4 @@
-import { useEffect, useState } from 'react';
 import { Settings, Mail, Zap, DollarSign } from 'lucide-react';
-import { toast } from 'sonner';
-import { useAuth } from '../../lib/auth/AuthContext';
-import { fetchAppConfig } from '../../lib/api/admin';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -11,29 +7,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Button } from '../ui/button';
 
 export default function ApplicationConfig() {
-  const { ensureAccessToken } = useAuth();
-  const [config, setConfig] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const token = await ensureAccessToken();
-        const result = await fetchAppConfig(token);
-        setConfig(result);
-      } catch (error) {
-        toast.error('Failed to load application config');
-      } finally {
-        setLoading(false);
-      }
-    };
-    void loadData();
-  }, [ensureAccessToken]);
-
-  if (loading) {
-    return <div className="p-12 text-center text-steel animate-pulse">Loading configuration...</div>;
-  }
-
   return (
     <div className="space-y-6">
       <Tabs defaultValue="general" className="space-y-6">
@@ -63,15 +36,15 @@ export default function ApplicationConfig() {
             <div className="space-y-4">
               <div>
                 <Label>Application Name</Label>
-                <Input defaultValue={config.appName} className="mt-2" readOnly />
+                <Input defaultValue="BioHax - Human Performance OS" className="mt-2" />
               </div>
               <div>
                 <Label>Application URL</Label>
-                <Input defaultValue={config.appUrl} className="mt-2" readOnly />
+                <Input defaultValue="https://app.biohax.com" className="mt-2" />
               </div>
               <div>
                 <Label>Default Language</Label>
-                <Select defaultValue={config.defaultLanguage} disabled>
+                <Select defaultValue="en">
                   <SelectTrigger className="mt-2">
                     <SelectValue />
                   </SelectTrigger>
@@ -84,16 +57,16 @@ export default function ApplicationConfig() {
               <div className="neo-card bg-pearl p-4 flex items-center justify-between">
                 <div>
                   <p className="font-medium text-ink">Maintenance Mode</p>
-                  <p className="text-sm text-steel">Disable public access (Environment Variable)</p>
+                  <p className="text-sm text-steel">Disable public access</p>
                 </div>
-                <Switch checked={config.maintenanceMode === 'true'} disabled />
+                <Switch />
               </div>
               <div className="neo-card bg-pearl p-4 flex items-center justify-between">
                 <div>
                   <p className="font-medium text-ink">User Registration</p>
                   <p className="text-sm text-steel">Allow new signups</p>
                 </div>
-                <Switch checked={config.userRegistration === 'true'} disabled />
+                <Switch defaultChecked />
               </div>
             </div>
           </div>
@@ -107,19 +80,19 @@ export default function ApplicationConfig() {
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <Label>OpenRouter Endpoint</Label>
-                <Input defaultValue="https://openrouter.ai/api/v1" className="mt-2" readOnly />
+                <Input defaultValue="https://openrouter.ai/api/v1" className="mt-2" />
               </div>
               <div>
                 <Label>Model ID</Label>
-                <Input defaultValue={config.openRouterModel} className="mt-2" readOnly />
+                <Input defaultValue="openrouter/openchat/openchat-5" className="mt-2" />
               </div>
               <div>
-                <Label>API Key</Label>
-                <Input type="password" placeholder="Managed via secrets" disabled className="mt-2 cursor-not-allowed" />
+                <Label>API Key (GOOGLE_APPLICATION_CREDENTIALS)</Label>
+                <Input type="password" placeholder="••••••••••••••••" className="mt-2" />
               </div>
               <div>
                 <Label>Routing weight</Label>
-                <Input defaultValue="60%" className="mt-2" readOnly />
+                <Input defaultValue="60%" className="mt-2" />
               </div>
             </div>
             <div className="neo-card bg-pearl p-4 flex items-center justify-between mt-4">
@@ -127,7 +100,7 @@ export default function ApplicationConfig() {
                 <p className="font-medium text-ink">Enable OpenChat 5</p>
                 <p className="text-sm text-steel">Primary dual-engine channel</p>
               </div>
-              <Switch defaultChecked disabled />
+              <Switch defaultChecked />
             </div>
           </div>
 
@@ -137,11 +110,11 @@ export default function ApplicationConfig() {
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <Label>Model ID</Label>
-                <Input defaultValue={config.geminiModel} className="mt-2" readOnly />
+                <Input defaultValue="openrouter/google/gemini-2.5-pro" className="mt-2" />
               </div>
               <div>
                 <Label>Routing weight</Label>
-                <Input defaultValue="40%" className="mt-2" readOnly />
+                <Input defaultValue="40%" className="mt-2" />
               </div>
               <div className="md:col-span-2">
                 <Label>Shared OpenRouter Key</Label>
@@ -153,7 +126,7 @@ export default function ApplicationConfig() {
                 <p className="font-medium text-ink">Enable Gemini 2.5 Pro</p>
                 <p className="text-sm text-steel">Secondary verification channel</p>
               </div>
-              <Switch defaultChecked disabled />
+              <Switch defaultChecked />
             </div>
           </div>
 
@@ -170,36 +143,34 @@ export default function ApplicationConfig() {
           </div>
         </TabsContent>
 
-        {/* Email Settings */}
         <TabsContent value="email">
           <div className="neo-card bg-white p-6">
             <h3 className="mb-4">Email Configuration</h3>
             <div className="space-y-4">
               <div>
                 <Label>SMTP Host</Label>
-                <Input defaultValue={config.smtpHost} className="mt-2" readOnly />
+                <Input defaultValue="smtp.sendgrid.net" className="mt-2" />
               </div>
               <div>
                 <Label>From Email</Label>
-                <Input defaultValue={config.fromEmail} className="mt-2" readOnly />
+                <Input defaultValue="noreply@biohax.com" className="mt-2" />
               </div>
-              <Button className="w-full mt-4" disabled>Send Test Email</Button>
+              <Button className="w-full mt-4">Send Test Email</Button>
             </div>
           </div>
         </TabsContent>
 
-        {/* Payment Settings */}
         <TabsContent value="payment">
           <div className="neo-card bg-white p-6">
             <h3 className="mb-4">Stripe Configuration</h3>
             <div className="space-y-4">
               <div>
                 <Label>Publishable Key</Label>
-                <Input defaultValue={config.stripePublishableKey} className="mt-2" readOnly />
+                <Input placeholder="pk_live_..." className="mt-2" />
               </div>
               <div>
                 <Label>Secret Key</Label>
-                <Input type="password" placeholder="Managed via secrets" disabled className="mt-2 cursor-not-allowed" />
+                <Input type="password" placeholder="sk_live_..." className="mt-2" />
               </div>
             </div>
           </div>

@@ -6,8 +6,7 @@ export type WhoopLinkStatus = {
   state: string | null;
   expiresAt: string | null;
   lastSyncAt: string | null;
-  syncStatus: 'PENDING' | 'ACTIVE' | 'ERROR' | 'NOT_LINKED';
-  isConfigured: boolean;
+  syncStatus: 'PENDING' | 'ACTIVE' | 'ERROR';
 };
 
 type LinkPayload = {

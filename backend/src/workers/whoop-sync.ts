@@ -13,7 +13,7 @@ import {
   type WhoopCycleRecord,
   type WhoopRecoveryRecord,
   type WhoopSleepRecord,
-  type WhoopListResponse
+  type WhoopBodyMeasurementRecord
 } from '../modules/wearable/whoop-api.client';
 import { WhoopTokenManager } from '../modules/wearable/whoop-token-manager';
 import { whoopTokenCrypto } from '../modules/wearable/token-crypto';
@@ -107,16 +107,15 @@ const computeDurationSeconds = (start: Date | null, end: Date | null): number | 
 const resolveStartTime = async (
   prisma: PrismaClient,
   userId: string,
-  table: 'whoopWorkout' | 'whoopCycle' | 'whoopSleep',
+  model: 'whoopWorkout' | 'whoopCycle' | 'whoopRecovery' | 'whoopSleep',
   now: Date
 ): Promise<Date> => {
-  // We cast to any because we are accessing dynamic model names which all have startTime
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const model = (prisma as any)[table];
-
-  const lastRecord = await model.findFirst({
+  const lastRecord = await (prisma[model] as any).findFirst({
     where: { userId },
-    orderBy: { startTime: 'desc' }
+    // For recovery, we use createdAt as a proxy if startTime doesn't exist, but Recovery usually has created_at or we use cycle timestamp.
+    // Our schema has startTime for Cycle, Sleep, Workout. Recovery has createdAt.
+    orderBy: model === 'whoopRecovery' ? { createdAt: 'desc' } : { startTime: 'desc' }
   });
 
   if (!lastRecord) {
@@ -124,7 +123,8 @@ const resolveStartTime = async (
   }
 
   const bufferMs = BUFFER_HOURS * 60 * 60 * 1000;
-  return new Date(lastRecord.startTime.getTime() - bufferMs);
+  const time = model === 'whoopRecovery' ? lastRecord.createdAt : lastRecord.startTime;
+  return new Date(time.getTime() - bufferMs);
 };
 
 const upsertWorkout = async (
@@ -211,12 +211,7 @@ const upsertCycle = async (
   const score = record.score ?? {};
   const whoopCycleId = String(record.id);
 
-  // Prisma types might not be generated for this yet if running in sandbox without generation
-  // using any to bypass strict check against potentially missing models
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const delegate = (prisma as any).whoopCycle;
-
-  await delegate.upsert({
+  await prisma.whoopCycle.upsert({
     where: { whoopCycleId },
     update: {
       userId,
@@ -254,44 +249,42 @@ const upsertRecovery = async (
   whoopUserId: string,
   record: WhoopRecoveryRecord
 ): Promise<void> => {
+  const cycleId = record.cycle_id ? String(record.cycle_id) : null;
+  const sleepId = record.sleep_id ? String(record.sleep_id) : null;
   const score = record.score ?? {};
-  // Recovery endpoint doesn't give a unique ID in the payload usually, but we can use cycle_id as unique key
-  // Or check if the record has an ID. The type definition says it has cycle_id.
-  // Actually, docs say recovery is linked to a cycle.
-  const whoopRecoveryId = String(record.cycle_id);
+  
+  // Using the unique ID from Whoop record
+  const whoopRecoveryId = String(record.id); 
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const delegate = (prisma as any).whoopRecovery;
-
-  await delegate.upsert({
+  await prisma.whoopRecovery.upsert({
     where: { whoopRecoveryId },
     update: {
       userId,
       whoopUserId,
-      cycleId: String(record.cycle_id),
-      sleepId: record.sleep_id ? String(record.sleep_id) : null,
+      cycleId,
+      sleepId,
       scoreState: record.score_state ?? null,
-      recoveryScore: toInt(score.recovery_score),
+      score: toInt(score.recovery_score),
       restingHeartRate: toInt(score.resting_heart_rate),
       hrvRmssdMilli: toDecimal(score.hrv_rmssd_milli),
       spo2Percentage: toDecimal(score.spo2_percentage),
       skinTempCelsius: toDecimal(score.skin_temp_celsius),
-      userCalibrating: Boolean(score.user_calibrating),
+      userCalibrating: score.user_calibrating ?? false,
       rawPayload: record as Prisma.InputJsonValue
     },
     create: {
       userId,
       whoopUserId,
       whoopRecoveryId,
-      cycleId: String(record.cycle_id),
-      sleepId: record.sleep_id ? String(record.sleep_id) : null,
+      cycleId,
+      sleepId,
       scoreState: record.score_state ?? null,
-      recoveryScore: toInt(score.recovery_score),
+      score: toInt(score.recovery_score),
       restingHeartRate: toInt(score.resting_heart_rate),
       hrvRmssdMilli: toDecimal(score.hrv_rmssd_milli),
       spo2Percentage: toDecimal(score.spo2_percentage),
       skinTempCelsius: toDecimal(score.skin_temp_celsius),
-      userCalibrating: Boolean(score.user_calibrating),
+      userCalibrating: score.user_calibrating ?? false,
       rawPayload: record as Prisma.InputJsonValue
     }
   });
@@ -309,35 +302,35 @@ const upsertSleep = async (
     return;
   }
 
-  const score = record.score ?? {};
-  const stage = score.stage_summary ?? {};
   const whoopSleepId = String(record.id);
+  const score = record.score ?? {};
+  const summary = score.stage_summary ?? {};
+  const needed = score.sleep_needed ?? {};
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const delegate = (prisma as any).whoopSleep;
-
-  await delegate.upsert({
+  await prisma.whoopSleep.upsert({
     where: { whoopSleepId },
     update: {
       userId,
       whoopUserId,
+      cycleId: undefined,
       startTime,
       endTime,
       timezoneOffsetMinutes: toInt(record.timezone_offset),
-      nap: Boolean(record.nap),
+      nap: record.nap ?? false,
       scoreState: record.score_state ?? null,
-      totalInBedTimeMilli: toInt(stage.total_in_bed_time_milli),
-      totalAwakeTimeMilli: toInt(stage.total_awake_time_milli),
-      totalNoDataTimeMilli: toInt(stage.total_no_data_time_milli),
-      totalLightSleepTimeMilli: toInt(stage.total_light_sleep_time_milli),
-      totalSlowWaveSleepTimeMilli: toInt(stage.total_slow_wave_sleep_time_milli),
-      totalRemSleepTimeMilli: toInt(stage.total_rem_sleep_time_milli),
-      sleepCycleCount: toInt(stage.sleep_cycle_count),
-      disturbanceCount: toInt(stage.disturbance_count),
-      sleepScore: toInt(score.sleep_performance_percentage),
+      score: toInt(score.sleep_performance_percentage),
+      performance: toInt(score.sleep_performance_percentage),
+      consistency: toInt(score.sleep_consistency_percentage),
+      efficiency: toInt(score.sleep_efficiency_percentage),
       respiratoryRate: toDecimal(score.respiratory_rate),
-      sleepEfficiency: toDecimal(score.sleep_efficiency_percentage),
-      sleepConsistency: toDecimal(score.sleep_consistency_percentage),
+      totalInBedSeconds: summary.total_in_bed_time_milli ? Math.round(summary.total_in_bed_time_milli / 1000) : null,
+      totalAwakeSeconds: summary.total_awake_time_milli ? Math.round(summary.total_awake_time_milli / 1000) : null,
+      totalLightSleepSeconds: summary.total_light_sleep_time_milli ? Math.round(summary.total_light_sleep_time_milli / 1000) : null,
+      totalSlowWaveSleepSeconds: summary.total_slow_wave_sleep_time_milli ? Math.round(summary.total_slow_wave_sleep_time_milli / 1000) : null,
+      totalRemSleepSeconds: summary.total_rem_sleep_time_milli ? Math.round(summary.total_rem_sleep_time_milli / 1000) : null,
+      sleepCycleCount: toInt(summary.sleep_cycle_count),
+      disturbanceCount: toInt(summary.disturbance_count),
+      sleepNeedSeconds: needed.baseline_milli ? Math.round((needed.baseline_milli + (needed.need_from_sleep_debt_milli || 0) + (needed.need_from_recent_strain_milli || 0) + (needed.need_from_recent_nap_milli || 0)) / 1000) : null,
       rawPayload: record as Prisma.InputJsonValue
     },
     create: {
@@ -347,21 +340,41 @@ const upsertSleep = async (
       startTime,
       endTime,
       timezoneOffsetMinutes: toInt(record.timezone_offset),
-      nap: Boolean(record.nap),
+      nap: record.nap ?? false,
       scoreState: record.score_state ?? null,
-      totalInBedTimeMilli: toInt(stage.total_in_bed_time_milli),
-      totalAwakeTimeMilli: toInt(stage.total_awake_time_milli),
-      totalNoDataTimeMilli: toInt(stage.total_no_data_time_milli),
-      totalLightSleepTimeMilli: toInt(stage.total_light_sleep_time_milli),
-      totalSlowWaveSleepTimeMilli: toInt(stage.total_slow_wave_sleep_time_milli),
-      totalRemSleepTimeMilli: toInt(stage.total_rem_sleep_time_milli),
-      sleepCycleCount: toInt(stage.sleep_cycle_count),
-      disturbanceCount: toInt(stage.disturbance_count),
-      sleepScore: toInt(score.sleep_performance_percentage),
+      score: toInt(score.sleep_performance_percentage),
+      performance: toInt(score.sleep_performance_percentage),
+      consistency: toInt(score.sleep_consistency_percentage),
+      efficiency: toInt(score.sleep_efficiency_percentage),
       respiratoryRate: toDecimal(score.respiratory_rate),
-      sleepEfficiency: toDecimal(score.sleep_efficiency_percentage),
-      sleepConsistency: toDecimal(score.sleep_consistency_percentage),
+      totalInBedSeconds: summary.total_in_bed_time_milli ? Math.round(summary.total_in_bed_time_milli / 1000) : null,
+      totalAwakeSeconds: summary.total_awake_time_milli ? Math.round(summary.total_awake_time_milli / 1000) : null,
+      totalLightSleepSeconds: summary.total_light_sleep_time_milli ? Math.round(summary.total_light_sleep_time_milli / 1000) : null,
+      totalSlowWaveSleepSeconds: summary.total_slow_wave_sleep_time_milli ? Math.round(summary.total_slow_wave_sleep_time_milli / 1000) : null,
+      totalRemSleepSeconds: summary.total_rem_sleep_time_milli ? Math.round(summary.total_rem_sleep_time_milli / 1000) : null,
+      sleepCycleCount: toInt(summary.sleep_cycle_count),
+      disturbanceCount: toInt(summary.disturbance_count),
+      sleepNeedSeconds: needed.baseline_milli ? Math.round((needed.baseline_milli + (needed.need_from_sleep_debt_milli || 0) + (needed.need_from_recent_strain_milli || 0) + (needed.need_from_recent_nap_milli || 0)) / 1000) : null,
       rawPayload: record as Prisma.InputJsonValue
+    }
+  });
+};
+
+const upsertBodyMeasurement = async (
+  prisma: PrismaClient,
+  userId: string,
+  whoopUserId: string,
+  record: WhoopBodyMeasurementRecord
+): Promise<void> => {
+  await prisma.whoopBodyMeasurement.create({
+    data: {
+      userId,
+      whoopUserId,
+      heightMeter: toDecimal(record.height_meter),
+      weightKg: toDecimal(record.weight_kg),
+      maxHeartRate: toInt(record.max_heart_rate),
+      rawPayload: record as Prisma.InputJsonValue,
+      capturedAt: new Date()
     }
   });
 };
@@ -386,39 +399,6 @@ const updateTaskStatus = async (
   });
 };
 
-// Generic fetcher to handle pagination for any endpoint
-const fetchAll = async <T>(
-    fetchPage: (cursor: string | null) => Promise<WhoopListResponse<T>>,
-    processRecord: (record: T) => Promise<void>,
-    logger: Pick<Console, 'info' | 'warn' | 'error'>,
-    userId: string,
-    type: string
-): Promise<{ fetched: number; upserted: number }> => {
-    let cursor: string | null = null;
-    let fetched = 0;
-    let upserted = 0;
-
-    do {
-        const response = await fetchPage(cursor);
-        fetched += response.records.length;
-
-        for (const record of response.records) {
-            try {
-                await processRecord(record);
-                upserted += 1;
-            } catch (error) {
-                logger.warn?.(`[whoop-sync] Failed to persist ${type}`, {
-                    userId,
-                    error: error instanceof Error ? error.message : error
-                });
-            }
-        }
-        cursor = response.nextCursor;
-    } while (cursor);
-
-    return { fetched, upserted };
-};
-
 const runSync = async (
   prisma: PrismaClient,
   tokenManager: WhoopTokenManager,
@@ -437,56 +417,114 @@ const runSync = async (
     throw new Error(`Missing Whoop access token for user ${integration.userId}`);
   }
 
-  let totalFetched = 0;
-  let totalUpserted = 0;
+  let fetched = 0;
+  let upserted = 0;
 
-  // 1. Sync Cycles
-  const cycleStartTime = await resolveStartTime(prisma, payload.userId, 'whoopCycle', now);
-  const cyclesResult = await fetchAll<WhoopCycleRecord>(
-      (cursor) => apiClient.listCycles(accessToken, { start: cycleStartTime, cursor, limit: PAGE_LIMIT }),
-      (record) => upsertCycle(prisma, payload.userId, payload.whoopUserId, record),
-      logger,
-      payload.userId,
-      'cycle'
-  );
-  totalFetched += cyclesResult.fetched;
-  totalUpserted += cyclesResult.upserted;
+  // Sync Cycles
+  try {
+    const startTime = await resolveStartTime(prisma, payload.userId, 'whoopCycle', now);
+    let cursor: string | null = null;
+    do {
+      const response = await apiClient.listCycles(accessToken, { start: startTime, cursor, limit: PAGE_LIMIT });
+      fetched += response.records.length;
+      for (const record of response.records) {
+        try {
+          await upsertCycle(prisma, payload.userId, payload.whoopUserId, record);
+          upserted += 1;
+        } catch (e) {
+          logger.warn?.('[whoop-sync] Failed to persist cycle', { error: String(e) });
+        }
+      }
+      cursor = response.nextCursor;
+    } while (cursor);
+  } catch (e) {
+    logger.error?.('[whoop-sync] Cycle sync failed', { error: String(e) });
+  }
 
-  // 2. Sync Workouts
-  const workoutStartTime = await resolveStartTime(prisma, payload.userId, 'whoopWorkout', now);
-  const workoutsResult = await fetchAll<WhoopWorkoutRecord>(
-      (cursor) => apiClient.listWorkouts(accessToken, { start: workoutStartTime, cursor, limit: PAGE_LIMIT }),
-      (record) => upsertWorkout(prisma, payload.userId, payload.whoopUserId, record),
-      logger,
-      payload.userId,
-      'workout'
-  );
-  totalFetched += workoutsResult.fetched;
-  totalUpserted += workoutsResult.upserted;
+  // Sync Recoveries
+  try {
+    const startTime = await resolveStartTime(prisma, payload.userId, 'whoopRecovery', now);
+    let cursor: string | null = null;
+    do {
+      const response = await apiClient.listRecoveries(accessToken, { start: startTime, cursor, limit: PAGE_LIMIT });
+      fetched += response.records.length;
+      for (const record of response.records) {
+        try {
+          await upsertRecovery(prisma, payload.userId, payload.whoopUserId, record);
+          upserted += 1;
+        } catch (e) {
+          logger.warn?.('[whoop-sync] Failed to persist recovery', { error: String(e) });
+        }
+      }
+      cursor = response.nextCursor;
+    } while (cursor);
+  } catch (e) {
+    logger.error?.('[whoop-sync] Recovery sync failed', { error: String(e) });
+  }
 
-  // 3. Sync Sleep
-  const sleepStartTime = await resolveStartTime(prisma, payload.userId, 'whoopSleep', now);
-  const sleepResult = await fetchAll<WhoopSleepRecord>(
-      (cursor) => apiClient.listSleep(accessToken, { start: sleepStartTime, cursor, limit: PAGE_LIMIT }),
-      (record) => upsertSleep(prisma, payload.userId, payload.whoopUserId, record),
-      logger,
-      payload.userId,
-      'sleep'
-  );
-  totalFetched += sleepResult.fetched;
-  totalUpserted += sleepResult.upserted;
+  // Sync Sleeps
+  try {
+    const startTime = await resolveStartTime(prisma, payload.userId, 'whoopSleep', now);
+    let cursor: string | null = null;
+    do {
+      const response = await apiClient.listSleeps(accessToken, { start: startTime, cursor, limit: PAGE_LIMIT });
+      fetched += response.records.length;
+      for (const record of response.records) {
+        try {
+          await upsertSleep(prisma, payload.userId, payload.whoopUserId, record);
+          upserted += 1;
+        } catch (e) {
+          logger.warn?.('[whoop-sync] Failed to persist sleep', { error: String(e) });
+        }
+      }
+      cursor = response.nextCursor;
+    } while (cursor);
+  } catch (e) {
+    logger.error?.('[whoop-sync] Sleep sync failed', { error: String(e) });
+  }
 
-  // 4. Sync Recovery
-  // Recovery is typically tied to a cycle or day. We can use the cycleStartTime as a heuristic.
-  const recoveryResult = await fetchAll<WhoopRecoveryRecord>(
-      (cursor) => apiClient.listRecovery(accessToken, { start: cycleStartTime, cursor, limit: PAGE_LIMIT }),
-      (record) => upsertRecovery(prisma, payload.userId, payload.whoopUserId, record),
-      logger,
-      payload.userId,
-      'recovery'
-  );
-  totalFetched += recoveryResult.fetched;
-  totalUpserted += recoveryResult.upserted;
+  // Sync Workouts
+  try {
+    const startTime = await resolveStartTime(prisma, payload.userId, 'whoopWorkout', now);
+    let cursor: string | null = null;
+    do {
+      const response = await apiClient.listWorkouts(accessToken, {
+        start: startTime,
+        cursor,
+        limit: PAGE_LIMIT
+      });
+      fetched += response.records.length;
+
+      for (const record of response.records) {
+        try {
+          await upsertWorkout(prisma, payload.userId, payload.whoopUserId, record);
+          upserted += 1;
+        } catch (error) {
+          logger.warn?.('[whoop-sync] Failed to persist workout', {
+            userId: payload.userId,
+            whoopWorkoutId: record.id,
+            error: error instanceof Error ? error.message : error
+          });
+        }
+      }
+
+      cursor = response.nextCursor;
+    } while (cursor);
+  } catch (e) {
+     logger.error?.('[whoop-sync] Workout sync failed', { error: String(e) });
+  }
+
+  // Sync Body Measurements (Snapshot)
+  try {
+    const bodyMeasurements = await apiClient.getBodyMeasurements(accessToken);
+    if (bodyMeasurements) {
+      fetched += 1;
+      await upsertBodyMeasurement(prisma, payload.userId, payload.whoopUserId, bodyMeasurements);
+      upserted += 1;
+    }
+  } catch (error) {
+    logger.warn?.('[whoop-sync] Failed to sync body measurements', { userId: payload.userId, error });
+  }
 
   await prisma.whoopIntegration.update({
     where: { id: integration.id },
@@ -497,7 +535,7 @@ const runSync = async (
     }
   });
 
-  return { fetched: totalFetched, upserted: totalUpserted };
+  return { fetched, upserted };
 };
 
 export const createWhoopSyncWorker = (deps: WhoopSyncWorkerDeps = {}) => {
