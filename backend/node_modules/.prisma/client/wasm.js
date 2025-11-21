@@ -509,6 +509,70 @@ exports.Prisma.WhoopWorkoutScalarFieldEnum = {
   updatedAt: 'updatedAt'
 };
 
+exports.Prisma.WhoopCycleScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  whoopUserId: 'whoopUserId',
+  whoopCycleId: 'whoopCycleId',
+  startTime: 'startTime',
+  endTime: 'endTime',
+  timezoneOffsetMinutes: 'timezoneOffsetMinutes',
+  scoreState: 'scoreState',
+  strain: 'strain',
+  kilojoule: 'kilojoule',
+  avgHeartRate: 'avgHeartRate',
+  maxHeartRate: 'maxHeartRate',
+  rawPayload: 'rawPayload',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.WhoopRecoveryScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  whoopUserId: 'whoopUserId',
+  whoopRecoveryId: 'whoopRecoveryId',
+  cycleId: 'cycleId',
+  sleepId: 'sleepId',
+  scoreState: 'scoreState',
+  recoveryScore: 'recoveryScore',
+  restingHeartRate: 'restingHeartRate',
+  hrvRmssdMilli: 'hrvRmssdMilli',
+  spo2Percentage: 'spo2Percentage',
+  skinTempCelsius: 'skinTempCelsius',
+  userCalibrating: 'userCalibrating',
+  rawPayload: 'rawPayload',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.WhoopSleepScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  whoopUserId: 'whoopUserId',
+  whoopSleepId: 'whoopSleepId',
+  startTime: 'startTime',
+  endTime: 'endTime',
+  timezoneOffsetMinutes: 'timezoneOffsetMinutes',
+  nap: 'nap',
+  scoreState: 'scoreState',
+  totalInBedTimeMilli: 'totalInBedTimeMilli',
+  totalAwakeTimeMilli: 'totalAwakeTimeMilli',
+  totalNoDataTimeMilli: 'totalNoDataTimeMilli',
+  totalLightSleepTimeMilli: 'totalLightSleepTimeMilli',
+  totalSlowWaveSleepTimeMilli: 'totalSlowWaveSleepTimeMilli',
+  totalRemSleepTimeMilli: 'totalRemSleepTimeMilli',
+  sleepCycleCount: 'sleepCycleCount',
+  disturbanceCount: 'disturbanceCount',
+  sleepScore: 'sleepScore',
+  respiratoryRate: 'respiratoryRate',
+  sleepEfficiency: 'sleepEfficiency',
+  sleepConsistency: 'sleepConsistency',
+  rawPayload: 'rawPayload',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
 exports.Prisma.FeedPostScalarFieldEnum = {
   id: 'id',
   authorId: 'authorId',
@@ -675,6 +739,79 @@ exports.Prisma.RoomMembershipScalarFieldEnum = {
   leftAt: 'leftAt',
   lastSeenAt: 'lastSeenAt',
   reconnectToken: 'reconnectToken',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.NutritionLogScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  name: 'name',
+  type: 'type',
+  calories: 'calories',
+  protein: 'protein',
+  carbs: 'carbs',
+  fats: 'fats',
+  items: 'items',
+  notes: 'notes',
+  eatenAt: 'eatenAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.MacroGoalsScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  calories: 'calories',
+  protein: 'protein',
+  carbs: 'carbs',
+  fats: 'fats',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.NutritionProtocolScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  title: 'title',
+  focus: 'focus',
+  category: 'category',
+  durationWeeks: 'durationWeeks',
+  evidence: 'evidence',
+  adherence: 'adherence',
+  impactSummary: 'impactSummary',
+  timing: 'timing',
+  supplements: 'supplements',
+  citations: 'citations',
+  colorTheme: 'colorTheme',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.MealTemplateScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  name: 'name',
+  calories: 'calories',
+  protein: 'protein',
+  carbs: 'carbs',
+  fats: 'fats',
+  prepTimeMinutes: 'prepTimeMinutes',
+  complexity: 'complexity',
+  description: 'description',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.NutritionMicronutrientScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  name: 'name',
+  value: 'value',
+  target: 'target',
+  unit: 'unit',
+  status: 'status',
+  recordedAt: 'recordedAt',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 };
@@ -907,6 +1044,31 @@ exports.RoomMembershipStatus = exports.$Enums.RoomMembershipStatus = {
   SPECTATOR: 'SPECTATOR'
 };
 
+exports.MealType = exports.$Enums.MealType = {
+  BREAKFAST: 'BREAKFAST',
+  LUNCH: 'LUNCH',
+  DINNER: 'DINNER',
+  SNACK: 'SNACK'
+};
+
+exports.NutritionEvidenceLevel = exports.$Enums.NutritionEvidenceLevel = {
+  LOW: 'LOW',
+  MEDIUM: 'MEDIUM',
+  HIGH: 'HIGH'
+};
+
+exports.TemplateComplexity = exports.$Enums.TemplateComplexity = {
+  EASY: 'EASY',
+  MEDIUM: 'MEDIUM',
+  ADVANCED: 'ADVANCED'
+};
+
+exports.MicronutrientStatus = exports.$Enums.MicronutrientStatus = {
+  LOW: 'LOW',
+  OPTIMAL: 'OPTIMAL',
+  HIGH: 'HIGH'
+};
+
 exports.Prisma.ModelName = {
   User: 'User',
   Profile: 'Profile',
@@ -933,6 +1095,9 @@ exports.Prisma.ModelName = {
   MembershipInvite: 'MembershipInvite',
   MembershipInviteRedemption: 'MembershipInviteRedemption',
   WhoopWorkout: 'WhoopWorkout',
+  WhoopCycle: 'WhoopCycle',
+  WhoopRecovery: 'WhoopRecovery',
+  WhoopSleep: 'WhoopSleep',
   FeedPost: 'FeedPost',
   Comment: 'Comment',
   Reaction: 'Reaction',
@@ -945,7 +1110,12 @@ exports.Prisma.ModelName = {
   DataDeletionJob: 'DataDeletionJob',
   AiResponseAudit: 'AiResponseAudit',
   Room: 'Room',
-  RoomMembership: 'RoomMembership'
+  RoomMembership: 'RoomMembership',
+  NutritionLog: 'NutritionLog',
+  MacroGoals: 'MacroGoals',
+  NutritionProtocol: 'NutritionProtocol',
+  MealTemplate: 'MealTemplate',
+  NutritionMicronutrient: 'NutritionMicronutrient'
 };
 
 /**

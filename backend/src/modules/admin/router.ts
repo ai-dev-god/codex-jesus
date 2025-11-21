@@ -316,6 +316,42 @@ router.post('/users/:userId/activate', async (req, res, next) => {
   }
 });
 
+router.get('/overview', async (req, res, next) => {
+  try {
+    if (!req.user || req.user.role !== Role.ADMIN) {
+      throw new HttpError(403, 'Only admins may view system overview', 'FORBIDDEN');
+    }
+    const data = await adminService.getSystemOverview();
+    res.status(200).json(data);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/metrics/system', async (req, res, next) => {
+  try {
+    if (!req.user || req.user.role !== Role.ADMIN) {
+      throw new HttpError(403, 'Only admins may view system metrics', 'FORBIDDEN');
+    }
+    const data = await adminService.getSystemMetrics();
+    res.status(200).json(data);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/config', async (req, res, next) => {
+  try {
+    if (!req.user || req.user.role !== Role.ADMIN) {
+      throw new HttpError(403, 'Only admins may view app config', 'FORBIDDEN');
+    }
+    const data = await adminService.getAppConfig();
+    res.status(200).json(data);
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/system-health', async (req, res, next) => {
   try {
     if (!req.user || req.user.role !== Role.ADMIN) {
